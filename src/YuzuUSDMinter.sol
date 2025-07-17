@@ -7,20 +7,17 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/IYuzuUSD.sol";
+import "./interfaces/IYuzuUSDMinterDefinitions.sol";
 
 /**
  * @title YuzuUSDMinter
  */
-contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard {
+contract YuzuUSDMinter is
+    AccessControlDefaultAdminRules,
+    ReentrancyGuard,
+    IYuzuUSDMinterDefinitions
+{
     using SafeERC20 for IERC20;
-
-    event TreasuryUpdated(address oldTreasury, address newTreasury);
-    event MaxMintPerBlockUpdated(uint256 oldMax, uint256 newMax);
-    event MaxRedeemPerBlockUpdated(uint256 oldMax, uint256 newMax);
-
-    error InvalidZeroAddress();
-    error MaxMintPerBlockExceeded();
-    error MaxRedeemPerBlockExceeded();
 
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 

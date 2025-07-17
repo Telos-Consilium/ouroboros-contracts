@@ -6,15 +6,12 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
+import "./interfaces/IYuzuUSDDefinitions.sol";
+
 /**
  * @title YuzuUSD
  */
-contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step {
-    event MinterUpdated(address indexed oldMinter, address indexed newMinter);
-
-    error CannotRenounceOwnership();
-    error OnlyMinter();
-
+contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinitions {
     address public minter;
 
     constructor(
