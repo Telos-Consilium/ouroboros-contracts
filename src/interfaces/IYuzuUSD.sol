@@ -17,4 +17,5 @@ interface IYuzuUSD is IERC20, IERC20Metadata, IERC20Permit {
     function renounceOwnership() external;
 
     function setMinter(address newMinter) external;
+    function minter() external returns (address);
 }
