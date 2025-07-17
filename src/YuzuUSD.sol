@@ -28,8 +28,4 @@ contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinition
         if (msg.sender != minter) revert OnlyMinter();
         _mint(to, amount);
     }
-
-    function renounceOwnership() public view override onlyOwner {
-        revert CannotRenounceOwnership();
-    }
 }
