@@ -22,8 +22,9 @@ contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step {
     ) ERC20("Yuzu USD", "yzUSD") ERC20Permit("Yuzu USD") Ownable(owner) {}
 
     function setMinter(address newMinter) external onlyOwner {
-        emit MinterUpdated(minter, newMinter);
+        address oldMinter = minter;
         minter = newMinter;
+        emit MinterUpdated(oldMinter, newMinter);
     }
 
     function mint(address to, uint256 amount) external {
