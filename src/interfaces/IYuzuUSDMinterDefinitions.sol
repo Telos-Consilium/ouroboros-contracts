@@ -13,9 +13,15 @@ interface IYuzuUSDMinterDefinitions {
     event StandardFillWindowUpdated(uint256 oldWindow, uint256 newWindow);
     event MaxMintPerBlockUpdated(uint256 oldMax, uint256 newMax);
     event MaxRedeemPerBlockUpdated(uint256 oldMax, uint256 newMax);
+    event CollateralWithdrawn(uint256 amount, address to);
     event Minted(address from, address to, uint256 amount);
     event Redeemed(address from, address to, uint256 amount);
-    event InstantRedeem(address from, address to, uint256 amount, uint256 feeBps);
+    event InstantRedeem(
+        address from,
+        address to,
+        uint256 amount,
+        uint256 feeBps
+    );
     event FastRedeemOrderCreated(
         uint256 orderId,
         address owner,

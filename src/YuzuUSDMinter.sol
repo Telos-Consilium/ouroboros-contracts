@@ -260,6 +260,7 @@ contract YuzuUSDMinter is
         uint256 outstandingBalance = _getOutstandingCollateralBalance();
         if (amount > outstandingBalance) revert ExceedsOutstandingBalance();
         IERC20(collateralToken).safeTransfer(to, amount);
+        emit CollateralWithdrawn(amount, to);
     }
 
     function rescueTokens(
