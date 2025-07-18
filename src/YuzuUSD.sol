@@ -14,9 +14,7 @@ import "./interfaces/IYuzuUSDDefinitions.sol";
 contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinitions {
     address public minter;
 
-    constructor(
-        address owner
-    ) ERC20("Yuzu USD", "yzUSD") ERC20Permit("Yuzu USD") Ownable(owner) {}
+    constructor(address owner) ERC20("Yuzu USD", "yzUSD") ERC20Permit("Yuzu USD") Ownable(owner) {}
 
     function setMinter(address newMinter) external onlyOwner {
         address oldMinter = minter;

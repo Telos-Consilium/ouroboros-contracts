@@ -34,10 +34,7 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function mint(address to, uint256 amount) external;
     function instantRedeem(address to, uint256 amount) external;
     function fastRedeem(uint256 amount) external;
-    function fillFastRedeemOrder(
-        uint256 orderId,
-        address feeRecipient
-    ) external;
+    function fillFastRedeemOrder(uint256 orderId, address feeRecipient) external;
     function standardRedeem(uint256 amount) external;
     function fillStandardRedeemOrder(uint256 orderId) external;
     function withdrawCollateral(address to, uint256 amount) external;
@@ -51,20 +48,12 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function collateralToken() external view returns (address);
     function treasury() external view returns (address);
     function redeemFeeRecipient() external view returns (address);
-    function mintedPerBlock(
-        uint256 blockNumber
-    ) external view returns (uint256);
-    function redeemedPerBlock(
-        uint256 blockNumber
-    ) external view returns (uint256);
+    function mintedPerBlock(uint256 blockNumber) external view returns (uint256);
+    function redeemedPerBlock(uint256 blockNumber) external view returns (uint256);
     function maxMintPerBlock() external view returns (uint256);
     function maxRedeemPerBlock() external view returns (uint256);
-    function getFastRedeemOrder(
-        uint256 orderId
-    ) external view returns (Order memory);
-    function getStandardRedeemOrder(
-        uint256 orderId
-    ) external view returns (Order memory);
+    function getFastRedeemOrder(uint256 orderId) external view returns (Order memory);
+    function getStandardRedeemOrder(uint256 orderId) external view returns (Order memory);
     function fastRedeemOrderCount() external view returns (uint256);
     function standardRedeemOrderCount() external view returns (uint256);
     function instantRedeemFeeBps() external view returns (uint256);
@@ -73,8 +62,5 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function fastFillWindow() external view returns (uint256);
     function standardFillWindow() external view returns (uint256);
     function currentPendingFastRedeemValue() external view returns (uint256);
-    function currentPendingStandardRedeemValue()
-        external
-        view
-        returns (uint256);
+    function currentPendingStandardRedeemValue() external view returns (uint256);
 }

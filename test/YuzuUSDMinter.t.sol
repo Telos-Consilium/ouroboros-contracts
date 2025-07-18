@@ -35,10 +35,8 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     uint256 public constant MAX_REDEEM_PER_BLOCK = 500e18;
 
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 private constant LIMIT_MANAGER_ROLE =
-        keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 private constant REDEEM_MANAGER_ROLE =
-        keccak256("REDEEM_MANAGER_ROLE");
+    bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 private constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
 
     function setUp() public {
@@ -111,13 +109,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         vm.expectRevert(InvalidZeroAddress.selector);
         new YuzuUSDMinter(
-            address(yzusd),
-            address(0),
-            admin,
-            treasury,
-            redeemFeeRecipient,
-            MAX_MINT_PER_BLOCK,
-            MAX_REDEEM_PER_BLOCK
+            address(yzusd), address(0), admin, treasury, redeemFeeRecipient, MAX_MINT_PER_BLOCK, MAX_REDEEM_PER_BLOCK
         );
 
         vm.expectRevert(InvalidZeroAddress.selector);
@@ -378,10 +370,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.stopPrank();
 
         assertEq(yzusd.balanceOf(user1), mintAmount - redeemAmount);
-        assertEq(
-            collateralToken.balanceOf(user1),
-            10000e18 - mintAmount + redeemAmount
-        );
+        assertEq(collateralToken.balanceOf(user1), 10000e18 - mintAmount + redeemAmount);
         assertEq(minter.redeemedPerBlock(block.number), redeemAmount);
     }
 
@@ -418,10 +407,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         uint256 expectedAmount = redeemAmount - expectedFee;
 
         assertEq(yzusd.balanceOf(user1), mintAmount - redeemAmount);
-        assertEq(
-            collateralToken.balanceOf(user1),
-            10000e18 - mintAmount + expectedAmount
-        );
+        assertEq(collateralToken.balanceOf(user1), 10000e18 - mintAmount + expectedAmount);
         assertEq(collateralToken.balanceOf(redeemFeeRecipient), expectedFee);
     }
 
@@ -526,14 +512,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), redeemAmount);
 
         vm.expectEmit();
-        emit FastRedeemOrderFilled(
-            0,
-            user1,
-            filler,
-            redeemFeeRecipient,
-            redeemAmount,
-            0
-        );
+        emit FastRedeemOrderFilled(0, user1, filler, redeemFeeRecipient, redeemAmount, 0);
 
         minter.fillFastRedeemOrder(0, redeemFeeRecipient);
         vm.stopPrank();
@@ -541,10 +520,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Check order was filled
         Order memory order = minter.getFastRedeemOrder(0);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
-        assertEq(
-            collateralToken.balanceOf(user1),
-            10000e18 - mintAmount + redeemAmount
-        );
+        assertEq(collateralToken.balanceOf(user1), 10000e18 - mintAmount + redeemAmount);
         assertEq(minter.currentPendingFastRedeemValue(), 0);
     }
 
@@ -574,14 +550,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         uint256 expectedFee = (redeemAmount * feeBps) / 10_000;
 
         vm.expectEmit();
-        emit FastRedeemOrderFilled(
-            0,
-            user1,
-            filler,
-            redeemFeeRecipient,
-            redeemAmount,
-            feeBps
-        );
+        emit FastRedeemOrderFilled(0, user1, filler, redeemFeeRecipient, redeemAmount, feeBps);
 
         minter.fillFastRedeemOrder(0, redeemFeeRecipient);
         vm.stopPrank();
@@ -589,10 +558,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Check order was filled
         Order memory order = minter.getFastRedeemOrder(0);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
-        assertEq(
-            collateralToken.balanceOf(user1),
-            10000e18 - mintAmount + redeemAmount - expectedFee
-        );
+        assertEq(collateralToken.balanceOf(user1), 10000e18 - mintAmount + redeemAmount - expectedFee);
         assertEq(collateralToken.balanceOf(redeemFeeRecipient), expectedFee);
         assertEq(minter.currentPendingFastRedeemValue(), 0);
     }
@@ -742,10 +708,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Check order was filled
         Order memory order = minter.getStandardRedeemOrder(0);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
-        assertEq(
-            collateralToken.balanceOf(user1),
-            10000e18 - mintAmount + redeemAmount
-        );
+        assertEq(collateralToken.balanceOf(user1), 10000e18 - mintAmount + redeemAmount);
         assertEq(minter.currentPendingStandardRedeemValue(), 0);
     }
 
@@ -781,10 +744,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Check order was filled
         Order memory order = minter.getStandardRedeemOrder(0);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
-        assertEq(
-            collateralToken.balanceOf(user1),
-            10000e18 - mintAmount + redeemAmount - expectedFee
-        );
+        assertEq(collateralToken.balanceOf(user1), 10000e18 - mintAmount + redeemAmount - expectedFee);
         assertEq(collateralToken.balanceOf(redeemFeeRecipient), expectedFee);
         assertEq(minter.currentPendingStandardRedeemValue(), 0);
     }
@@ -896,10 +856,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(user1);
         minter.mint(user2, mintAmount2);
 
-        assertEq(
-            minter.mintedPerBlock(block.number),
-            mintAmount1 + mintAmount2
-        );
+        assertEq(minter.mintedPerBlock(block.number), mintAmount1 + mintAmount2);
 
         // Third mint should fail (would exceed 1000e18)
         uint256 mintAmount3 = 200e18;
