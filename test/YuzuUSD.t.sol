@@ -3,15 +3,15 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {YuzuUSD} from "../src/YuzuUSD.sol";
+import {IYuzuUSDDefinitions} from "../src/interfaces/IYuzuUSDDefinitions.sol";
 
-contract YuzuUSDTest is Test {
+contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
     YuzuUSD public yzusd;
     address public owner;
     address public minter;
     address public user1;
     address public user2;
 
-    event MinterUpdated(address indexed oldMinter, address indexed newMinter);
     event Transfer(address indexed from, address indexed to, uint256 value);
 
     function setUp() public {
@@ -89,13 +89,13 @@ contract YuzuUSDTest is Test {
         yzusd.setMinter(minter);
 
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert(OnlyMinter.selector);
         yzusd.mint(user1, 1000e18);
     }
 
     function test_Mint_NoMinterSet() public {
         vm.prank(owner);
-        vm.expectRevert();
+        vm.expectRevert(OnlyMinter.selector);
         yzusd.mint(user1, 1000e18);
     }
 
