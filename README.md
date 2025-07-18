@@ -1,3 +1,17 @@
+# YuzuUSD
+
+## Contracts
+
+### YuzuUSD.sol
+
+### YuzuUSDMinter.sol
+
+The YuzuUSDMinter contract is a minting and redemption system that allows users to mint YuzuUSD tokens by depositing collateral and redeem collateral by burning YuzuUSD tokens.
+
+[YuzuUSDMinter.sol docs](./docs/minter.md)
+
+---
+
 ## Foundry
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**

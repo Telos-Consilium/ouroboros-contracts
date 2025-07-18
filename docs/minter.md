@@ -1,4 +1,4 @@
-# YuzuUSDMinter Contract Documentation
+# YuzuUSDMinter Contract
 
 ## Overview
 
