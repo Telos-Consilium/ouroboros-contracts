@@ -35,6 +35,7 @@ interface IYuzuUSDMinterDefinitions {
         uint256 amount,
         uint256 feeBps
     );
+    event FastRedeemOrderCancelled(uint256 orderId);
     event StandardRedeemOrderCreated(
         uint256 orderId,
         address owner,
@@ -51,6 +52,7 @@ interface IYuzuUSDMinterDefinitions {
     error InvalidToken();
     error InvalidAmount();
     error InvalidOrder();
+    error Unauthorized();
     error MaxMintPerBlockExceeded();
     error MaxRedeemPerBlockExceeded();
     error ExceedsLiquidityBuffer();

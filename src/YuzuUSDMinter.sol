@@ -230,6 +230,14 @@ contract YuzuUSDMinter is
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
+    function cancelFastRedeemOrder(uint256 orderId) external nonReentrant {
+        Order storage order = fastRedeemOrders[orderId];
+        if (order.amount == 0) revert InvalidOrder();
+        if (msg.sender != order.owner) revert Unauthorized();
+        _cancelFastRedeemOrder(order);
+        emit FastRedeemOrderCancelled(orderId);
+    }
+
     function standardRedeem(
         uint256 amount
     ) external nonReentrant underMaxRedeemPerBlock(amount) {
@@ -358,11 +366,7 @@ contract YuzuUSDMinter is
     function _cancelFastRedeemOrder(Order storage order) internal {
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
         if (block.timestamp < order.dueTime) revert OrderNotDue();
-        IERC20(yzusd).safeTransferFrom(
-            address(this),
-            order.owner,
-            order.amount
-        );
+        IERC20(yzusd).safeTransfer(order.owner, order.amount);
         order.status = OrderStatus.Cancelled;
         currentPendingFastRedeemValue -= order.amount;
     }
