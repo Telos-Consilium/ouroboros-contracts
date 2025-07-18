@@ -142,6 +142,7 @@ contract YuzuUSDMinter is
     function setInstantRedeemFeeBps(
         uint256 newFeeBps
     ) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeeBps > 10_000) revert InvalidFeeBps();
         uint256 oldFee = instantRedeemFeeBps;
         instantRedeemFeeBps = newFeeBps;
         emit InstantRedeemFeeBpsUpdated(oldFee, newFeeBps);
@@ -150,6 +151,7 @@ contract YuzuUSDMinter is
     function setFastRedeemFeeBps(
         uint256 newFeeBps
     ) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeeBps > 10_000) revert InvalidFeeBps();
         uint256 oldFee = fastRedeemFeeBps;
         fastRedeemFeeBps = newFeeBps;
         emit FastRedeemFeeBpsUpdated(oldFee, newFeeBps);
@@ -158,6 +160,7 @@ contract YuzuUSDMinter is
     function setStandardRedeemFeeBps(
         uint256 newFeeBps
     ) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeeBps > 10_000) revert InvalidFeeBps();
         uint256 oldFee = standardRedeemFeeBps;
         standardRedeemFeeBps = newFeeBps;
         emit StandardRedeemFeeBpsUpdated(oldFee, newFeeBps);

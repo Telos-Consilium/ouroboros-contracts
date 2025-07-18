@@ -58,6 +58,7 @@ interface IYuzuUSDMinterDefinitions {
     error InvalidToken();
     error InvalidAmount();
     error InvalidOrder();
+    error InvalidFeeBps();
     error Unauthorized();
     error MaxMintPerBlockExceeded();
     error MaxRedeemPerBlockExceeded();
