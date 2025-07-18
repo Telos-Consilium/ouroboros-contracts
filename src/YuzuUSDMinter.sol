@@ -70,7 +70,7 @@ contract YuzuUSDMinter is
     modifier underLiquidityBuffer(uint256 amount) {
         uint256 liquidityBufferSize = _getLiquidityBufferSize();
         if (amount > liquidityBufferSize) {
-            revert ExceedsLiquidityBuffer();
+            revert LiquidityBufferExceeded();
         }
         _;
     }
@@ -269,7 +269,7 @@ contract YuzuUSDMinter is
     ) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         uint256 outstandingBalance = _getOutstandingCollateralBalance();
-        if (amount > outstandingBalance) revert ExceedsOutstandingBalance();
+        if (amount > outstandingBalance) revert OutstandingBalanceExceeded();
         IERC20(collateralToken).safeTransfer(to, amount);
         emit CollateralWithdrawn(to, amount);
     }
@@ -292,7 +292,7 @@ contract YuzuUSDMinter is
     ) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         uint256 outstandingBalance = _getOutstandingYuzuUSDBalance();
-        if (amount > outstandingBalance) revert ExceedsOutstandingBalance();
+        if (amount > outstandingBalance) revert OutstandingBalanceExceeded();
         IERC20(yzusd).safeTransfer(to, amount);
     }
 
@@ -396,7 +396,7 @@ contract YuzuUSDMinter is
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
         if (block.timestamp < order.dueTime) revert OrderNotDue();
         uint256 liquidityBufferSize = _getLiquidityBufferSize();
-        if (order.amount > liquidityBufferSize) revert ExceedsLiquidityBuffer();
+        if (order.amount > liquidityBufferSize) revert LiquidityBufferExceeded();
         uint256 fee = (order.amount * order.feeBps) / 10_000;
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);

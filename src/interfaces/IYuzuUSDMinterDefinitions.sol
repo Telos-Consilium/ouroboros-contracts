@@ -4,14 +4,8 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
 
 interface IYuzuUSDMinterDefinitions {
-    event TreasuryUpdated(
-        address oldTreasury,
-        address newTreasury
-    );
-    event RedeemFeeRecipientUpdated(
-        address oldRecipient,
-        address newRecipient
-    );
+    event TreasuryUpdated(address oldTreasury, address newTreasury);
+    event RedeemFeeRecipientUpdated(address oldRecipient, address newRecipient);
     event InstantRedeemFeeBpsUpdated(uint256 oldFee, uint256 newFee);
     event FastRedeemFeeBpsUpdated(uint256 oldFee, uint256 newFee);
     event StandardRedeemFeeBpsUpdated(uint256 oldFee, uint256 newFee);
@@ -62,8 +56,8 @@ interface IYuzuUSDMinterDefinitions {
     error Unauthorized();
     error MaxMintPerBlockExceeded();
     error MaxRedeemPerBlockExceeded();
-    error ExceedsLiquidityBuffer();
-    error ExceedsOutstandingBalance();
+    error LiquidityBufferExceeded();
+    error OutstandingBalanceExceeded();
     error OrderNotPending();
     error OrderNotDue();
 }
