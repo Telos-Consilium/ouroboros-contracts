@@ -27,7 +27,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
     // Minter Setting Tests
     function test_SetMinter_Success() public {
         vm.prank(owner);
-        vm.expectEmit(true, true, false, false);
+        vm.expectEmit();
         emit MinterUpdated(address(0), minter);
 
         yzusd.setMinter(minter);
@@ -49,7 +49,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         address newMinter = makeAddr("newMinter");
 
         vm.prank(owner);
-        vm.expectEmit(true, true, false, false);
+        vm.expectEmit();
         emit MinterUpdated(minter, newMinter);
 
         yzusd.setMinter(newMinter);
@@ -59,7 +59,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
 
     function test_SetMinter_ZeroAddress() public {
         vm.prank(owner);
-        vm.expectEmit(true, true, false, false);
+        vm.expectEmit();
         emit MinterUpdated(address(0), address(0));
 
         yzusd.setMinter(address(0));
@@ -75,7 +75,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         uint256 amount = 1000e18;
 
         vm.prank(minter);
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit Transfer(address(0), user1, amount);
 
         yzusd.mint(user1, amount);

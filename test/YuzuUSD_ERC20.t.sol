@@ -45,7 +45,7 @@ contract YuzuUSDTestERC20 is Test {
         uint256 transferAmount = 500e18;
 
         vm.prank(user1);
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit Transfer(user1, user2, transferAmount);
 
         bool success = yzusd.transfer(user2, transferAmount);
