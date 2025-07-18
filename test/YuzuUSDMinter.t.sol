@@ -158,7 +158,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     function test_SetTreasury() public {
         address newTreasury = makeAddr("newTreasury");
 
-        vm.expectEmit(true, true, false, false);
+        vm.expectEmit();
         emit TreasuryUpdated(treasury, newTreasury);
 
         vm.prank(admin);
@@ -179,7 +179,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
-        vm.expectEmit(true, true, false, false);
+        vm.expectEmit();
         emit RedeemFeeRecipientUpdated(redeemFeeRecipient, newRecipient);
 
         vm.prank(admin);
@@ -194,7 +194,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(LIMIT_MANAGER_ROLE, admin);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit MaxMintPerBlockUpdated(MAX_MINT_PER_BLOCK, newMaxMint);
 
         vm.prank(admin);
@@ -209,7 +209,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(LIMIT_MANAGER_ROLE, admin);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit MaxRedeemPerBlockUpdated(MAX_REDEEM_PER_BLOCK, newMaxRedeem);
 
         vm.prank(admin);
@@ -224,7 +224,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit InstantRedeemFeeBpsUpdated(0, newFee);
 
         vm.prank(admin);
@@ -239,7 +239,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit FastRedeemFeeBpsUpdated(0, newFee);
 
         vm.prank(admin);
@@ -254,7 +254,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit StandardRedeemFeeBpsUpdated(0, newFee);
 
         vm.prank(admin);
@@ -269,7 +269,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit FastFillWindowUpdated(1 days, newWindow);
 
         vm.prank(admin);
@@ -284,7 +284,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit();
         emit StandardFillWindowUpdated(7 days, newWindow);
 
         vm.prank(admin);
@@ -297,7 +297,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         uint256 amount = 10e18;
         address to = makeAddr("recipient");
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit CollateralWithdrawn(to, amount);
 
         vm.prank(admin);
@@ -313,7 +313,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.startPrank(user1);
         collateralToken.approve(address(minter), amount);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit Minted(user1, user1, amount);
 
         minter.mint(user1, amount);
@@ -368,10 +368,10 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Then redeem
         yzusd.approve(address(minter), redeemAmount);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit InstantRedeem(user1, user1, redeemAmount, 0);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit Redeemed(user1, user1, redeemAmount);
 
         minter.instantRedeem(user1, redeemAmount);
@@ -406,10 +406,10 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         uint256 expectedFee = (redeemAmount * feeBps) / 10_000;
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit InstantRedeem(user1, user1, redeemAmount, expectedFee);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit Redeemed(user1, user1, redeemAmount);
 
         minter.instantRedeem(user1, redeemAmount);
@@ -461,7 +461,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Create fast redeem order
         yzusd.approve(address(minter), redeemAmount);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit FastRedeemOrderCreated(0, user1, redeemAmount);
 
         minter.fastRedeem(redeemAmount);
@@ -494,7 +494,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         // Create fast redeem order
         yzusd.approve(address(minter), redeemAmount);
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit FastRedeemOrderCreated(0, user1, redeemAmount);
         minter.fastRedeem(redeemAmount);
         vm.stopPrank();
@@ -525,7 +525,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.startPrank(filler);
         collateralToken.approve(address(minter), redeemAmount);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit FastRedeemOrderFilled(
             0,
             user1,
@@ -573,7 +573,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         uint256 expectedFee = (redeemAmount * feeBps) / 10_000;
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit FastRedeemOrderFilled(
             0,
             user1,
@@ -623,7 +623,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         // Cancel the order
         vm.startPrank(user1);
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit();
         emit IYuzuUSDMinterDefinitions.FastRedeemOrderCancelled(0);
 
         minter.cancelFastRedeemOrder(0);
@@ -681,7 +681,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Create standard redeem order
         yzusd.approve(address(minter), redeemAmount);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit StandardRedeemOrderCreated(0, user1, redeemAmount);
 
         minter.standardRedeem(redeemAmount);
@@ -734,7 +734,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Fast forward past the fill window
         vm.warp(block.timestamp + 7 days + 1);
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit StandardRedeemOrderFilled(0, user1, redeemAmount, 0);
 
         minter.fillStandardRedeemOrder(0);
@@ -773,7 +773,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         uint256 expectedFee = (redeemAmount * feeBps) / 10_000;
 
-        vm.expectEmit(true, true, false, true);
+        vm.expectEmit();
         emit StandardRedeemOrderFilled(0, user1, redeemAmount, feeBps);
 
         minter.fillStandardRedeemOrder(0);
