@@ -261,14 +261,14 @@ contract YuzuUSDMinter is
     }
 
     function withdrawCollateral(
-        uint256 amount,
-        address to
+        address to,
+        uint256 amount
     ) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         uint256 outstandingBalance = _getOutstandingCollateralBalance();
         if (amount > outstandingBalance) revert ExceedsOutstandingBalance();
         IERC20(collateralToken).safeTransfer(to, amount);
-        emit CollateralWithdrawn(amount, to);
+        emit CollateralWithdrawn(to, amount);
     }
 
     function rescueTokens(

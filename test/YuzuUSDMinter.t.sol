@@ -298,10 +298,10 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         address to = makeAddr("recipient");
 
         vm.expectEmit(true, true, false, true);
-        emit CollateralWithdrawn(amount, to);
+        emit CollateralWithdrawn(to, amount);
 
         vm.prank(admin);
-        minter.withdrawCollateral(amount, to);
+        minter.withdrawCollateral(to, amount);
 
         assertEq(collateralToken.balanceOf(to), amount);
     }
