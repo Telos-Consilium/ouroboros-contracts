@@ -341,7 +341,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.stopPrank();
     }
 
-    function test_Mint_ZeroMaxMintPerBlock() public {
+    function test_Mint_RevertZeroMaxMintPerBlock() public {
         vm.prank(admin);
         minter.grantRole(LIMIT_MANAGER_ROLE, admin);
         vm.prank(admin);
@@ -425,7 +425,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(collateralToken.balanceOf(redeemFeeRecipient), expectedFee);
     }
 
-    function test_InstantRedeem_ZeroMaxRedeemPerBlock() public {
+    function test_InstantRedeem_RevertZeroMaxRedeemPerBlock() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
 
@@ -605,6 +605,69 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.skip(true, "Not implemented.");
     }
 
+    function test_CancelFastRedeemOrder() public {
+        uint256 mintAmount = 100e18;
+        uint256 redeemAmount = 50e18;
+
+        vm.startPrank(user1);
+        collateralToken.approve(address(minter), mintAmount);
+        minter.mint(user1, mintAmount);
+        yzusd.approve(address(minter), redeemAmount);
+        minter.fastRedeem(redeemAmount);
+        vm.stopPrank();
+
+        assertEq(minter.currentPendingFastRedeemValue(), redeemAmount);
+
+        // Fast forward past the fill window
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Cancel the order
+        vm.startPrank(user1);
+        vm.expectEmit(true, false, false, true);
+        emit IYuzuUSDMinterDefinitions.FastRedeemOrderCancelled(0);
+
+        minter.cancelFastRedeemOrder(0);
+        vm.stopPrank();
+
+        // Check order was cancelled
+        Order memory order = minter.getFastRedeemOrder(0);
+        assertEq(uint256(order.status), uint256(OrderStatus.Cancelled));
+        assertEq(minter.currentPendingFastRedeemValue(), 0);
+    }
+
+    function test_CancelFastRedeemOrder_RevertNotOwner() public {
+        uint256 mintAmount = 100e18;
+        uint256 redeemAmount = 50e18;
+
+        vm.startPrank(user1);
+        collateralToken.approve(address(minter), mintAmount);
+        minter.mint(user1, mintAmount);
+        yzusd.approve(address(minter), redeemAmount);
+        minter.fastRedeem(redeemAmount);
+        vm.stopPrank();
+
+        // Try to cancel as a different user
+        vm.expectRevert(Unauthorized.selector);
+        vm.prank(user2);
+        minter.cancelFastRedeemOrder(0);
+    }
+
+    function test_CancelFastRedeemOrder_RevertOrderNotDue() public {
+        uint256 mintAmount = 100e18;
+        uint256 redeemAmount = 50e18;
+
+        vm.startPrank(user1);
+        collateralToken.approve(address(minter), mintAmount);
+        minter.mint(user1, mintAmount);
+        yzusd.approve(address(minter), redeemAmount);
+        minter.fastRedeem(redeemAmount);
+
+        // Try to cancel before due time
+        vm.expectRevert(OrderNotDue.selector);
+        minter.cancelFastRedeemOrder(0);
+        vm.stopPrank();
+    }
+
     // Standard Redeem Tests
     function test_StandardRedeem() public {
         uint256 mintAmount = 100e18;
@@ -633,7 +696,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.currentPendingStandardRedeemValue(), redeemAmount);
     }
 
-    function test_StandardRedeem_ZeroMaxRedeemPerBlock() public {
+    function test_StandardRedeem_RevertZeroMaxRedeemPerBlock() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
 
