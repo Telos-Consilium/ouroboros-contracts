@@ -13,7 +13,7 @@ enum OrderStatus {
 struct Order {
     uint256 amount;
     address owner;
-    uint16 feeBps;
+    uint16 feePpm;
     uint40 dueTime;
     OrderStatus status;
 }
@@ -24,9 +24,9 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function setRedeemFeeRecipient(address newRecipient) external;
     function setMaxMintPerBlock(uint256 newMaxMintPerBlock) external;
     function setMaxRedeemPerBlock(uint256 newMaxRedeemPerBlock) external;
-    function setInstantRedeemFeeBps(uint256 newFeeBps) external;
-    function setFastRedeemFeeBps(uint256 newFeeBps) external;
-    function setStandardRedeemFeeBps(uint256 newFeeBps) external;
+    function setInstantRedeemFeePpm(uint256 newFeePpm) external;
+    function setFastRedeemFeePpm(uint256 newFeePpm) external;
+    function setStandardRedeemFeePpm(uint256 newFeePpm) external;
     function setFastFillWindow(uint256 newWindow) external;
     function setStandardFillWindow(uint256 newWindow) external;
 
@@ -56,9 +56,9 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function getStandardRedeemOrder(uint256 orderId) external view returns (Order memory);
     function fastRedeemOrderCount() external view returns (uint256);
     function standardRedeemOrderCount() external view returns (uint256);
-    function instantRedeemFeeBps() external view returns (uint256);
-    function fastRedeemFeeBps() external view returns (uint256);
-    function standardRedeemFeeBps() external view returns (uint256);
+    function instantRedeemFeePpm() external view returns (uint256);
+    function fastRedeemFeePpm() external view returns (uint256);
+    function standardRedeemFeePpm() external view returns (uint256);
     function fastFillWindow() external view returns (uint256);
     function standardFillWindow() external view returns (uint256);
     function currentPendingFastRedeemValue() external view returns (uint256);

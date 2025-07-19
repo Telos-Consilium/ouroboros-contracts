@@ -2,11 +2,12 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 import {YuzuUSDMinter} from "../src/YuzuUSDMinter.sol";
 import {YuzuUSD} from "../src/YuzuUSD.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Order, OrderStatus} from "../src/interfaces/IYuzuUSDMinter.sol";
-
 import {IYuzuUSDMinterDefinitions} from "../src/interfaces/IYuzuUSDMinterDefinitions.sol";
 
 // Mock ERC20 token for testing
@@ -87,9 +88,9 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.redeemFeeRecipient(), redeemFeeRecipient);
         assertEq(minter.maxMintPerBlock(), MAX_MINT_PER_BLOCK);
         assertEq(minter.maxRedeemPerBlock(), MAX_REDEEM_PER_BLOCK);
-        assertEq(minter.instantRedeemFeeBps(), 0);
-        assertEq(minter.fastRedeemFeeBps(), 0);
-        assertEq(minter.standardRedeemFeeBps(), 0);
+        assertEq(minter.instantRedeemFeePpm(), 0);
+        assertEq(minter.fastRedeemFeePpm(), 0);
+        assertEq(minter.standardRedeemFeePpm(), 0);
         assertEq(minter.fastFillWindow(), 1 days);
         assertEq(minter.standardFillWindow(), 7 days);
         assertTrue(minter.hasRole(ADMIN_ROLE, admin));
@@ -210,49 +211,49 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.maxRedeemPerBlock(), newMaxRedeem);
     }
 
-    function test_SetInstantRedeemFeeBps() public {
+    function test_SetInstantRedeemFeePpm() public {
         uint256 newFee = 50; // 0.5%
 
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
         vm.expectEmit();
-        emit InstantRedeemFeeBpsUpdated(0, newFee);
+        emit InstantRedeemFeePpmUpdated(0, newFee);
 
         vm.prank(admin);
-        minter.setInstantRedeemFeeBps(newFee);
+        minter.setInstantRedeemFeePpm(newFee);
 
-        assertEq(minter.instantRedeemFeeBps(), newFee);
+        assertEq(minter.instantRedeemFeePpm(), newFee);
     }
 
-    function test_SetFastRedeemFeeBps() public {
+    function test_SetFastRedeemFeePpm() public {
         uint256 newFee = 25; // 0.25%
 
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
         vm.expectEmit();
-        emit FastRedeemFeeBpsUpdated(0, newFee);
+        emit FastRedeemFeePpmUpdated(0, newFee);
 
         vm.prank(admin);
-        minter.setFastRedeemFeeBps(newFee);
+        minter.setFastRedeemFeePpm(newFee);
 
-        assertEq(minter.fastRedeemFeeBps(), newFee);
+        assertEq(minter.fastRedeemFeePpm(), newFee);
     }
 
-    function test_SetStandardRedeemFeeBps() public {
+    function test_SetStandardRedeemFeePpm() public {
         uint256 newFee = 10; // 0.1%
 
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
         vm.expectEmit();
-        emit StandardRedeemFeeBpsUpdated(0, newFee);
+        emit StandardRedeemFeePpmUpdated(0, newFee);
 
         vm.prank(admin);
-        minter.setStandardRedeemFeeBps(newFee);
+        minter.setStandardRedeemFeePpm(newFee);
 
-        assertEq(minter.standardRedeemFeeBps(), newFee);
+        assertEq(minter.standardRedeemFeePpm(), newFee);
     }
 
     function test_SetFastFillWindow() public {
@@ -375,15 +376,16 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_InstantRedeem_WithFee() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 feeBps = 100; // 1%
+        uint256 mintAmount = 1000e17;
+        uint256 redeemAmount = 500e17;
+        uint256 feePpm = 1e4; // 1%
+        uint256 expectedFee = 5e17;
 
         // Set fee
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
         vm.prank(admin);
-        minter.setInstantRedeemFeeBps(feeBps);
+        minter.setInstantRedeemFeePpm(feePpm);
 
         // First mint some tokens
         vm.startPrank(user1);
@@ -392,8 +394,6 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         // Then redeem
         yzusd.approve(address(minter), redeemAmount);
-
-        uint256 expectedFee = (redeemAmount * feeBps) / 10_000;
 
         vm.expectEmit();
         emit InstantRedeem(user1, user1, redeemAmount, expectedFee);
@@ -525,15 +525,16 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_FillFastRedeemOrder_WithFee() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 feeBps = 100; // 1%
+        uint256 mintAmount = 1000e17;
+        uint256 redeemAmount = 500e17;
+        uint256 feePpm = 1e4; // 1%
+        uint256 expectedFee = 5e17;
 
         // Set fee
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
         vm.prank(admin);
-        minter.setFastRedeemFeeBps(feeBps);
+        minter.setFastRedeemFeePpm(feePpm);
 
         // Setup: mint and create order
         vm.startPrank(user1);
@@ -547,10 +548,8 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.startPrank(filler);
         collateralToken.approve(address(minter), redeemAmount);
 
-        uint256 expectedFee = (redeemAmount * feeBps) / 10_000;
-
         vm.expectEmit();
-        emit FastRedeemOrderFilled(0, user1, filler, redeemFeeRecipient, redeemAmount, feeBps);
+        emit FastRedeemOrderFilled(0, user1, filler, redeemFeeRecipient, redeemAmount, feePpm);
 
         minter.fillFastRedeemOrder(0, redeemFeeRecipient);
         vm.stopPrank();
@@ -713,15 +712,16 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_FillStandardRedeemOrder_WithFee() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 feeBps = 100; // 1%
+        uint256 mintAmount = 1000e17;
+        uint256 redeemAmount = 500e17;
+        uint256 feePpm = 1e4; // 1%
+        uint256 expectedFee = 5e17;
 
         // Set fee
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
         vm.prank(admin);
-        minter.setStandardRedeemFeeBps(feeBps);
+        minter.setStandardRedeemFeePpm(feePpm);
 
         // Setup: mint and create order
         vm.startPrank(user1);
@@ -734,10 +734,8 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Fast forward past the fill window
         vm.warp(block.timestamp + 7 days + 1);
 
-        uint256 expectedFee = (redeemAmount * feeBps) / 10_000;
-
         vm.expectEmit();
-        emit StandardRedeemOrderFilled(0, user1, redeemAmount, feeBps);
+        emit StandardRedeemOrderFilled(0, user1, redeemAmount, feePpm);
 
         minter.fillStandardRedeemOrder(0);
 

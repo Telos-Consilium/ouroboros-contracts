@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./interfaces/IYuzuUSDMinter.sol";
 import "./interfaces/IYuzuUSDMinterDefinitions.sol";
@@ -36,9 +37,9 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     uint256 public fastRedeemOrderCount = 0;
     uint256 public standardRedeemOrderCount = 0;
 
-    uint256 public instantRedeemFeeBps = 0;
-    uint256 public fastRedeemFeeBps = 0;
-    uint256 public standardRedeemFeeBps = 0;
+    uint256 public instantRedeemFeePpm = 0;
+    uint256 public fastRedeemFeePpm = 0;
+    uint256 public standardRedeemFeePpm = 0;
     uint256 public fastFillWindow = 1 days;
     uint256 public standardFillWindow = 7 days;
 
@@ -124,25 +125,25 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         emit MaxRedeemPerBlockUpdated(oldMaxRedeemPerBlock, newMaxRedeemPerBlock);
     }
 
-    function setInstantRedeemFeeBps(uint256 newFeeBps) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeeBps > 10_000) revert InvalidFeeBps();
-        uint256 oldFee = instantRedeemFeeBps;
-        instantRedeemFeeBps = newFeeBps;
-        emit InstantRedeemFeeBpsUpdated(oldFee, newFeeBps);
+    function setInstantRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) revert InvalidFeePpm();
+        uint256 oldFee = instantRedeemFeePpm;
+        instantRedeemFeePpm = newFeePpm;
+        emit InstantRedeemFeePpmUpdated(oldFee, newFeePpm);
     }
 
-    function setFastRedeemFeeBps(uint256 newFeeBps) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeeBps > 10_000) revert InvalidFeeBps();
-        uint256 oldFee = fastRedeemFeeBps;
-        fastRedeemFeeBps = newFeeBps;
-        emit FastRedeemFeeBpsUpdated(oldFee, newFeeBps);
+    function setFastRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) revert InvalidFeePpm();
+        uint256 oldFee = fastRedeemFeePpm;
+        fastRedeemFeePpm = newFeePpm;
+        emit FastRedeemFeePpmUpdated(oldFee, newFeePpm);
     }
 
-    function setStandardRedeemFeeBps(uint256 newFeeBps) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeeBps > 10_000) revert InvalidFeeBps();
-        uint256 oldFee = standardRedeemFeeBps;
-        standardRedeemFeeBps = newFeeBps;
-        emit StandardRedeemFeeBpsUpdated(oldFee, newFeeBps);
+    function setStandardRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) revert InvalidFeePpm();
+        uint256 oldFee = standardRedeemFeePpm;
+        standardRedeemFeePpm = newFeePpm;
+        emit StandardRedeemFeePpmUpdated(oldFee, newFeePpm);
     }
 
     function setFastFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {
@@ -172,7 +173,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     {
         if (amount == 0) revert InvalidAmount();
         redeemedPerBlock[block.number] += amount;
-        uint256 fee = (amount * instantRedeemFeeBps) / 10_000;
+        uint256 fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6);
         _instantRedeem(_msgSender(), to, amount, fee);
         emit InstantRedeem(_msgSender(), to, amount, fee);
         emit Redeemed(_msgSender(), to, amount);
@@ -192,7 +193,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         Order storage order = fastRedeemOrders[orderId];
         if (order.amount == 0) revert InvalidOrder();
         _fillFastRedeemOrder(order, _msgSender(), feeRecipient);
-        emit FastRedeemOrderFilled(orderId, order.owner, _msgSender(), feeRecipient, order.amount, order.feeBps);
+        emit FastRedeemOrderFilled(orderId, order.owner, _msgSender(), feeRecipient, order.amount, order.feePpm);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
@@ -215,7 +216,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         Order storage order = standardRedeemOrders[orderId];
         if (order.amount == 0) revert InvalidOrder();
         _fillStandardRedeemOrder(order);
-        emit StandardRedeemOrderFilled(orderId, order.owner, order.amount, order.feeBps);
+        emit StandardRedeemOrderFilled(orderId, order.owner, order.amount, order.feePpm);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
@@ -275,7 +276,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         fastRedeemOrders[orderId] = Order({
             amount: amount,
             owner: owner,
-            feeBps: uint16(fastRedeemFeeBps),
+            feePpm: uint16(fastRedeemFeePpm),
             dueTime: uint40(block.timestamp + fastFillWindow),
             status: OrderStatus.Pending
         });
@@ -287,7 +288,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
         order.status = OrderStatus.Filled;
         currentPendingFastRedeemValue -= order.amount;
-        uint256 fee = (order.amount * order.feeBps) / 10_000;
+        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6);
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
         IERC20(collateralToken).safeTransferFrom(filler, order.owner, amountAfterFee);
@@ -311,7 +312,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         standardRedeemOrders[orderId] = Order({
             amount: amount,
             owner: owner,
-            feeBps: uint16(standardRedeemFeeBps),
+            feePpm: uint16(standardRedeemFeePpm),
             dueTime: uint40(block.timestamp + standardFillWindow),
             status: OrderStatus.Pending
         });
@@ -326,7 +327,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (order.amount > liquidityBufferSize) revert LiquidityBufferExceeded();
         order.status = OrderStatus.Filled;
         currentPendingStandardRedeemValue -= order.amount;
-        uint256 fee = (order.amount * order.feeBps) / 10_000;
+        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6);
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
         IERC20(collateralToken).safeTransfer(order.owner, amountAfterFee);
