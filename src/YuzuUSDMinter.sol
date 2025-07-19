@@ -276,7 +276,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         fastRedeemOrders[orderId] = Order({
             amount: amount,
             owner: owner,
-            feePpm: uint16(fastRedeemFeePpm),
+            feePpm: uint32(fastRedeemFeePpm),
             dueTime: uint40(block.timestamp + fastFillWindow),
             status: OrderStatus.Pending
         });
@@ -312,7 +312,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         standardRedeemOrders[orderId] = Order({
             amount: amount,
             owner: owner,
-            feePpm: uint16(standardRedeemFeePpm),
+            feePpm: uint32(standardRedeemFeePpm),
             dueTime: uint40(block.timestamp + standardFillWindow),
             status: OrderStatus.Pending
         });

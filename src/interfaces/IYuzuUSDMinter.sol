@@ -13,7 +13,7 @@ enum OrderStatus {
 struct Order {
     uint256 amount;
     address owner;
-    uint16 feePpm;
+    uint32 feePpm;
     uint40 dueTime;
     OrderStatus status;
 }
