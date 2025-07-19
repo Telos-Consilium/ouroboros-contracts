@@ -173,7 +173,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     {
         if (amount == 0) revert InvalidAmount();
         redeemedPerBlock[block.number] += amount;
-        uint256 fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6);
+        uint256 fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6, Math.Rounding.Ceil);
         _instantRedeem(_msgSender(), to, amount, fee);
         emit InstantRedeem(_msgSender(), to, amount, fee);
         emit Redeemed(_msgSender(), to, amount);
@@ -288,7 +288,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
         order.status = OrderStatus.Filled;
         currentPendingFastRedeemValue -= order.amount;
-        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6);
+        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
         IERC20(collateralToken).safeTransferFrom(filler, order.owner, amountAfterFee);
@@ -327,7 +327,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (order.amount > liquidityBufferSize) revert LiquidityBufferExceeded();
         order.status = OrderStatus.Filled;
         currentPendingStandardRedeemValue -= order.amount;
-        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6);
+        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
         IERC20(collateralToken).safeTransfer(order.owner, amountAfterFee);
