@@ -43,11 +43,11 @@ uint256 public maxMintPerBlock;           // Per-block mint limit
 uint256 public maxRedeemPerBlock;         // Per-block instant redeem limit
 ```
 
-#### Fee Configuration (in Basis Points)
+#### Fee Configuration (in Parts Per Million)
 ```solidity
-uint256 public instantRedeemFeeBps = 0;   // Instant redemption fee
-uint256 public fastRedeemFeeBps = 0;      // Fast redemption fee  
-uint256 public standardRedeemFeeBps = 0;  // Standard redemption fee
+uint256 public instantRedeemFeePpm = 0;   // Instant redemption fee
+uint256 public fastRedeemFeePpm = 0;      // Fast redemption fee  
+uint256 public standardRedeemFeePpm = 0;  // Standard redemption fee
 ```
 
 #### Time Windows
@@ -82,7 +82,7 @@ mapping(uint256 => uint256) public redeemedPerBlock; // Redeemed amount per bloc
 struct Order {
     uint256 amount;         // Amount of YuzuUSD to redeem
     address owner;          // Order creator and beneficiary
-    uint16 feeBps;          // Fee rate (locked at order creation)
+    uint32 feePpm;          // Fee rate (locked at order creation)
     uint40 dueTime;         // When order becomes due
     OrderStatus status;     // Pending, Filled, or Cancelled
 }
@@ -94,7 +94,7 @@ enum OrderStatus {
 }
 ```
 
-Storing `feeBps` and `dueTime` as `uint16` and `uint40`, respectively, makes the `Order` struct fit in two 32-byte storage slots, reducing gas costs for storage operations.
+Storing `feePpm` and `dueTime` as `uint32` and `uint40`, respectively, makes the `Order` struct fit in two 32-byte storage slots, reducing gas costs for storage operations.
 
 ## Core Mechanics
 
@@ -137,7 +137,7 @@ Storing `feeBps` and `dueTime` as `uint16` and `uint40`, respectively, makes the
 **Process**:
 1. **Validation**: Check amount > 0, per-block limit, and liquidity buffer
 2. **Rate Limiting**: Update `redeemedPerBlock[block.number]`
-3. **Fee Calculation**: `fee = (amount * instantRedeemFeeBps) / 10_000`
+3. **Fee Calculation**: `fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6, Math.Rounding.Ceil)`
 4. **Token Burning**: Burn YuzuUSD tokens from caller
 5. **Collateral Transfer**: Transfer `amount - fee` to recipient
 6. **Fee Transfer**: Transfer fee to `redeemFeeRecipient` (if fee > 0 and recipient ≠ contract)
@@ -149,8 +149,8 @@ Storing `feeBps` and `dueTime` as `uint16` and `uint40`, respectively, makes the
 - **Management**: Replenished by admin via collateral deposits
 
 **Fee Mechanism**:
-- **Rate**: Configurable from 0-10000 basis points (0-100%)
-- **Calculation**: `fee = amount * feeBps / 10_000`
+- **Rate**: Configurable from 0-1000000 ppm (0-100%)
+- **Calculation**: `fee = Math.mulDiv(amount, feePpm, 1e6, Math.Rounding.Ceil)`
 - **Distribution**: Fee sent to `redeemFeeRecipient`
 - **Exception**: If `redeemFeeRecipient == address(this)`, fee stays in contract as part of the liquidity buffer
 
@@ -178,7 +178,7 @@ Fast redemption is a two-phase process: order creation and order fulfillment. Un
 3. **Order Creation**: Create order with:
    - `amount`: Specified amount
    - `owner`: Caller address
-   - `feeBps`: Current `fastRedeemFeeBps`
+   - `feePpm`: Current `fastRedeemFeePpm`
    - `dueTime`: `block.timestamp + fastFillWindow`
    - `status`: Pending
 4. **Tracking Updates**: 
@@ -198,7 +198,7 @@ Fast redemption is a two-phase process: order creation and order fulfillment. Un
 
 **Process**:
 1. **Order Validation**: Check order exists and is pending
-2. **Fee Calculation**: `fee = (order.amount * order.feeBps) / 10_000`
+2. **Fee Calculation**: `fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil)`
 3. **Token Burning**: Burn escrowed YuzuUSD tokens
 4. **Collateral Transfer**: Transfer `amount - fee` from filler to order owner
 5. **Fee Transfer**: Transfer fee from filler to `feeRecipient` (if fee > 0 and recipient ≠ filler)
@@ -213,8 +213,8 @@ Fast redemption is a two-phase process: order creation and order fulfillment. Un
 - **Late Fill Allowed**: Orders can still be filled after the fill window expires (until cancelled by owner)
 
 **Fee Mechanism**:
-- **Rate**: Configurable from 0-10000 basis points (0-100%)
-- **Calculation**: `fee = amount * feeBps / 10_000`
+- **Rate**: Configurable from 0-1000000 ppm (0-100%)
+- **Calculation**: `fee = Math.mulDiv(amount, feePpm, 1e6, Math.Rounding.Ceil)`
 - **Distribution**: Fee sent to `feeRecipient`, not the necessarily the contract's `redeemFeeRecipient`
 - **Exception**: If `feeRecipient == msg.sender`, the filler keeps the fee in the form of unsent collateral
 
@@ -243,7 +243,7 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 4. **Order Creation**: Create order with:
    - `amount`: Specified amount
    - `owner`: Caller address
-   - `feeBps`: Current `standardRedeemFeeBps`
+   - `feePpm`: Current `standardRedeemFeePpm`
    - `dueTime`: `block.timestamp + standardFillWindow`
    - `status`: Pending
 5. **Tracking Updates**: 
@@ -265,7 +265,7 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 1. **Order Validation**: Check order exists and is pending
 2. **Time Validation**: Check order is due (`block.timestamp >= dueTime`)
 3. **Liquidity Check**: Ensure sufficient collateral in contract
-4. **Fee Calculation**: `fee = (order.amount * order.feeBps) / 10_000`
+4. **Fee Calculation**: `fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil)`
 5. **Token Burning**: Burn escrowed YuzuUSD tokens
 6. **Collateral Transfer**: Transfer `amount - fee` from contract to order from the liquidity buffer
 7. **Fee Transfer**: Transfer fee to `redeemFeeRecipient` (if fee > 0 and recipient ≠ contract)
@@ -326,24 +326,24 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 
 ### Fee Management
 
-#### `setInstantRedeemFeeBps(uint256 newFeeBps)`
+#### `setInstantRedeemFeePpm(uint256 newFeePpm)`
 - **Role**: `REDEEM_MANAGER_ROLE`
 - **Purpose**: Set instant redemption fee rate
-- **Range**: 0-10000 basis points (0-100%)
-- **Event**: `InstantRedeemFeeBpsUpdated(oldFee, newFee)`
+- **Range**: 0-1000000 ppm (0-100%)
+- **Event**: `InstantRedeemFeePpmUpdated(oldFee, newFee)`
 
-#### `setFastRedeemFeeBps(uint256 newFeeBps)`
+#### `setFastRedeemFeePpm(uint256 newFeePpm)`
 - **Role**: `REDEEM_MANAGER_ROLE`
 - **Purpose**: Set fast redemption fee rate
-- **Range**: 0-10000 basis points (0-100%)
-- **Event**: `FastRedeemFeeBpsUpdated(oldFee, newFee)`
+- **Range**: 0-1000000 ppm (0-100%)
+- **Event**: `FastRedeemFeePpmUpdated(oldFee, newFee)`
 - **Note**: Only affects new orders, existing orders use locked rate
 
-#### `setStandardRedeemFeeBps(uint256 newFeeBps)`
+#### `setStandardRedeemFeePpm(uint256 newFeePpm)`
 - **Role**: `REDEEM_MANAGER_ROLE`
 - **Purpose**: Set standard redemption fee rate
-- **Range**: 0-10000 basis points (0-100%)
-- **Event**: `StandardRedeemFeeBpsUpdated(oldFee, newFee)`
+- **Range**: 0-1000000 ppm (0-100%)
+- **Event**: `StandardRedeemFeePpmUpdated(oldFee, newFee)`
 - **Note**: Only affects new orders, existing orders use locked rate
 
 ### Time Window Management
