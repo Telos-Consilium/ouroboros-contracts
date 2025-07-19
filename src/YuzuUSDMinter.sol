@@ -269,6 +269,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     }
 
     function _createFastRedeemOrder(address owner, uint256 amount) internal returns (uint256) {
+        currentPendingFastRedeemValue += amount;
         IERC20(yzusd).safeTransferFrom(owner, address(this), amount);
         uint256 orderId = fastRedeemOrderCount;
         fastRedeemOrders[orderId] = Order({
@@ -279,12 +280,13 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
             status: OrderStatus.Pending
         });
         fastRedeemOrderCount++;
-        currentPendingFastRedeemValue += amount;
         return orderId;
     }
 
     function _fillFastRedeemOrder(Order storage order, address filler, address feeRecipient) internal {
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
+        order.status = OrderStatus.Filled;
+        currentPendingFastRedeemValue -= order.amount;
         uint256 fee = (order.amount * order.feeBps) / 10_000;
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
@@ -292,19 +294,18 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (fee > 0 && feeRecipient != filler) {
             IERC20(collateralToken).safeTransferFrom(filler, feeRecipient, fee);
         }
-        order.status = OrderStatus.Filled;
-        currentPendingFastRedeemValue -= order.amount;
     }
 
     function _cancelFastRedeemOrder(Order storage order) internal {
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
         if (block.timestamp < order.dueTime) revert OrderNotDue();
-        IERC20(yzusd).safeTransfer(order.owner, order.amount);
         order.status = OrderStatus.Cancelled;
         currentPendingFastRedeemValue -= order.amount;
+        IERC20(yzusd).safeTransfer(order.owner, order.amount);
     }
 
     function _createStandardRedeemOrder(address owner, uint256 amount) internal returns (uint256) {
+        currentPendingStandardRedeemValue += amount;
         IERC20(yzusd).safeTransferFrom(owner, address(this), amount);
         uint256 orderId = standardRedeemOrderCount;
         standardRedeemOrders[orderId] = Order({
@@ -315,7 +316,6 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
             status: OrderStatus.Pending
         });
         standardRedeemOrderCount++;
-        currentPendingStandardRedeemValue += amount;
         return orderId;
     }
 
@@ -324,6 +324,8 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (block.timestamp < order.dueTime) revert OrderNotDue();
         uint256 liquidityBufferSize = _getLiquidityBufferSize();
         if (order.amount > liquidityBufferSize) revert LiquidityBufferExceeded();
+        order.status = OrderStatus.Filled;
+        currentPendingStandardRedeemValue -= order.amount;
         uint256 fee = (order.amount * order.feeBps) / 10_000;
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
@@ -331,8 +333,6 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (fee > 0 && redeemFeeRecipient != address(this)) {
             IERC20(collateralToken).safeTransfer(redeemFeeRecipient, fee);
         }
-        order.status = OrderStatus.Filled;
-        currentPendingStandardRedeemValue -= order.amount;
     }
 
     function _getLiquidityBufferSize() internal view returns (uint256) {
