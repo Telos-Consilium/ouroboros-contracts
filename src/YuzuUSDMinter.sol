@@ -77,7 +77,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         address _redeemFeeRecipient,
         uint256 _maxMintPerBlock,
         uint256 _maxRedeemPerBlock
-    ) AccessControlDefaultAdminRules(0, msg.sender) {
+    ) AccessControlDefaultAdminRules(0, _msgSender()) {
         if (_yzusd == address(0)) revert InvalidZeroAddress();
         if (_collateralToken == address(0)) revert InvalidZeroAddress();
         if (_admin == address(0)) revert InvalidZeroAddress();
@@ -160,8 +160,8 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     function mint(address to, uint256 amount) external nonReentrant underMaxMintPerBlock(amount) {
         if (amount == 0) revert InvalidAmount();
         mintedPerBlock[block.number] += amount;
-        _mint(msg.sender, to, amount);
-        emit Minted(msg.sender, to, amount);
+        _mint(_msgSender(), to, amount);
+        emit Minted(_msgSender(), to, amount);
     }
 
     function instantRedeem(address to, uint256 amount)
@@ -173,15 +173,15 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (amount == 0) revert InvalidAmount();
         redeemedPerBlock[block.number] += amount;
         uint256 fee = (amount * instantRedeemFeeBps) / 10_000;
-        _instantRedeem(msg.sender, to, amount, fee);
-        emit InstantRedeem(msg.sender, to, amount, fee);
-        emit Redeemed(msg.sender, to, amount);
+        _instantRedeem(_msgSender(), to, amount, fee);
+        emit InstantRedeem(_msgSender(), to, amount, fee);
+        emit Redeemed(_msgSender(), to, amount);
     }
 
     function fastRedeem(uint256 amount) external nonReentrant {
         if (amount == 0) revert InvalidAmount();
-        uint256 orderId = _createFastRedeemOrder(msg.sender, amount);
-        emit FastRedeemOrderCreated(orderId, msg.sender, amount);
+        uint256 orderId = _createFastRedeemOrder(_msgSender(), amount);
+        emit FastRedeemOrderCreated(orderId, _msgSender(), amount);
     }
 
     function fillFastRedeemOrder(uint256 orderId, address feeRecipient)
@@ -191,15 +191,15 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     {
         Order storage order = fastRedeemOrders[orderId];
         if (order.amount == 0) revert InvalidOrder();
-        _fillFastRedeemOrder(order, msg.sender, feeRecipient);
-        emit FastRedeemOrderFilled(orderId, order.owner, msg.sender, feeRecipient, order.amount, order.feeBps);
+        _fillFastRedeemOrder(order, _msgSender(), feeRecipient);
+        emit FastRedeemOrderFilled(orderId, order.owner, _msgSender(), feeRecipient, order.amount, order.feeBps);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
     function cancelFastRedeemOrder(uint256 orderId) external nonReentrant {
         Order storage order = fastRedeemOrders[orderId];
         if (order.amount == 0) revert InvalidOrder();
-        if (msg.sender != order.owner) revert Unauthorized();
+        if (_msgSender() != order.owner) revert Unauthorized();
         _cancelFastRedeemOrder(order);
         emit FastRedeemOrderCancelled(orderId);
     }
@@ -207,8 +207,8 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     function standardRedeem(uint256 amount) external nonReentrant underMaxRedeemPerBlock(amount) {
         if (amount == 0) revert InvalidAmount();
         redeemedPerBlock[block.number] += amount;
-        uint256 orderId = _createStandardRedeemOrder(msg.sender, amount);
-        emit StandardRedeemOrderCreated(orderId, msg.sender, amount);
+        uint256 orderId = _createStandardRedeemOrder(_msgSender(), amount);
+        emit StandardRedeemOrderCreated(orderId, _msgSender(), amount);
     }
 
     function fillStandardRedeemOrder(uint256 orderId) external nonReentrant {
