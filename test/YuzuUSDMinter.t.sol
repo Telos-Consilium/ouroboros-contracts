@@ -435,7 +435,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     // Fast Redeem Tests
-    function test_FastRedeem() public {
+    function test_createFastRedeemOrder() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
 
@@ -450,7 +450,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.expectEmit();
         emit FastRedeemOrderCreated(0, user1, redeemAmount);
 
-        minter.fastRedeem(redeemAmount);
+        minter.createFastRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Check order was created
@@ -482,7 +482,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         yzusd.approve(address(minter), redeemAmount);
         vm.expectEmit();
         emit FastRedeemOrderCreated(0, user1, redeemAmount);
-        minter.fastRedeem(redeemAmount);
+        minter.createFastRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Check order was created
@@ -504,7 +504,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.fastRedeem(redeemAmount);
+        minter.createFastRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Fill the order
@@ -541,7 +541,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.fastRedeem(redeemAmount);
+        minter.createFastRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Fill the order
@@ -578,7 +578,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.fastRedeem(redeemAmount);
+        minter.createFastRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         assertEq(minter.currentPendingFastRedeemValue(), redeemAmount);
@@ -608,7 +608,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.fastRedeem(redeemAmount);
+        minter.createFastRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Try to cancel as a different user
@@ -625,7 +625,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.fastRedeem(redeemAmount);
+        minter.createFastRedeemOrder(redeemAmount);
 
         // Try to cancel before due time
         vm.expectRevert(OrderNotDue.selector);
@@ -634,7 +634,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     // Standard Redeem Tests
-    function test_StandardRedeem() public {
+    function test_createStandardRedeemOrder() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
 
@@ -649,7 +649,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.expectEmit();
         emit StandardRedeemOrderCreated(0, user1, redeemAmount);
 
-        minter.standardRedeem(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Check order was created
@@ -680,7 +680,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         yzusd.approve(address(minter), redeemAmount);
 
         vm.expectRevert(MaxRedeemPerBlockExceeded.selector);
-        minter.standardRedeem(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount);
         vm.stopPrank();
     }
 
@@ -693,7 +693,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.standardRedeem(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Fast forward past the fill window
@@ -728,7 +728,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.standardRedeem(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Fast forward past the fill window
@@ -756,7 +756,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), mintAmount);
         minter.mint(user1, mintAmount);
         yzusd.approve(address(minter), redeemAmount);
-        minter.standardRedeem(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount);
         vm.stopPrank();
 
         // Try to fill before due time

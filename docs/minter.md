@@ -164,7 +164,7 @@ Storing `feePpm` and `dueTime` as `uint32` and `uint40`, respectively, makes the
 
 Fast redemption is a two-phase process: order creation and order fulfillment. Unlike instant and standard redeems, fast redeems are not rate limited by `maxRedeemPerBlock`.
 
-#### Phase 1: Order Creation - `fastRedeem(uint256 amount)`
+#### Phase 1: Order Creation - `createFastRedeemOrder(uint256 amount)`
 
 **Purpose**: Create a fast redemption order with 24-hour (default) fulfillment window
 
@@ -227,7 +227,7 @@ Fast redemption is a two-phase process: order creation and order fulfillment. Un
 
 Standard redemption is a two-phase process: order creation and order fulfillment. Like instant redemption, it uses the contract's liquidity buffer to fill orders.
 
-#### Phase 1: Order Creation - `standardRedeem(uint256 amount)`
+#### Phase 1: Order Creation - `createStandardRedeemOrder(uint256 amount)`
 
 **Purpose**: Create a standard redemption order with 7-day (default) fulfillment window
 
@@ -438,7 +438,7 @@ function _getOutstandingCollateralBalance() internal view returns (uint256) {
 #### Fast Redemption Flow
 1. **Order Creation**:
    - User approves YuzuUSD spending
-   - User calls `fastRedeem(amount)`
+   - User calls `createFastRedeemOrder(amount)`
    - YuzuUSD escrowed in contract
 2. **Order Fulfillment**:
    - Filler approves collateral spending
@@ -448,7 +448,7 @@ function _getOutstandingCollateralBalance() internal view returns (uint256) {
 #### Standard Redemption Flow
 1. **Order Creation**:
    - User approves YuzuUSD spending
-   - User calls `standardRedeem(amount)`
+   - User calls `createStandardRedeemOrder(amount)`
    - YuzuUSD escrowed in contract
 2. **Order Fulfillment** (after due time):
    - Anyone calls `fillStandardRedeemOrder(orderId)`
