@@ -80,7 +80,9 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
     }
 
     function maxDeposit(address) public view override returns (uint256) {
-        return maxMintPerBlockInAssets - mintedPerBlockInAssets[block.number];
+        uint256 mintedThisBlock = mintedPerBlockInAssets[block.number];
+        if (mintedThisBlock >= maxMintPerBlockInAssets) return 0;
+        return maxMintPerBlockInAssets - mintedThisBlock;
     }
 
     function maxMint(address) public view override returns (uint256) {
@@ -88,23 +90,23 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
     }
 
     function maxWithdraw(address owner) public view override returns (uint256) {
+        uint256 redeemedThisBlock = redeemedPerBlockInAssets[block.number];
+        if (redeemedThisBlock >= maxRedeemPerBlockInAssets) return 0;
         return
             Math.min(
                 super.maxWithdraw(owner),
-                maxRedeemPerBlockInAssets -
-                    redeemedPerBlockInAssets[block.number]
+                maxRedeemPerBlockInAssets - redeemedThisBlock
             );
     }
 
     /** @dev See {IERC4626-maxRedeem}. */
     function maxRedeem(address owner) public view override returns (uint256) {
+        uint256 redeemedThisBlock = redeemedPerBlockInAssets[block.number];
+        if (redeemedThisBlock >= maxRedeemPerBlockInAssets) return 0;
         return
             Math.min(
                 super.maxRedeem(owner),
-                convertToShares(
-                    maxRedeemPerBlockInAssets -
-                        redeemedPerBlockInAssets[block.number]
-                )
+                convertToShares(maxRedeemPerBlockInAssets - redeemedThisBlock)
             );
     }
 
