@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "./interfaces/IStackedYuzuUSD.sol";
 import "./interfaces/IStackedYuzuUSDDefinitions.sol";
@@ -10,7 +11,7 @@ import "./interfaces/IStackedYuzuUSDDefinitions.sol";
 /**
  * @title StackedYuzuUSD
  */
-contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
+contract StackedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStackedYuzuUSDDefinitions {
     uint256 public currentRedeemAssetCommitment;
 
     mapping(uint256 => uint256) public mintedPerBlockInAssets;
@@ -18,7 +19,7 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
     uint256 public maxMintPerBlockInAssets;
     uint256 public maxRedeemPerBlockInAssets;
 
-    mapping(uint256 => Order) public redeemOrders;
+    mapping(uint256 => Order) internal redeemOrders;
     uint256 public redeemOrderCount;
 
     uint256 public redeemWindow = 1 days;
@@ -70,6 +71,18 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
         return Math.min(super.maxRedeem(owner), convertToShares(maxRedeemPerBlockInAssets - redeemedThisBlock));
     }
 
+    function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
+        uint256 shares = super.deposit(assets, receiver);
+        mintedPerBlockInAssets[block.number] += assets;
+        return shares;
+    }
+
+    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
+        uint256 assets = super.mint(shares, receiver);
+        mintedPerBlockInAssets[block.number] += assets;
+        return shares;
+    }
+
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
         revert WithdrawNotSupported();
     }
@@ -78,7 +91,7 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
         revert RedeemNotSupported();
     }
 
-    function initiateRedeem(uint256 shares) external returns (uint256) {
+    function initiateRedeem(uint256 shares) public nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidAmount();
         uint256 maxShares = maxRedeem(_msgSender());
         if (shares > maxShares) revert MaxRedeemExceeded();
@@ -86,10 +99,10 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
         redeemedPerBlockInAssets[block.number] += assets;
         uint256 orderId = _initiateRedeem(_msgSender(), assets, shares);
         emit RedeemInitiated(orderId, _msgSender(), assets, shares);
-        return orderId;
+        return (orderId, assets);
     }
 
-    function finalizeRedeem(uint256 orderId) external {
+    function finalizeRedeem(uint256 orderId) public nonReentrant {
         Order storage order = redeemOrders[orderId];
         if (order.shares == 0) revert InvalidOrder();
         _finalizeRedeem(order);
@@ -120,6 +133,6 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
         if (block.timestamp < order.dueTime) revert OrderNotDue();
         order.executed = true;
         currentRedeemAssetCommitment -= order.assets;
-        _transfer(address(this), order.owner, order.assets);
+        SafeERC20.safeTransfer(IERC20(asset()), order.owner, order.assets);
     }
 }

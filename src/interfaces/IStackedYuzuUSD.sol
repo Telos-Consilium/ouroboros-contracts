@@ -21,7 +21,7 @@ interface IStackedYuzuUSD is IERC4626 {
     function setMaxMintPerBlockInAssets(uint256 newMax) external;
     function setMaxRedeemPerBlockInAssets(uint256 newMax) external;
     function setRedeemWindow(uint256 newWindow) external;
-    function initiateRedeem(uint256 shares) external returns (uint256);
+    function initiateRedeem(uint256 shares) external returns (uint256, uint256);
     function finalizeRedeem(uint256 orderId) external;
     function getRedeemOrder(uint256 orderId) external returns (Order memory);
 
