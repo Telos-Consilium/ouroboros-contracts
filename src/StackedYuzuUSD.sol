@@ -24,19 +24,9 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
     error OrderAlreadyExecuted();
     error OrderNotDue();
 
-    event RedeemInitiated(
-        uint256 indexed orderId,
-        address indexed owner,
-        uint256 assets,
-        uint256 shares
-    );
+    event RedeemInitiated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
 
-    event RedeemFinalized(
-        uint256 indexed orderId,
-        address indexed owner,
-        uint256 assets,
-        uint256 shares
-    );
+    event RedeemFinalized(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
 
     uint256 public currentRedeemAssetCommitment;
 
@@ -50,11 +40,7 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
 
     uint256 public redeemWindow = 1 days;
 
-    constructor(
-        IERC20 _yzUSD,
-        uint256 _maxMintPerBlockInAssets,
-        uint256 _maxRedeemPerBlockInAssets
-    )
+    constructor(IERC20 _yzUSD, uint256 _maxMintPerBlockInAssets, uint256 _maxRedeemPerBlockInAssets)
         ERC4626(_yzUSD)
         ERC20("Stacked Yuzu USD", "st-yzUSD")
         Ownable(_msgSender())
@@ -92,37 +78,23 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 redeemedThisBlock = redeemedPerBlockInAssets[block.number];
         if (redeemedThisBlock >= maxRedeemPerBlockInAssets) return 0;
-        return
-            Math.min(
-                super.maxWithdraw(owner),
-                maxRedeemPerBlockInAssets - redeemedThisBlock
-            );
+        return Math.min(super.maxWithdraw(owner), maxRedeemPerBlockInAssets - redeemedThisBlock);
     }
 
-    /** @dev See {IERC4626-maxRedeem}. */
+    /**
+     * @dev See {IERC4626-maxRedeem}.
+     */
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 redeemedThisBlock = redeemedPerBlockInAssets[block.number];
         if (redeemedThisBlock >= maxRedeemPerBlockInAssets) return 0;
-        return
-            Math.min(
-                super.maxRedeem(owner),
-                convertToShares(maxRedeemPerBlockInAssets - redeemedThisBlock)
-            );
+        return Math.min(super.maxRedeem(owner), convertToShares(maxRedeemPerBlockInAssets - redeemedThisBlock));
     }
 
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
         revert RedeemNotSupported();
     }
 
@@ -143,17 +115,11 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
         emit RedeemFinalized(orderId, order.owner, order.assets, order.shares);
     }
 
-    function getRedeemOrder(
-        uint256 orderId
-    ) external view returns (Order memory) {
+    function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return redeemOrders[orderId];
     }
 
-    function _initiateRedeem(
-        address owner,
-        uint256 assets,
-        uint256 shares
-    ) internal returns (uint256) {
+    function _initiateRedeem(address owner, uint256 assets, uint256 shares) internal returns (uint256) {
         _burn(owner, shares);
         uint256 orderId = redeemOrderCount;
         redeemOrders[orderId] = Order({
