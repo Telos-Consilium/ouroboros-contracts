@@ -179,10 +179,11 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         emit Redeemed(_msgSender(), to, amount);
     }
 
-    function createFastRedeemOrder(uint256 amount) external nonReentrant {
+    function createFastRedeemOrder(uint256 amount) external nonReentrant returns (uint256) {
         if (amount == 0) revert InvalidAmount();
         uint256 orderId = _createFastRedeemOrder(_msgSender(), amount);
         emit FastRedeemOrderCreated(orderId, _msgSender(), amount);
+        return orderId;
     }
 
     function fillFastRedeemOrder(uint256 orderId, address feeRecipient)
@@ -205,11 +206,17 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         emit FastRedeemOrderCancelled(orderId);
     }
 
-    function createStandardRedeemOrder(uint256 amount) external nonReentrant underMaxRedeemPerBlock(amount) {
+    function createStandardRedeemOrder(uint256 amount)
+        external
+        nonReentrant
+        underMaxRedeemPerBlock(amount)
+        returns (uint256)
+    {
         if (amount == 0) revert InvalidAmount();
         redeemedPerBlock[block.number] += amount;
         uint256 orderId = _createStandardRedeemOrder(_msgSender(), amount);
         emit StandardRedeemOrderCreated(orderId, _msgSender(), amount);
+        return orderId;
     }
 
     function fillStandardRedeemOrder(uint256 orderId) external nonReentrant {
