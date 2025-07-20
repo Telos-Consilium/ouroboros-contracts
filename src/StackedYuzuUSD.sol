@@ -64,9 +64,6 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
         return Math.min(super.maxWithdraw(owner), maxRedeemPerBlockInAssets - redeemedThisBlock);
     }
 
-    /**
-     * @dev See {IERC4626-maxRedeem}.
-     */
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 redeemedThisBlock = redeemedPerBlockInAssets[block.number];
         if (redeemedThisBlock >= maxRedeemPerBlockInAssets) return 0;
