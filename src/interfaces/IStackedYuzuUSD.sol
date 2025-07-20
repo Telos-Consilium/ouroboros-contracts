@@ -24,4 +24,12 @@ interface IStackedYuzuUSD is IERC4626 {
     function initiateRedeem(uint256 shares) external returns (uint256);
     function finalizeRedeem(uint256 orderId) external;
     function getRedeemOrder(uint256 orderId) external returns (Order memory);
+
+    function currentRedeemAssetCommitment() external view returns (uint256);
+    function mintedPerBlockInAssets(uint256 blockNumber) external view returns (uint256);
+    function redeemedPerBlockInAssets(uint256 blockNumber) external view returns (uint256);
+    function maxMintPerBlockInAssets() external view returns (uint256);
+    function maxRedeemPerBlockInAssets() external view returns (uint256);
+    function redeemOrderCount() external view returns (uint256);
+    function redeemWindow() external view returns (uint256);
 }
