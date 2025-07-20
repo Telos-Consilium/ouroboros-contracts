@@ -64,7 +64,7 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         assertEq(stackedYzusd.maxMintPerBlockInAssets(), newMax);
     }
 
-    function test_SetMaxMintPerBlockInAssets_OnlyOwner() public {
+    function test_SetMaxMintPerBlockInAssets_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
         stackedYzusd.setMaxMintPerBlockInAssets(2000e18);
@@ -79,7 +79,7 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         assertEq(stackedYzusd.maxRedeemPerBlockInAssets(), newMax);
     }
 
-    function test_SetMaxRedeemPerBlockInAssets_OnlyOwner() public {
+    function test_SetMaxRedeemPerBlockInAssets_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
         stackedYzusd.setMaxRedeemPerBlockInAssets(1000e18);
@@ -94,7 +94,7 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         assertEq(stackedYzusd.redeemWindow(), newWindow);
     }
 
-    function test_SetRedeemWindow_OnlyOwner() public {
+    function test_SetRedeemWindow_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
         stackedYzusd.setRedeemWindow(2 days);
@@ -114,7 +114,7 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         assertEq(yzusd.balanceOf(address(stackedYzusd)), assets);
     }
 
-    function test_Deposit_RateLimit() public {
+    function test_Deposit_RevertRateLimit() public {
         uint256 assets = MAX_MINT_PER_BLOCK + 1;
 
         vm.startPrank(user1);
@@ -145,7 +145,7 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         );
     }
 
-    function test_Deposit_ExceedRateLimitInSameBlock() public {
+    function test_Deposit_RevertExceedRateLimitInSameBlock() public {
         uint256 assets1 = 700e18;
         uint256 assets2 = 400e18; // Total would be 1100e18 > 1000e18
 
@@ -203,13 +203,13 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         assertFalse(order.executed);
     }
 
-    function test_InitiateRedeem_ZeroShares() public {
+    function test_InitiateRedeem_RevertZeroShares() public {
         vm.prank(user1);
         vm.expectRevert(InvalidAmount.selector);
         stackedYzusd.initiateRedeem(0);
     }
 
-    function test_InitiateRedeem_ExceedsMax() public {
+    function test_InitiateRedeem_RevertExceedsMax() public {
         // Deposit some shares first
         uint256 assets = 100e18;
         vm.startPrank(user1);
@@ -249,12 +249,12 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         assertTrue(order.executed);
     }
 
-    function test_FinalizeRedeem_InvalidOrder() public {
+    function test_FinalizeRedeem_RevertInvalidOrder() public {
         vm.expectRevert(InvalidOrder.selector);
         stackedYzusd.finalizeRedeem(999);
     }
 
-    function test_FinalizeRedeem_NotDue() public {
+    function test_FinalizeRedeem_RevertNotDue() public {
         // Setup: deposit and initiate redeem
         uint256 assets = 100e18;
         vm.startPrank(user1);
@@ -268,7 +268,7 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
         stackedYzusd.finalizeRedeem(orderId);
     }
 
-    function test_FinalizeRedeem_AlreadyExecuted() public {
+    function test_FinalizeRedeem_RevertAlreadyExecuted() public {
         // Setup: deposit and initiate redeem
         uint256 assets = 100e18;
         vm.startPrank(user1);
@@ -287,12 +287,12 @@ contract StackedYuzuUSDTest is IStackedYuzuUSDDefinitions, Test {
     }
 
     // ERC4626 Override Tests
-    function test_Withdraw_NotSupported() public {
+    function test_Withdraw_RevertNotSupported() public {
         vm.expectRevert(WithdrawNotSupported.selector);
         stackedYzusd.withdraw(100e18, user1, user1);
     }
 
-    function test_Redeem_NotSupported() public {
+    function test_Redeem_RevertNotSupported() public {
         vm.expectRevert(RedeemNotSupported.selector);
         stackedYzusd.redeem(100e18, user1, user1);
     }
