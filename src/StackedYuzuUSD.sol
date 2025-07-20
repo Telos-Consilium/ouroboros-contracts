@@ -4,30 +4,13 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
-struct Order {
-    uint256 assets;
-    uint256 shares;
-    address owner;
-    uint40 dueTime;
-    bool executed;
-}
+import "./interfaces/IStackedYuzuUSD.sol";
+import "./interfaces/IStackedYuzuUSDDefinitions.sol";
 
 /**
  * @title StackedYuzuUSD
  */
-contract StackedYuzuUSD is ERC4626, Ownable2Step {
-    error WithdrawNotSupported();
-    error InvalidAmount();
-    error RedeemNotSupported();
-    error MaxRedeemExceeded();
-    error InvalidOrder();
-    error OrderAlreadyExecuted();
-    error OrderNotDue();
-
-    event RedeemInitiated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
-
-    event RedeemFinalized(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
-
+contract StackedYuzuUSD is ERC4626, Ownable2Step, IStackedYuzuUSDDefinitions {
     uint256 public currentRedeemAssetCommitment;
 
     mapping(uint256 => uint256) public mintedPerBlockInAssets;
@@ -98,7 +81,7 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
         revert RedeemNotSupported();
     }
 
-    function initiateRedeem(uint256 shares) external {
+    function initiateRedeem(uint256 shares) external returns (uint256) {
         if (shares == 0) revert InvalidAmount();
         uint256 maxShares = maxRedeem(_msgSender());
         if (shares > maxShares) revert MaxRedeemExceeded();
@@ -106,6 +89,7 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step {
         redeemedPerBlockInAssets[block.number] += assets;
         uint256 orderId = _initiateRedeem(_msgSender(), assets, shares);
         emit RedeemInitiated(orderId, _msgSender(), assets, shares);
+        return orderId;
     }
 
     function finalizeRedeem(uint256 orderId) external {
