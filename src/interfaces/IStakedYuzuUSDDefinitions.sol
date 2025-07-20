@@ -9,9 +9,10 @@ interface IStakedYuzuUSDDefinitions {
 
     error WithdrawNotSupported();
     error InvalidAmount();
+    error InvalidToken();
+    error InvalidOrder();
     error RedeemNotSupported();
     error MaxRedeemExceeded();
-    error InvalidOrder();
     error OrderAlreadyExecuted();
     error OrderNotDue();
 }

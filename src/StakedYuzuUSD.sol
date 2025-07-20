@@ -109,6 +109,12 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
         emit RedeemFinalized(orderId, order.owner, order.assets, order.shares);
     }
 
+    function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
+        if (amount == 0) revert InvalidAmount();
+        if (token == asset()) revert InvalidToken();
+        SafeERC20.safeTransfer(IERC20(token), to, amount);
+    }
+
     function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return redeemOrders[orderId];
     }
