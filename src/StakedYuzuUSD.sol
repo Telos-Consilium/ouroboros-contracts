@@ -5,13 +5,13 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import "./interfaces/IStackedYuzuUSD.sol";
-import "./interfaces/IStackedYuzuUSDDefinitions.sol";
+import "./interfaces/IStakedYuzuUSD.sol";
+import "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
 /**
- * @title StackedYuzuUSD
+ * @title StakedYuzuUSD
  */
-contract StackedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStackedYuzuUSDDefinitions {
+contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSDDefinitions {
     uint256 public currentRedeemAssetCommitment;
 
     mapping(uint256 => uint256) public mintedPerBlockInAssets;
@@ -26,7 +26,7 @@ contract StackedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStackedYuzuU
 
     constructor(IERC20 _yzUSD, uint256 _maxMintPerBlockInAssets, uint256 _maxRedeemPerBlockInAssets)
         ERC4626(_yzUSD)
-        ERC20("Stacked Yuzu USD", "st-yzUSD")
+        ERC20("Staked Yuzu USD", "st-yzUSD")
         Ownable(_msgSender())
     {
         maxMintPerBlockInAssets = _maxMintPerBlockInAssets;
