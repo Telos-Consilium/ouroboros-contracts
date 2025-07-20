@@ -35,7 +35,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         assertEq(yzusd.minter(), minter);
     }
 
-    function test_SetMinter_OnlyOwner() public {
+    function test_SetMinter_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
         yzusd.setMinter(minter);
@@ -84,7 +84,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         assertEq(yzusd.totalSupply(), amount);
     }
 
-    function test_Mint_OnlyMinter() public {
+    function test_Mint_RevertOnlyMinter() public {
         vm.prank(owner);
         yzusd.setMinter(minter);
 
@@ -93,7 +93,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         yzusd.mint(user1, 1000e18);
     }
 
-    function test_Mint_NoMinterSet() public {
+    function test_Mint_RevertNoMinterSet() public {
         vm.prank(owner);
         vm.expectRevert(OnlyMinter.selector);
         yzusd.mint(user1, 1000e18);
