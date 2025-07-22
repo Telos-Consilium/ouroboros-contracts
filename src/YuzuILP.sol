@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 struct Order {
@@ -15,7 +15,7 @@ struct Order {
 /**
  * @title YuzuILP
  */
-contract YuzuILP is ERC4626, Ownable2Step, ReentrancyGuard {
+contract YuzuILP is ERC4626, AccessControlDefaultAdminRules, ReentrancyGuard {
     event RedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
     event RedeemFilled(
         uint256 indexed orderId, address indexed owner, address indexed filler, uint256 assets, uint256 shares
@@ -30,6 +30,11 @@ contract YuzuILP is ERC4626, Ownable2Step, ReentrancyGuard {
     error OrderAlreadyExecuted();
     error OrderNotDue();
 
+    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 private constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
+
     mapping(uint256 => uint256) public mintedPerBlockInAssets;
     uint256 public maxMintPerBlockInAssets;
 
@@ -39,19 +44,24 @@ contract YuzuILP is ERC4626, Ownable2Step, ReentrancyGuard {
     uint256 public poolSize;
     uint256 public withdrawAllowance;
 
-    constructor(IERC20 _yzUSD, uint256 _maxMintPerBlockInAssets)
+    constructor(IERC20 _yzUSD, address _admin, uint256 _maxMintPerBlockInAssets)
         ERC4626(_yzUSD)
         ERC20("Yuzu ILP", "yzILP")
-        Ownable(_msgSender())
+        AccessControlDefaultAdminRules(0, _admin)
     {
         maxMintPerBlockInAssets = _maxMintPerBlockInAssets;
+
+        _grantRole(ADMIN_ROLE, _admin);
+        _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
     }
 
-    function setMaxMintPerBlockInAssets(uint256 newMax) external onlyOwner {
+    function setMaxMintPerBlockInAssets(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
         maxMintPerBlockInAssets = newMax;
     }
 
-    function updatePoolSize(uint256 newPoolSize, uint256 newWithdrawalAllowance) external onlyOwner {
+    function updatePoolSize(uint256 newPoolSize, uint256 newWithdrawalAllowance) external onlyRole(NAV_MANAGER_ROLE) {
         if (newWithdrawalAllowance > newPoolSize) revert InvalidAmount();
         poolSize = newPoolSize;
         withdrawAllowance = newWithdrawalAllowance;
@@ -109,14 +119,14 @@ contract YuzuILP is ERC4626, Ownable2Step, ReentrancyGuard {
         return (orderId, assets);
     }
 
-    function fillRedeemOrder(uint256 orderId) public nonReentrant onlyOwner {
+    function fillRedeemOrder(uint256 orderId) public nonReentrant onlyRole(ORDER_FILLER_ROLE) {
         Order storage order = redeemOrders[orderId];
         if (order.shares == 0) revert InvalidOrder();
         _fillRedeemOrder(order, _msgSender());
         emit RedeemFilled(orderId, order.owner, _msgSender(), order.assets, order.shares);
     }
 
-    function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
+    function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         if (token == asset()) revert InvalidToken();
         SafeERC20.safeTransfer(IERC20(token), to, amount);
