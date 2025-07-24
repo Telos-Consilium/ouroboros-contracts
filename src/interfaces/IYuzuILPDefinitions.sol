@@ -11,9 +11,12 @@ interface IYuzuILPDefinitions {
     );
 
     error InvalidAmount();
+    error InvalidYield();
     error InvalidAddress();
     error InvalidToken();
     error InvalidOrder();
+    error MaxDepositExceeded();
+    error MaxMintExceeded();
     error WithdrawNotSupported();
     error RedeemNotSupported();
     error MaxRedeemExceeded();

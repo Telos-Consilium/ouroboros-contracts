@@ -15,7 +15,7 @@ interface IYuzuILP is IERC4626, IAccessControlDefaultAdminRules {
     function setTreasury(address newTreasury) external;
     function updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm)
         external;
-    function setMaxMintPerBlockInAssets(uint256 newMax) external;
+    function setMaxDepositPerBlock(uint256 newMax) external;
     function createRedeemOrder(uint256 assets) external returns (uint256 orderId);
     function executeRedeemOrder(uint256 orderId) external;
 
@@ -26,7 +26,7 @@ interface IYuzuILP is IERC4626, IAccessControlDefaultAdminRules {
     function withdrawAllowance() external view returns (uint256);
     function dailyLinearYieldRatePpm() external view returns (uint256);
     function lastPoolUpdateTimestamp() external view returns (uint256);
-    function maxMintPerBlockInAssets() external view returns (uint256);
-    function mintedPerBlockInAssets(uint256 blockNumber) external view returns (uint256);
+    function maxDepositPerBlock() external view returns (uint256);
+    function depositedPerBlock(uint256 blockNumber) external view returns (uint256);
     function redeemOrderCount() external view returns (uint256);
 }
