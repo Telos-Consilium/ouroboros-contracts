@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "./interfaces/IYuzuILP.sol";
 import "./interfaces/IYuzuILPDefinitions.sol";
 
-
 /**
  * @title YuzuILP
  */
