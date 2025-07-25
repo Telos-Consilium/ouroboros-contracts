@@ -31,8 +31,10 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function setStandardFillWindow(uint256 newWindow) external;
 
     // Core functions
+    function previewMint(uint256 amount) external pure returns (uint256);
+    function previewInstantRedeem(uint256 amount) external view returns (uint256);
     function mint(address to, uint256 amount) external;
-    function instantRedeem(address to, uint256 amount) external;
+    function instantRedeem(address to, uint256 amount) external returns (uint256);
     function createFastRedeemOrder(uint256 amount) external returns (uint256);
     function fillFastRedeemOrder(uint256 orderId, address feeRecipient) external;
     function cancelFastRedeemOrder(uint256 orderId) external;

@@ -158,6 +158,15 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         emit StandardFillWindowUpdated(oldWindow, newWindow);
     }
 
+    function previewMint(uint256 amount) public pure returns (uint256) {
+        return amount;
+    }
+
+    function previewInstantRedeem(uint256 amount) public view returns (uint256) {
+        uint256 fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6, Math.Rounding.Ceil);
+        return amount - fee;
+    }
+
     function mint(address to, uint256 amount) external nonReentrant underMaxMintPerBlock(amount) {
         if (amount == 0) revert InvalidAmount();
         mintedPerBlock[block.number] += amount;
@@ -170,6 +179,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         nonReentrant
         underMaxRedeemPerBlock(amount)
         underLiquidityBuffer(amount)
+        returns (uint256)
     {
         if (amount == 0) revert InvalidAmount();
         redeemedPerBlock[block.number] += amount;
@@ -177,6 +187,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         _instantRedeem(_msgSender(), to, amount, fee);
         emit InstantRedeem(_msgSender(), to, amount, fee);
         emit Redeemed(_msgSender(), to, amount);
+        return amount - fee;
     }
 
     function createFastRedeemOrder(uint256 amount) external nonReentrant returns (uint256) {
