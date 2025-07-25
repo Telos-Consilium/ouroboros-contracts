@@ -1,4 +1,7 @@
-.PHONY: format-sol format-python test build
+.PHONY: install format-sol format-python test build
+
+install:
+	forge install
 
 format-sol:
 	forge fmt
