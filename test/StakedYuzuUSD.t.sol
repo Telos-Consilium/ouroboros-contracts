@@ -384,4 +384,43 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         stakedYzusd.deposit(1e18, user2);
         vm.stopPrank();
     }
+
+    function test_DonationAttack_NoProfit() public {
+        address attacker = user1;
+        address victim = user2;
+
+        uint256 attackerDeposit = 1e18;
+        uint256 attackerDonation = 100_000_000e18;
+        uint256 victimDeposit = 1e18;
+
+        vm.startPrank(owner);
+        stakedYzusd.setMaxDepositPerBlock(type(uint256).max);
+        stakedYzusd.setMaxWithdrawPerBlock(type(uint256).max);
+        vm.stopPrank();
+
+        // Attacker deposits
+        vm.startPrank(attacker);
+        yzusd.approve(address(stakedYzusd), attackerDeposit);
+        uint256 attackerShares = stakedYzusd.deposit(attackerDeposit, attacker);
+        vm.stopPrank();
+
+        // Attacker donates underlying directly to the vault
+        yzusd.mint(address(stakedYzusd), attackerDonation);
+
+        // Victim deposits
+        vm.startPrank(victim);
+        yzusd.approve(address(stakedYzusd), victimDeposit);
+        stakedYzusd.deposit(victimDeposit, victim);
+        vm.stopPrank();
+
+        // Attacker tries to profit by redeeming
+        vm.startPrank(attacker);
+        (uint256 orderId, ) = stakedYzusd.initiateRedeem(attackerShares);
+        vm.stopPrank();
+
+        Order memory order = stakedYzusd.getRedeemOrder(orderId);
+
+        assertLe(order.assets, attackerDeposit + attackerDonation);
+        assertEq(order.shares, attackerShares);
+    }
 }
