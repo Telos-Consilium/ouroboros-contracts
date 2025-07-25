@@ -435,7 +435,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     // Fast Redeem Tests
-    function test_createFastRedeemOrder() public {
+    function test_CreateFastRedeemOrder() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
 
@@ -634,7 +634,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     // Standard Redeem Tests
-    function test_createStandardRedeemOrder() public {
+    function test_CreateStandardRedeemOrder() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
 

@@ -48,7 +48,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     // Owner Functions Tests
-    function test_setMaxDepositPerBlock_Success() public {
+    function test_SetMaxDepositPerBlock_Success() public {
         uint256 newMax = 2000e18;
 
         vm.prank(owner);
@@ -57,13 +57,13 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(stakedYzusd.maxDepositPerBlock(), newMax);
     }
 
-    function test_setMaxDepositPerBlock_RevertOnlyOwner() public {
+    function test_SetMaxDepositPerBlock_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
         stakedYzusd.setMaxDepositPerBlock(2000e18);
     }
 
-    function test_setMaxWithdrawPerBlock_Success() public {
+    function test_SetMaxWithdrawPerBlock_Success() public {
         uint256 newMax = 1000e18;
 
         vm.prank(owner);
@@ -72,7 +72,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(stakedYzusd.maxWithdrawPerBlock(), newMax);
     }
 
-    function test_setMaxWithdrawPerBlock_RevertOnlyOwner() public {
+    function test_SetMaxWithdrawPerBlock_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
         stakedYzusd.setMaxWithdrawPerBlock(1000e18);

@@ -82,7 +82,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     // Role Management Tests
-    function test_setMaxDepositPerBlock_Success() public {
+    function test_SetMaxDepositPerBlock_Success() public {
         uint256 newMaxDepositPerBlock = 2_000e18;
 
         vm.prank(limitManager);
@@ -91,7 +91,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.maxDepositPerBlock(), newMaxDepositPerBlock);
     }
 
-    function test_setMaxDepositPerBlock_RevertUnauthorized() public {
+    function test_SetMaxDepositPerBlock_RevertUnauthorized() public {
         vm.prank(user1);
         vm.expectRevert();
         ilp.setMaxDepositPerBlock(2_000e18);
