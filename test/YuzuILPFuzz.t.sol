@@ -126,12 +126,12 @@ contract YuzuILPFuzz is Test {
         assertLe(redeemableAssets, assetsExclYield);
         assertApproxEqRel(redeemableAssets, assetsExclYield, 1e6);
 
-        uint256 sharePriceE18 = ilp.previewMint(1e18);
-        uint256 realSharePriceE18 =
+        uint256 linearYieldSharePriceE18 = ilp.previewMint(1e18);
+        uint256 exponentialYieldSharePriceE18 =
             _calculateSharePriceFFI(stateAfter.poolSize, stateAfter.totalSupply, dailyLinearYieldRatePpm, elapsedTime);
 
-        assertGe(sharePriceE18, realSharePriceE18);
-        assertApproxEqRel(sharePriceE18, realSharePriceE18, 2e13); // Deviation under 0.002%
+        assertGe(linearYieldSharePriceE18, exponentialYieldSharePriceE18);
+        assertApproxEqRel(linearYieldSharePriceE18, exponentialYieldSharePriceE18, 2e13); // Deviation under 0.002%
     }
 
     function test_Deposit_RealisticYieldWorstCase() public {
@@ -144,12 +144,12 @@ contract YuzuILPFuzz is Test {
 
         _testDeposit(initialShareSupply, initialPoolSize, dailyLinearYieldRatePpm, elapsedTime, assets);
 
-        uint256 sharePriceE18 = ilp.previewMint(1e18);
-        uint256 realSharePriceE18 =
+        uint256 linearYieldSharePriceE18 = ilp.previewMint(1e18);
+        uint256 exponentialYieldSharePriceE18 =
             _calculateSharePriceFFI(stateAfter.poolSize, stateAfter.totalSupply, dailyLinearYieldRatePpm, elapsedTime);
 
-        assertGe(sharePriceE18, realSharePriceE18);
-        assertApproxEqRel(sharePriceE18, realSharePriceE18, 2e13); // Deviation under 0.002%
+        assertGe(linearYieldSharePriceE18, exponentialYieldSharePriceE18);
+        assertApproxEqRel(linearYieldSharePriceE18, exponentialYieldSharePriceE18, 2e13); // Deviation under 0.002%
     }
 
     function _testDeposit(
@@ -283,14 +283,14 @@ contract YuzuILPFuzz is Test {
 
         _testCreateRedeemOrder(initialShareSupply, initialPoolSize, dailyLinearYieldRatePpm, elapsedTime, shares);
 
-        uint256 sharePriceE18 = ilp.previewMint(1e18);
-        uint256 realSharePriceE18 =
+        uint256 linearYieldSharePriceE18 = ilp.previewMint(1e18);
+        uint256 exponentialYieldSharePriceE18 =
             _calculateSharePriceFFI(stateAfter.poolSize, stateAfter.totalSupply, dailyLinearYieldRatePpm, elapsedTime);
 
         if (stateAfter.totalAssets > 1e6) {
-            assertApproxEqRel(sharePriceE18, realSharePriceE18, 2e13);
+            assertApproxEqRel(linearYieldSharePriceE18, exponentialYieldSharePriceE18, 2e13);
         } else if (stateAfter.totalAssets == 0) {
-            assertEq(sharePriceE18, realSharePriceE18);
+            assertEq(linearYieldSharePriceE18, exponentialYieldSharePriceE18);
         }
     }
 
