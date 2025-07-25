@@ -29,7 +29,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deploy StakedYuzuUSD
         vm.prank(owner);
-        stakedYzusd = new StakedYuzuUSD(IERC20(address(yzusd)), MAX_MINT_PER_BLOCK, MAX_REDEEM_PER_BLOCK);
+        stakedYzusd = new StakedYuzuUSD(IERC20(address(yzusd)), owner, MAX_MINT_PER_BLOCK, MAX_REDEEM_PER_BLOCK);
 
         // Mint some YuzuUSD to users for testing
         yzusd.mint(user1, 10000e18);

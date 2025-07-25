@@ -24,10 +24,10 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
 
     uint256 public redeemWindow = 1 days;
 
-    constructor(IERC20 _yzUSD, uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock)
+    constructor(IERC20 _yzUSD, address _owner, uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock)
         ERC4626(_yzUSD)
         ERC20("Staked Yuzu USD", "st-yzUSD")
-        Ownable(_msgSender())
+        Ownable(_owner)
     {
         maxDepositPerBlock = _maxDepositPerBlock;
         maxWithdrawPerBlock = _maxWithdrawPerBlock;
