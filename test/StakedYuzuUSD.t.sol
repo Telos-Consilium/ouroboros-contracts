@@ -42,40 +42,40 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(stakedYzusd.name(), "Staked Yuzu USD");
         assertEq(stakedYzusd.symbol(), "st-yzUSD");
         assertEq(stakedYzusd.owner(), owner);
-        assertEq(stakedYzusd.maxMintPerBlockInAssets(), MAX_MINT_PER_BLOCK);
-        assertEq(stakedYzusd.maxRedeemPerBlockInAssets(), MAX_REDEEM_PER_BLOCK);
+        assertEq(stakedYzusd.maxDepositPerBlock(), MAX_MINT_PER_BLOCK);
+        assertEq(stakedYzusd.maxWithdrawPerBlock(), MAX_REDEEM_PER_BLOCK);
         assertEq(stakedYzusd.redeemWindow(), REDEEM_WINDOW);
     }
 
     // Owner Functions Tests
-    function test_SetMaxMintPerBlockInAssets_Success() public {
+    function test_setMaxDepositPerBlock_Success() public {
         uint256 newMax = 2000e18;
 
         vm.prank(owner);
-        stakedYzusd.setMaxMintPerBlockInAssets(newMax);
+        stakedYzusd.setMaxDepositPerBlock(newMax);
 
-        assertEq(stakedYzusd.maxMintPerBlockInAssets(), newMax);
+        assertEq(stakedYzusd.maxDepositPerBlock(), newMax);
     }
 
-    function test_SetMaxMintPerBlockInAssets_RevertOnlyOwner() public {
+    function test_setMaxDepositPerBlock_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
-        stakedYzusd.setMaxMintPerBlockInAssets(2000e18);
+        stakedYzusd.setMaxDepositPerBlock(2000e18);
     }
 
-    function test_SetMaxRedeemPerBlockInAssets_Success() public {
+    function test_setMaxWithdrawPerBlock_Success() public {
         uint256 newMax = 1000e18;
 
         vm.prank(owner);
-        stakedYzusd.setMaxRedeemPerBlockInAssets(newMax);
+        stakedYzusd.setMaxWithdrawPerBlock(newMax);
 
-        assertEq(stakedYzusd.maxRedeemPerBlockInAssets(), newMax);
+        assertEq(stakedYzusd.maxWithdrawPerBlock(), newMax);
     }
 
-    function test_SetMaxRedeemPerBlockInAssets_RevertOnlyOwner() public {
+    function test_setMaxWithdrawPerBlock_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
-        stakedYzusd.setMaxRedeemPerBlockInAssets(1000e18);
+        stakedYzusd.setMaxWithdrawPerBlock(1000e18);
     }
 
     function test_SetRedeemWindow_Success() public {
@@ -132,7 +132,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.stopPrank();
 
         // Should work as total is within limit
-        assertEq(stakedYzusd.mintedPerBlockInAssets(block.number), assets1 + assets2);
+        assertEq(stakedYzusd.depositedPerBlock(block.number), assets1 + assets2);
     }
 
     function test_Deposit_RevertExceedRateLimitInSameBlock() public {

@@ -35,6 +35,7 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function instantRedeem(address to, uint256 amount) external;
     function createFastRedeemOrder(uint256 amount) external returns (uint256);
     function fillFastRedeemOrder(uint256 orderId, address feeRecipient) external;
+    function cancelFastRedeemOrder(uint256 orderId) external;
     function createStandardRedeemOrder(uint256 amount) external returns (uint256);
     function fillStandardRedeemOrder(uint256 orderId) external;
     function withdrawCollateral(address to, uint256 amount) external;

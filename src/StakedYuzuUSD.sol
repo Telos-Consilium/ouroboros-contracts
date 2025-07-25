@@ -14,31 +14,31 @@ import "./interfaces/IStakedYuzuUSDDefinitions.sol";
 contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSDDefinitions {
     uint256 public currentRedeemAssetCommitment;
 
-    mapping(uint256 => uint256) public mintedPerBlockInAssets;
-    mapping(uint256 => uint256) public redeemedPerBlockInAssets;
-    uint256 public maxMintPerBlockInAssets;
-    uint256 public maxRedeemPerBlockInAssets;
+    mapping(uint256 => uint256) public depositedPerBlock;
+    mapping(uint256 => uint256) public withdrawnPerBlock;
+    uint256 public maxDepositPerBlock;
+    uint256 public maxWithdrawPerBlock;
 
     mapping(uint256 => Order) internal redeemOrders;
     uint256 public redeemOrderCount;
 
     uint256 public redeemWindow = 1 days;
 
-    constructor(IERC20 _yzUSD, uint256 _maxMintPerBlockInAssets, uint256 _maxRedeemPerBlockInAssets)
+    constructor(IERC20 _yzUSD, uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock)
         ERC4626(_yzUSD)
         ERC20("Staked Yuzu USD", "st-yzUSD")
         Ownable(_msgSender())
     {
-        maxMintPerBlockInAssets = _maxMintPerBlockInAssets;
-        maxRedeemPerBlockInAssets = _maxRedeemPerBlockInAssets;
+        maxDepositPerBlock = _maxDepositPerBlock;
+        maxWithdrawPerBlock = _maxWithdrawPerBlock;
     }
 
-    function setMaxMintPerBlockInAssets(uint256 newMax) external onlyOwner {
-        maxMintPerBlockInAssets = newMax;
+    function setMaxDepositPerBlock(uint256 newMax) external onlyOwner {
+        maxDepositPerBlock = newMax;
     }
 
-    function setMaxRedeemPerBlockInAssets(uint256 newMax) external onlyOwner {
-        maxRedeemPerBlockInAssets = newMax;
+    function setMaxWithdrawPerBlock(uint256 newMax) external onlyOwner {
+        maxWithdrawPerBlock = newMax;
     }
 
     function setRedeemWindow(uint256 newWindow) external onlyOwner {
@@ -50,9 +50,9 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
     }
 
     function maxDeposit(address) public view override returns (uint256) {
-        uint256 mintedThisBlock = mintedPerBlockInAssets[block.number];
-        if (mintedThisBlock >= maxMintPerBlockInAssets) return 0;
-        return maxMintPerBlockInAssets - mintedThisBlock;
+        uint256 mintedThisBlock = depositedPerBlock[block.number];
+        if (mintedThisBlock >= maxDepositPerBlock) return 0;
+        return maxDepositPerBlock - mintedThisBlock;
     }
 
     function maxMint(address) public view override returns (uint256) {
@@ -60,26 +60,26 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
     }
 
     function maxWithdraw(address owner) public view override returns (uint256) {
-        uint256 redeemedThisBlock = redeemedPerBlockInAssets[block.number];
-        if (redeemedThisBlock >= maxRedeemPerBlockInAssets) return 0;
-        return Math.min(super.maxWithdraw(owner), maxRedeemPerBlockInAssets - redeemedThisBlock);
+        uint256 redeemedThisBlock = withdrawnPerBlock[block.number];
+        if (redeemedThisBlock >= maxWithdrawPerBlock) return 0;
+        return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - redeemedThisBlock);
     }
 
     function maxRedeem(address owner) public view override returns (uint256) {
-        uint256 redeemedThisBlock = redeemedPerBlockInAssets[block.number];
-        if (redeemedThisBlock >= maxRedeemPerBlockInAssets) return 0;
-        return Math.min(super.maxRedeem(owner), convertToShares(maxRedeemPerBlockInAssets - redeemedThisBlock));
+        uint256 redeemedThisBlock = withdrawnPerBlock[block.number];
+        if (redeemedThisBlock >= maxWithdrawPerBlock) return 0;
+        return Math.min(super.maxRedeem(owner), convertToShares(maxWithdrawPerBlock - redeemedThisBlock));
     }
 
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
-        mintedPerBlockInAssets[block.number] += assets;
+        depositedPerBlock[block.number] += assets;
         return shares;
     }
 
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
         uint256 assets = super.mint(shares, receiver);
-        mintedPerBlockInAssets[block.number] += assets;
+        depositedPerBlock[block.number] += assets;
         return shares;
     }
 
@@ -96,7 +96,7 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
         uint256 maxShares = maxRedeem(_msgSender());
         if (shares > maxShares) revert MaxRedeemExceeded();
         uint256 assets = convertToAssets(shares);
-        redeemedPerBlockInAssets[block.number] += assets;
+        withdrawnPerBlock[block.number] += assets;
         uint256 orderId = _initiateRedeem(_msgSender(), assets, shares);
         emit RedeemInitiated(orderId, _msgSender(), assets, shares);
         return (orderId, assets);
