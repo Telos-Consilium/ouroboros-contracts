@@ -415,7 +415,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Attacker tries to profit by redeeming
         vm.startPrank(attacker);
-        (uint256 orderId, ) = stakedYzusd.initiateRedeem(attackerShares);
+        (uint256 orderId,) = stakedYzusd.initiateRedeem(attackerShares);
         vm.stopPrank();
 
         Order memory order = stakedYzusd.getRedeemOrder(orderId);
