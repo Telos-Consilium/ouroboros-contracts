@@ -72,58 +72,58 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         lastPoolUpdateTimestamp = block.timestamp;
     }
 
-    function asset() public view override returns (address) {
+    function asset() public view returns (address) {
         return address(_asset);
     }
 
-    function totalAssets() public view override returns (uint256) {
+    function totalAssets() public view returns (uint256) {
         uint256 yieldSinceUpdate = _yieldSinceUpdate(Math.Rounding.Floor);
         return poolSize + yieldSinceUpdate;
     }
 
-    function convertToAssets(uint256 shares) public view override returns (uint256) {
+    function convertToAssets(uint256 shares) public view returns (uint256) {
         return previewMint(shares);
     }
 
-    function convertToShares(uint256 assets) public view override returns (uint256) {
+    function convertToShares(uint256 assets) public view returns (uint256) {
         return previewDeposit(assets);
     }
 
-    function maxDeposit(address) public view override returns (uint256) {
+    function maxDeposit(address) public view returns (uint256) {
         uint256 deposited = depositedPerBlock[block.number];
         if (deposited >= maxDepositPerBlock) return 0;
         return maxDepositPerBlock - deposited;
     }
 
-    function maxMint(address) public view override returns (uint256) {
+    function maxMint(address) public view returns (uint256) {
         return previewMint(maxDeposit(_msgSender()));
     }
 
-    function maxWithdraw(address owner) public view override returns (uint256) {
+    function maxWithdraw(address owner) public view returns (uint256) {
         return Math.min(previewRedeem(balanceOf(owner)), withdrawAllowance);
     }
 
-    function maxRedeem(address owner) public view override returns (uint256) {
+    function maxRedeem(address owner) public view returns (uint256) {
         return Math.min(balanceOf(owner), previewWithdraw(withdrawAllowance));
     }
 
-    function previewDeposit(uint256 assets) public view override returns (uint256) {
+    function previewDeposit(uint256 assets) public view returns (uint256) {
         return _convertToSharesMinted(assets);
     }
 
-    function previewMint(uint256 shares) public view override returns (uint256) {
+    function previewMint(uint256 shares) public view returns (uint256) {
         return _convertToAssetsDeposited(shares);
     }
 
-    function previewWithdraw(uint256 assets) public view override returns (uint256) {
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
         return _convertToSharesRedeemed(assets);
     }
 
-    function previewRedeem(uint256 shares) public view override returns (uint256) {
+    function previewRedeem(uint256 shares) public view returns (uint256) {
         return _convertToAssetsWithdrawn(shares);
     }
 
-    function deposit(uint256 assets, address receiver) public virtual returns (uint256) {
+    function deposit(uint256 assets, address receiver) public returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
             revert MaxDepositExceeded();
@@ -135,7 +135,7 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         return shares;
     }
 
-    function mint(uint256 shares, address receiver) public virtual returns (uint256) {
+    function mint(uint256 shares, address receiver) public returns (uint256) {
         uint256 maxShares = maxMint(receiver);
         if (shares > maxShares) {
             revert MaxMintExceeded();
@@ -147,11 +147,11 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         return assets;
     }
 
-    function withdraw(uint256 assets, address receiver, address owner) public pure override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address owner) public pure returns (uint256) {
         revert WithdrawNotSupported();
     }
 
-    function redeem(uint256 shares, address receiver, address owner) public pure override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address owner) public pure returns (uint256) {
         revert RedeemNotSupported();
     }
 
