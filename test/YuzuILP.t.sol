@@ -106,9 +106,9 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.treasury(), newTreasury);
     }
 
-    function test_SetTreasury_RevertInvalidAddress() public {
+    function test_SetTreasury_RevertInvalidZeroAddress() public {
         vm.prank(admin);
-        vm.expectRevert(InvalidAddress.selector);
+        vm.expectRevert(InvalidZeroAddress.selector);
         ilp.setTreasury(address(0));
     }
 
@@ -392,7 +392,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         asset.approve(address(ilp), assets);
 
         vm.expectEmit();
-        emit RedeemFilled(orderId, user1, orderFiller, assets, shares);
+        emit RedeemOrderFilled(orderId, user1, orderFiller, assets, shares);
         ilp.fillRedeemOrder(orderId);
         vm.stopPrank();
 

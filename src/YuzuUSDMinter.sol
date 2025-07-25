@@ -235,7 +235,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         emit CollateralWithdrawn(to, amount);
     }
 
-    function rescueTokens(address token, uint256 amount, address to) external nonReentrant onlyRole(ADMIN_ROLE) {
+    function rescueTokens(address token, address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         if (token == collateralToken || token == address(yzusd)) {
             revert InvalidToken();

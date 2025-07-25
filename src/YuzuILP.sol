@@ -36,8 +36,8 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         ERC20("Yuzu ILP", "yzILP")
         AccessControlDefaultAdminRules(0, _admin)
     {
-        if (_admin == address(0)) revert InvalidAddress();
-        if (_treasury == address(0)) revert InvalidAddress();
+        if (_admin == address(0)) revert InvalidZeroAddress();
+        if (_treasury == address(0)) revert InvalidZeroAddress();
 
         _asset = asset_;
         treasury = _treasury;
@@ -54,7 +54,7 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
     }
 
     function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
-        if (newTreasury == address(0)) revert InvalidAddress();
+        if (newTreasury == address(0)) revert InvalidZeroAddress();
         treasury = newTreasury;
     }
 
@@ -171,7 +171,7 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         if (order.shares == 0) revert InvalidOrder();
 
         _fillRedeemOrder(order, _msgSender());
-        emit RedeemFilled(orderId, order.owner, _msgSender(), order.assets, order.shares);
+        emit RedeemOrderFilled(orderId, order.owner, _msgSender(), order.assets, order.shares);
     }
 
     function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {

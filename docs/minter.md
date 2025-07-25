@@ -373,7 +373,7 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 - **Validation**: `amount <= outstandingBalance`
 - **Error**: `OutstandingBalanceExceeded()` if amount too large
 
-#### `rescueTokens(address token, uint256 amount, address to)`
+#### `rescueTokens(address token, address to, uint256 amount)`
 - **Role**: `ADMIN_ROLE`
 - **Purpose**: Rescue accidentally sent tokens
 - **Restriction**: Cannot rescue collateral tokens or YuzuUSD tokens

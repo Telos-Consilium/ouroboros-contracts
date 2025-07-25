@@ -41,7 +41,7 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function withdrawCollateral(address to, uint256 amount) external;
 
     // Emergency functions
-    function rescueTokens(address token, uint256 amount, address to) external;
+    function rescueTokens(address token, address to, uint256 amount) external;
     function rescueOutstandingYuzuUSD(uint256 amount, address to) external;
 
     // Getter functions for public variables

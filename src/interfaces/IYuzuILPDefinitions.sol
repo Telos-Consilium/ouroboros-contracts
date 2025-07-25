@@ -6,13 +6,13 @@ import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRule
 
 interface IYuzuILPDefinitions {
     event RedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
-    event RedeemFilled(
+    event RedeemOrderFilled(
         uint256 indexed orderId, address indexed owner, address indexed filler, uint256 assets, uint256 shares
     );
 
     error InvalidAmount();
     error InvalidYield();
-    error InvalidAddress();
+    error InvalidZeroAddress();
     error InvalidToken();
     error InvalidOrder();
     error MaxDepositExceeded();

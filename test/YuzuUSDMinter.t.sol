@@ -776,7 +776,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         otherToken.mint(address(minter), amount);
 
         vm.prank(admin);
-        minter.rescueTokens(address(otherToken), amount, treasury);
+        minter.rescueTokens(address(otherToken), treasury, amount);
 
         assertEq(otherToken.balanceOf(treasury), amount);
         assertEq(otherToken.balanceOf(address(minter)), 0);
@@ -785,13 +785,13 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     function test_RescueTokens_RevertCollateralToken() public {
         vm.expectRevert(InvalidToken.selector);
         vm.prank(admin);
-        minter.rescueTokens(address(collateralToken), 100e18, treasury);
+        minter.rescueTokens(address(collateralToken), treasury, 100e18);
     }
 
     function test_RescueTokens_RevertYuzuUSD() public {
         vm.expectRevert(InvalidToken.selector);
         vm.prank(admin);
-        minter.rescueTokens(address(yzusd), 100e18, treasury);
+        minter.rescueTokens(address(yzusd), treasury, 100e18);
     }
 
     // Fuzz Tests
