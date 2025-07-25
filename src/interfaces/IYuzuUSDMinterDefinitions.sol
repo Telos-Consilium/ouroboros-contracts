@@ -16,7 +16,7 @@ interface IYuzuUSDMinterDefinitions {
     event CollateralWithdrawn(address indexed to, uint256 amount);
     event Minted(address indexed from, address indexed to, uint256 amount);
     event Redeemed(address indexed from, address indexed to, uint256 amount);
-    event InstantRedeem(address indexed from, address indexed to, uint256 amount, uint256 feePpm);
+    event InstantRedeem(address indexed from, address indexed to, uint256 amount, uint256 fee);
     event FastRedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 amount);
     event FastRedeemOrderFilled(
         uint256 indexed orderId,
@@ -24,11 +24,11 @@ interface IYuzuUSDMinterDefinitions {
         address indexed filler,
         address feeRecipient,
         uint256 amount,
-        uint256 feePpm
+        uint256 fee
     );
     event FastRedeemOrderCancelled(uint256 indexed orderId);
     event StandardRedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 amount);
-    event StandardRedeemOrderFilled(uint256 indexed orderId, address indexed owner, uint256 amount, uint256 feePpm);
+    event StandardRedeemOrderFilled(uint256 indexed orderId, address indexed owner, uint256 amount, uint256 fee);
 
     error InvalidZeroAddress();
     error InvalidToken();

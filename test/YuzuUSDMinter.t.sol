@@ -549,7 +549,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         collateralToken.approve(address(minter), redeemAmount);
 
         vm.expectEmit();
-        emit FastRedeemOrderFilled(0, user1, filler, redeemFeeRecipient, redeemAmount, feePpm);
+        emit FastRedeemOrderFilled(0, user1, filler, redeemFeeRecipient, redeemAmount, expectedFee);
 
         minter.fillFastRedeemOrder(0, redeemFeeRecipient);
         vm.stopPrank();
@@ -735,7 +735,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.warp(block.timestamp + 7 days + 1);
 
         vm.expectEmit();
-        emit StandardRedeemOrderFilled(0, user1, redeemAmount, feePpm);
+        emit StandardRedeemOrderFilled(0, user1, redeemAmount, expectedFee);
 
         minter.fillStandardRedeemOrder(0);
 

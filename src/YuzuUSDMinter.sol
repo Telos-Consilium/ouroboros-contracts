@@ -193,8 +193,12 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     {
         Order storage order = fastRedeemOrders[orderId];
         if (order.amount == 0) revert InvalidOrder();
-        _fillFastRedeemOrder(order, _msgSender(), feeRecipient);
-        emit FastRedeemOrderFilled(orderId, order.owner, _msgSender(), feeRecipient, order.amount, order.feePpm);
+        if (order.status != OrderStatus.Pending) revert OrderNotPending();
+
+        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
+        _fillFastRedeemOrder(order, _msgSender(), feeRecipient, fee);
+        
+        emit FastRedeemOrderFilled(orderId, order.owner, _msgSender(), feeRecipient, order.amount, fee);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
@@ -202,7 +206,11 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         Order storage order = fastRedeemOrders[orderId];
         if (order.amount == 0) revert InvalidOrder();
         if (_msgSender() != order.owner) revert Unauthorized();
+        if (order.status != OrderStatus.Pending) revert OrderNotPending();
+        if (block.timestamp < order.dueTime) revert OrderNotDue();
+        
         _cancelFastRedeemOrder(order);
+        
         emit FastRedeemOrderCancelled(orderId);
     }
 
@@ -222,16 +230,23 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     function fillStandardRedeemOrder(uint256 orderId) external nonReentrant {
         Order storage order = standardRedeemOrders[orderId];
         if (order.amount == 0) revert InvalidOrder();
-        _fillStandardRedeemOrder(order);
-        emit StandardRedeemOrderFilled(orderId, order.owner, order.amount, order.feePpm);
+        if (order.status != OrderStatus.Pending) revert OrderNotPending();
+        if (block.timestamp < order.dueTime) revert OrderNotDue();
+        if (order.amount > _getLiquidityBufferSize()) revert LiquidityBufferExceeded();
+        
+        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
+        _fillStandardRedeemOrder(order, fee);
+        
+        emit StandardRedeemOrderFilled(orderId, order.owner, order.amount, fee);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
     function withdrawCollateral(address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
-        uint256 outstandingBalance = _getOutstandingCollateralBalance();
-        if (amount > outstandingBalance) revert OutstandingBalanceExceeded();
+        if (amount > _getOutstandingCollateralBalance()) revert OutstandingBalanceExceeded();
+        
         IERC20(collateralToken).safeTransfer(to, amount);
+        
         emit CollateralWithdrawn(to, amount);
     }
 
@@ -245,8 +260,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
 
     function rescueOutstandingYuzuUSD(uint256 amount, address to) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
-        uint256 outstandingBalance = _getOutstandingYuzuUSDBalance();
-        if (amount > outstandingBalance) revert OutstandingBalanceExceeded();
+        if (amount > _getOutstandingYuzuUSDBalance()) revert OutstandingBalanceExceeded();
         IERC20(yzusd).safeTransfer(to, amount);
     }
 
@@ -287,11 +301,9 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         return orderId;
     }
 
-    function _fillFastRedeemOrder(Order storage order, address filler, address feeRecipient) internal {
-        if (order.status != OrderStatus.Pending) revert OrderNotPending();
+    function _fillFastRedeemOrder(Order storage order, address filler, address feeRecipient, uint256 fee) internal {
         order.status = OrderStatus.Filled;
         currentPendingFastRedeemValue -= order.amount;
-        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
         IERC20(collateralToken).safeTransferFrom(filler, order.owner, amountAfterFee);
@@ -301,8 +313,6 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     }
 
     function _cancelFastRedeemOrder(Order storage order) internal {
-        if (order.status != OrderStatus.Pending) revert OrderNotPending();
-        if (block.timestamp < order.dueTime) revert OrderNotDue();
         order.status = OrderStatus.Cancelled;
         currentPendingFastRedeemValue -= order.amount;
         IERC20(yzusd).safeTransfer(order.owner, order.amount);
@@ -323,14 +333,9 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         return orderId;
     }
 
-    function _fillStandardRedeemOrder(Order storage order) internal {
-        if (order.status != OrderStatus.Pending) revert OrderNotPending();
-        if (block.timestamp < order.dueTime) revert OrderNotDue();
-        uint256 liquidityBufferSize = _getLiquidityBufferSize();
-        if (order.amount > liquidityBufferSize) revert LiquidityBufferExceeded();
+    function _fillStandardRedeemOrder(Order storage order, uint256 fee) internal {
         order.status = OrderStatus.Filled;
         currentPendingStandardRedeemValue -= order.amount;
-        uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         uint256 amountAfterFee = order.amount - fee;
         yzusd.burn(order.amount);
         IERC20(collateralToken).safeTransfer(order.owner, amountAfterFee);
