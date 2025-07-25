@@ -303,7 +303,7 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 - **Event**: `RedeemFeeRecipientUpdated(oldRecipient, newRecipient)`
 
 #### `withdrawCollateral(uint256 amount, address to)`
-- **Role**: `DEFAULT_ADMIN_ROLE`
+- **Role**: `ADMIN_ROLE`
 - **Purpose**: Withdraw excess collateral not reserved for pending redemptions
 - **Calculation**: `outstandingBalance = balance - currentPendingStandardRedeemValue`
 - **Validation**: `amount <= outstandingBalance`
@@ -367,14 +367,14 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 ### Asset Recovery
 
 #### `rescueOutstandingYuzuUSD(uint256 amount, address to)`
-- **Role**: `DEFAULT_ADMIN_ROLE`
+- **Role**: `ADMIN_ROLE`
 - **Purpose**: Rescue YuzuUSD tokens not being escrowed for pending orders
 - **Calculation**: `outstandingBalance = balance - pendingFast - pendingStandard`
 - **Validation**: `amount <= outstandingBalance`
 - **Error**: `OutstandingBalanceExceeded()` if amount too large
 
 #### `rescueTokens(address token, uint256 amount, address to)`
-- **Role**: `DEFAULT_ADMIN_ROLE`
+- **Role**: `ADMIN_ROLE`
 - **Purpose**: Rescue accidentally sent tokens
 - **Restriction**: Cannot rescue collateral tokens or YuzuUSD tokens
 - **Validation**: `token != collateralToken && token != address(yzusd)`
