@@ -50,9 +50,9 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
     }
 
     function maxDeposit(address) public view override returns (uint256) {
-        uint256 mintedThisBlock = depositedPerBlock[block.number];
-        if (mintedThisBlock >= maxDepositPerBlock) return 0;
-        return maxDepositPerBlock - mintedThisBlock;
+        uint256 deposited = depositedPerBlock[block.number];
+        if (deposited >= maxDepositPerBlock) return 0;
+        return maxDepositPerBlock - deposited;
     }
 
     function maxMint(address) public view override returns (uint256) {
@@ -60,15 +60,15 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
     }
 
     function maxWithdraw(address owner) public view override returns (uint256) {
-        uint256 redeemedThisBlock = withdrawnPerBlock[block.number];
-        if (redeemedThisBlock >= maxWithdrawPerBlock) return 0;
-        return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - redeemedThisBlock);
+        uint256 withdrawn = withdrawnPerBlock[block.number];
+        if (withdrawn >= maxWithdrawPerBlock) return 0;
+        return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - withdrawn);
     }
 
     function maxRedeem(address owner) public view override returns (uint256) {
-        uint256 redeemedThisBlock = withdrawnPerBlock[block.number];
-        if (redeemedThisBlock >= maxWithdrawPerBlock) return 0;
-        return Math.min(super.maxRedeem(owner), convertToShares(maxWithdrawPerBlock - redeemedThisBlock));
+        uint256 withdrawn = withdrawnPerBlock[block.number];
+        if (withdrawn >= maxWithdrawPerBlock) return 0;
+        return Math.min(super.maxRedeem(owner), previewWithdraw(maxWithdrawPerBlock - withdrawn));
     }
 
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
@@ -95,7 +95,7 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
         if (shares == 0) revert InvalidAmount();
         uint256 maxShares = maxRedeem(_msgSender());
         if (shares > maxShares) revert MaxRedeemExceeded();
-        uint256 assets = convertToAssets(shares);
+        uint256 assets = previewRedeem(shares);
         withdrawnPerBlock[block.number] += assets;
         uint256 orderId = _initiateRedeem(_msgSender(), assets, shares);
         emit RedeemInitiated(orderId, _msgSender(), assets, shares);
