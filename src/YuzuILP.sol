@@ -123,7 +123,7 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         return _convertToAssetsWithdrawn(shares);
     }
 
-    function deposit(uint256 assets, address receiver) public returns (uint256) {
+    function deposit(uint256 assets, address receiver) public nonReentrant returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
             revert MaxDepositExceeded();
@@ -135,7 +135,7 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         return shares;
     }
 
-    function mint(uint256 shares, address receiver) public returns (uint256) {
+    function mint(uint256 shares, address receiver) public nonReentrant returns (uint256) {
         uint256 maxShares = maxMint(receiver);
         if (shares > maxShares) {
             revert MaxMintExceeded();
