@@ -227,7 +227,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
-    function withdrawCollateral(address to, uint256 amount) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdrawCollateral(address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         uint256 outstandingBalance = _getOutstandingCollateralBalance();
         if (amount > outstandingBalance) revert OutstandingBalanceExceeded();
@@ -235,11 +235,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         emit CollateralWithdrawn(to, amount);
     }
 
-    function rescueTokens(address token, uint256 amount, address to)
-        external
-        nonReentrant
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
+    function rescueTokens(address token, uint256 amount, address to) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         if (token == collateralToken || token == address(yzusd)) {
             revert InvalidToken();
@@ -247,7 +243,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         IERC20(token).safeTransfer(to, amount);
     }
 
-    function rescueOutstandingYuzuUSD(uint256 amount, address to) external nonReentrant onlyRole(DEFAULT_ADMIN_ROLE) {
+    function rescueOutstandingYuzuUSD(uint256 amount, address to) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         uint256 outstandingBalance = _getOutstandingYuzuUSDBalance();
         if (amount > outstandingBalance) revert OutstandingBalanceExceeded();
