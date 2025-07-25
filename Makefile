@@ -12,7 +12,7 @@ format-python:
 format: format-sol format-python
 
 test:
-	forge test -vv --via-ir
+	forge test -vv
 
 build:
-	forge build --via-ir
+	forge build
