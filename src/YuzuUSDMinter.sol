@@ -208,7 +208,7 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
 
         uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         _fillFastRedeemOrder(order, _msgSender(), feeRecipient, fee);
-        
+
         emit FastRedeemOrderFilled(orderId, order.owner, _msgSender(), feeRecipient, order.amount, fee);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
@@ -219,9 +219,9 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (_msgSender() != order.owner) revert Unauthorized();
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
         if (block.timestamp < order.dueTime) revert OrderNotDue();
-        
+
         _cancelFastRedeemOrder(order);
-        
+
         emit FastRedeemOrderCancelled(orderId);
     }
 
@@ -244,10 +244,10 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         if (order.status != OrderStatus.Pending) revert OrderNotPending();
         if (block.timestamp < order.dueTime) revert OrderNotDue();
         if (order.amount > _getLiquidityBufferSize()) revert LiquidityBufferExceeded();
-        
+
         uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         _fillStandardRedeemOrder(order, fee);
-        
+
         emit StandardRedeemOrderFilled(orderId, order.owner, order.amount, fee);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
@@ -255,9 +255,9 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     function withdrawCollateral(address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidAmount();
         if (amount > _getOutstandingCollateralBalance()) revert OutstandingBalanceExceeded();
-        
+
         IERC20(collateralToken).safeTransfer(to, amount);
-        
+
         emit CollateralWithdrawn(to, amount);
     }
 
