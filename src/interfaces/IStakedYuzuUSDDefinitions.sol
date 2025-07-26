@@ -7,12 +7,13 @@ interface IStakedYuzuUSDDefinitions {
     event RedeemInitiated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
     event RedeemFinalized(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
 
+    error InvalidZeroShares();
+    error InvalidZeroAmount();
+    error InvalidToken(address token);
+    error InvalidOrder(uint256 orderId);
     error WithdrawNotSupported();
-    error InvalidAmount();
-    error InvalidToken();
-    error InvalidOrder();
     error RedeemNotSupported();
-    error MaxRedeemExceeded();
-    error OrderAlreadyExecuted();
-    error OrderNotDue();
+    error MaxRedeemExceeded(uint256 requested, uint256 maxAllowed);
+    error OrderAlreadyExecuted(uint256 orderId);
+    error OrderNotDue(uint256 orderId);
 }

@@ -62,9 +62,9 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         external
         onlyRole(POOL_MANAGER_ROLE)
     {
-        if (newPoolSize > type(uint128).max) revert InvalidAmount(); // 2^128 > 10^38s
-        if (newWithdrawalAllowance > newPoolSize) revert InvalidAmount();
-        if (newDailyLinearYieldRatePpm > 1e6) revert InvalidYield(); // Max 1e6 ppm = 100% yield per day
+        if (newPoolSize > type(uint128).max) revert InvalidPoolSize(newPoolSize); // 2^128 > 10^38s
+        if (newWithdrawalAllowance > newPoolSize) revert WithdrawalAllowanceExceedsPoolSize(newWithdrawalAllowance);
+        if (newDailyLinearYieldRatePpm > 1e6) revert InvalidYield(newDailyLinearYieldRatePpm); // Max 1e6 ppm = 100% yield per day
 
         poolSize = newPoolSize;
         withdrawAllowance = newWithdrawalAllowance;
@@ -126,7 +126,7 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
     function deposit(uint256 assets, address receiver) public nonReentrant returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
-            revert MaxDepositExceeded();
+            revert MaxDepositExceeded(assets, maxAssets);
         }
 
         uint256 shares = previewDeposit(assets);
@@ -138,7 +138,7 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
     function mint(uint256 shares, address receiver) public nonReentrant returns (uint256) {
         uint256 maxShares = maxMint(receiver);
         if (shares > maxShares) {
-            revert MaxMintExceeded();
+            revert MaxMintExceeded(shares, maxShares);
         }
 
         uint256 assets = previewMint(shares);
@@ -156,9 +156,9 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
     }
 
     function createRedeemOrder(uint256 shares) public nonReentrant returns (uint256, uint256) {
-        if (shares == 0) revert InvalidAmount();
+        if (shares == 0) revert InvalidZeroShares();
         uint256 maxShares = maxRedeem(_msgSender());
-        if (shares > maxShares) revert MaxRedeemExceeded();
+        if (shares > maxShares) revert MaxRedeemExceeded(shares, maxShares);
 
         uint256 assets = previewRedeem(shares);
         uint256 orderId = _createRedeemOrder(_msgSender(), assets, shares);
@@ -168,15 +168,15 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
 
     function fillRedeemOrder(uint256 orderId) public nonReentrant onlyRole(ORDER_FILLER_ROLE) {
         Order storage order = redeemOrders[orderId];
-        if (order.shares == 0) revert InvalidOrder();
+        if (order.shares == 0) revert InvalidOrder(orderId);
 
         _fillRedeemOrder(order, _msgSender());
         emit RedeemOrderFilled(orderId, order.owner, _msgSender(), order.assets, order.shares);
     }
 
     function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
-        if (amount == 0) revert InvalidAmount();
-        if (token == asset()) revert InvalidToken();
+        if (amount == 0) revert InvalidZeroAmount();
+        if (token == asset()) revert InvalidToken(token);
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }
 

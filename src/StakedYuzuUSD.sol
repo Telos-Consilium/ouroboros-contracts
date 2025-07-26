@@ -92,9 +92,9 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
     }
 
     function initiateRedeem(uint256 shares) public nonReentrant returns (uint256, uint256) {
-        if (shares == 0) revert InvalidAmount();
+        if (shares == 0) revert InvalidZeroShares();
         uint256 maxShares = maxRedeem(_msgSender());
-        if (shares > maxShares) revert MaxRedeemExceeded();
+        if (shares > maxShares) revert MaxRedeemExceeded(shares, maxShares);
         uint256 assets = previewRedeem(shares);
         withdrawnPerBlock[block.number] += assets;
         uint256 orderId = _initiateRedeem(_msgSender(), assets, shares);
@@ -104,14 +104,16 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
 
     function finalizeRedeem(uint256 orderId) public nonReentrant {
         Order storage order = redeemOrders[orderId];
-        if (order.shares == 0) revert InvalidOrder();
+        if (order.shares == 0) revert InvalidOrder(orderId);
+        if (order.executed) revert OrderAlreadyExecuted(orderId);
+        if (block.timestamp < order.dueTime) revert OrderNotDue(orderId);
         _finalizeRedeem(order);
         emit RedeemFinalized(orderId, order.owner, order.assets, order.shares);
     }
 
     function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
-        if (amount == 0) revert InvalidAmount();
-        if (token == asset()) revert InvalidToken();
+        if (amount == 0) revert InvalidZeroAmount();
+        if (token == asset()) revert InvalidToken(token);
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }
 
@@ -135,8 +137,6 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
     }
 
     function _finalizeRedeem(Order storage order) internal {
-        if (order.executed) revert OrderAlreadyExecuted();
-        if (block.timestamp < order.dueTime) revert OrderNotDue();
         order.executed = true;
         currentRedeemAssetCommitment -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.owner, order.assets);

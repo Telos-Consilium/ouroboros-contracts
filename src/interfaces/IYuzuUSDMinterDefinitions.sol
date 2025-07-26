@@ -31,15 +31,15 @@ interface IYuzuUSDMinterDefinitions {
     event StandardRedeemOrderFilled(uint256 indexed orderId, address indexed owner, uint256 amount, uint256 fee);
 
     error InvalidZeroAddress();
-    error InvalidToken();
-    error InvalidAmount();
-    error InvalidOrder();
-    error InvalidFeePpm();
+    error InvalidZeroAmount();
+    error InvalidToken(address token);
+    error InvalidOrder(uint256 orderId);
+    error InvalidFeePpm(uint256 provided);
     error Unauthorized();
-    error MaxMintPerBlockExceeded();
-    error MaxRedeemPerBlockExceeded();
-    error LiquidityBufferExceeded();
-    error OutstandingBalanceExceeded();
-    error OrderNotPending();
-    error OrderNotDue();
+    error MaxMintPerBlockExceeded(uint256 requested, uint256 maxAllowed);
+    error MaxRedeemPerBlockExceeded(uint256 requested, uint256 maxAllowed);
+    error LiquidityBufferExceeded(uint256 requested, uint256 available);
+    error OutstandingBalanceExceeded(uint256 requested, uint256 available);
+    error OrderNotPending(uint256 orderId);
+    error OrderNotDue(uint256 orderId);
 }

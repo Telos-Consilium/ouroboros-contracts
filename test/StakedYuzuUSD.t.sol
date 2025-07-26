@@ -195,7 +195,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_InitiateRedeem_RevertZeroShares() public {
         vm.prank(user1);
-        vm.expectRevert(InvalidAmount.selector);
+        vm.expectRevert(InvalidZeroShares.selector);
         stakedYzusd.initiateRedeem(0);
     }
 
@@ -209,7 +209,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Try to redeem more than max
         vm.prank(user1);
-        vm.expectRevert(MaxRedeemExceeded.selector);
+        vm.expectRevert(abi.encodeWithSelector(MaxRedeemExceeded.selector, shares + 1, shares));
         stakedYzusd.initiateRedeem(shares + 1);
     }
 
@@ -240,7 +240,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_FinalizeRedeem_RevertInvalidOrder() public {
-        vm.expectRevert(InvalidOrder.selector);
+        vm.expectRevert(abi.encodeWithSelector(InvalidOrder.selector, 999));
         stakedYzusd.finalizeRedeem(999);
     }
 
@@ -254,7 +254,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.stopPrank();
 
         // Try to finalize before due time
-        vm.expectRevert(OrderNotDue.selector);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
         stakedYzusd.finalizeRedeem(orderId);
     }
 
@@ -272,7 +272,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         stakedYzusd.finalizeRedeem(orderId);
 
         // Try to finalize again
-        vm.expectRevert(OrderAlreadyExecuted.selector);
+        vm.expectRevert(abi.encodeWithSelector(OrderAlreadyExecuted.selector, orderId));
         stakedYzusd.finalizeRedeem(orderId);
     }
 

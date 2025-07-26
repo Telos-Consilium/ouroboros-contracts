@@ -108,7 +108,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
     function test_SetTreasury_RevertInvalidZeroAddress() public {
         vm.prank(admin);
-        vm.expectRevert(InvalidZeroAddress.selector);
+        vm.expectRevert(abi.encodeWithSelector(InvalidZeroAddress.selector));
         ilp.setTreasury(address(0));
     }
 
@@ -132,9 +132,9 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.lastPoolUpdateTimestamp(), block.timestamp);
     }
 
-    function test_UpdatePool_RevertInvalidAmount() public {
+    function test_UpdatePool_RevertWithdrawalAllowanceExceedsPoolSize() public {
         vm.prank(poolManager);
-        vm.expectRevert(InvalidAmount.selector);
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalAllowanceExceedsPoolSize.selector, 2_000e18));
         ilp.updatePool(1_000e18, 2_000e18, 0);
     }
 
@@ -353,9 +353,9 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.withdrawAllowance(), 0);
     }
 
-    function test_CreateRedeemOrder_RevertInvalidAmount() public {
+    function test_CreateRedeemOrder_RevertInvalidZeroShares() public {
         vm.prank(user1);
-        vm.expectRevert(InvalidAmount.selector);
+        vm.expectRevert(InvalidZeroShares.selector);
         ilp.createRedeemOrder(0);
     }
 
@@ -368,7 +368,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
         uint256 maxRedeem = ilp.maxRedeem(user1);
 
-        vm.expectRevert(MaxRedeemExceeded.selector);
+        vm.expectRevert(abi.encodeWithSelector(MaxRedeemExceeded.selector, maxRedeem + 1, maxRedeem));
         ilp.createRedeemOrder(maxRedeem + 1);
         vm.stopPrank();
     }
@@ -407,7 +407,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
     function test_FillRedeemOrder_RevertInvalidOrder() public {
         vm.prank(orderFiller);
-        vm.expectRevert(InvalidOrder.selector);
+        vm.expectRevert(abi.encodeWithSelector(InvalidOrder.selector, 999));
         ilp.fillRedeemOrder(999);
     }
 
@@ -463,16 +463,16 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(otherToken.balanceOf(address(ilp)), 0);
     }
 
-    function test_RescueTokens_RevertInvalidAmount() public {
+    function test_RescueTokens_RevertInvalidZeroAmount() public {
         ERC20Mock otherToken = new ERC20Mock();
         vm.prank(admin);
-        vm.expectRevert(InvalidAmount.selector);
+        vm.expectRevert(InvalidZeroAmount.selector);
         ilp.rescueTokens(address(otherToken), user1, 0);
     }
 
     function test_RescueTokens_RevertInvalidToken() public {
         vm.prank(admin);
-        vm.expectRevert(InvalidToken.selector);
+        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(asset)));
         ilp.rescueTokens(address(asset), user1, 100e18);
     }
 

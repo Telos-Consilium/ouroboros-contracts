@@ -317,8 +317,8 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.mintedPerBlock(block.number), amount);
     }
 
-    function test_Mint_RevertInvalidAmount() public {
-        vm.expectRevert(InvalidAmount.selector);
+    function test_Mint_RevertInvalidZeroAmount() public {
+        vm.expectRevert(abi.encodeWithSelector(InvalidZeroAmount.selector));
         vm.prank(user1);
         minter.mint(user1, 0);
     }
@@ -329,7 +329,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.startPrank(user1);
         collateralToken.approve(address(minter), amount);
 
-        vm.expectRevert(MaxMintPerBlockExceeded.selector);
+        vm.expectRevert(abi.encodeWithSelector(MaxMintPerBlockExceeded.selector, amount, MAX_MINT_PER_BLOCK));
         minter.mint(user1, amount);
         vm.stopPrank();
     }
@@ -343,7 +343,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.startPrank(user1);
         collateralToken.approve(address(minter), 1000e18);
 
-        vm.expectRevert(MaxMintPerBlockExceeded.selector);
+        vm.expectRevert(abi.encodeWithSelector(MaxMintPerBlockExceeded.selector, 1000e18, 0));
         minter.mint(user1, 1000e18);
         vm.stopPrank();
     }
@@ -429,7 +429,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Then redeem
         yzusd.approve(address(minter), redeemAmount);
 
-        vm.expectRevert(MaxRedeemPerBlockExceeded.selector);
+        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, redeemAmount, 0));
         minter.instantRedeem(user1, redeemAmount);
         vm.stopPrank();
     }
@@ -612,7 +612,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.stopPrank();
 
         // Try to cancel as a different user
-        vm.expectRevert(Unauthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
         vm.prank(user2);
         minter.cancelFastRedeemOrder(0);
     }
@@ -628,7 +628,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         minter.createFastRedeemOrder(redeemAmount);
 
         // Try to cancel before due time
-        vm.expectRevert(OrderNotDue.selector);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, 0));
         minter.cancelFastRedeemOrder(0);
         vm.stopPrank();
     }
@@ -679,7 +679,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Then redeem
         yzusd.approve(address(minter), redeemAmount);
 
-        vm.expectRevert(MaxRedeemPerBlockExceeded.selector);
+        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, redeemAmount, 0));
         minter.createStandardRedeemOrder(redeemAmount);
         vm.stopPrank();
     }
@@ -760,7 +760,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.stopPrank();
 
         // Try to fill before due time
-        vm.expectRevert(OrderNotDue.selector);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, 0));
         minter.fillStandardRedeemOrder(0);
     }
 
@@ -783,13 +783,13 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_RescueTokens_RevertCollateralToken() public {
-        vm.expectRevert(InvalidToken.selector);
+        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(collateralToken)));
         vm.prank(admin);
         minter.rescueTokens(address(collateralToken), treasury, 100e18);
     }
 
     function test_RescueTokens_RevertYuzuUSD() public {
-        vm.expectRevert(InvalidToken.selector);
+        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(yzusd)));
         vm.prank(admin);
         minter.rescueTokens(address(yzusd), treasury, 100e18);
     }
@@ -861,7 +861,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(user1);
         collateralToken.approve(address(minter), mintAmount3);
 
-        vm.expectRevert(MaxMintPerBlockExceeded.selector);
+        vm.expectRevert(abi.encodeWithSelector(MaxMintPerBlockExceeded.selector, mintAmount3, MAX_MINT_PER_BLOCK));
         vm.prank(user1);
         minter.mint(user2, mintAmount3);
     }
