@@ -121,8 +121,8 @@ contract YuzuILP is
         return maxDepositPerBlock - deposited;
     }
 
-    function maxMint(address) public view returns (uint256) {
-        return previewMint(maxDeposit(_msgSender()));
+    function maxMint(address receiver) public view returns (uint256) {
+        return previewMint(maxDeposit(receiver));
     }
 
     function maxWithdraw(address owner) public view returns (uint256) {
