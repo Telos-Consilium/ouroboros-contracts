@@ -12,16 +12,19 @@ struct Order {
 }
 
 interface IYuzuILP is IERC4626, IAccessControlDefaultAdminRules {
+    // Admin functions
     function setTreasury(address newTreasury) external;
     function updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm)
         external;
     function setMaxDepositPerBlock(uint256 newMax) external;
-    function createRedeemOrder(uint256 shares) external returns (uint256, uint256);
-    function fillRedeemOrder(uint256 orderId) external;
     function rescueTokens(address token, address to, uint256 amount) external;
 
-    function getRedeemOrder(uint256 orderId) external view returns (Order memory);
+    // Core functions
+    function createRedeemOrder(uint256 shares) external returns (uint256, uint256);
+    function fillRedeemOrder(uint256 orderId) external;
 
+    // View functions
+    function getRedeemOrder(uint256 orderId) external view returns (Order memory);
     function treasury() external view returns (address);
     function poolSize() external view returns (uint256);
     function withdrawAllowance() external view returns (uint256);

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
+
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {IYuzuUSDDefinitions} from "../src/interfaces/IYuzuUSDDefinitions.sol";
 

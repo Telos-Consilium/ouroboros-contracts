@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {Order} from "../src/interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";

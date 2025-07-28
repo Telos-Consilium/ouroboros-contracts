@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
+
 import "./IYuzuUSD.sol";
 
 enum OrderStatus {
@@ -29,6 +30,8 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function setStandardRedeemFeePpm(uint256 newFeePpm) external;
     function setFastFillWindow(uint256 newWindow) external;
     function setStandardFillWindow(uint256 newWindow) external;
+    function rescueTokens(address token, address to, uint256 amount) external;
+    function withdrawCollateral(address to, uint256 amount) external;
 
     // Core functions
     function previewMint(uint256 amount) external pure returns (uint256);
@@ -40,11 +43,6 @@ interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
     function cancelFastRedeemOrder(uint256 orderId) external;
     function createStandardRedeemOrder(uint256 amount) external returns (uint256);
     function fillStandardRedeemOrder(uint256 orderId) external;
-    function withdrawCollateral(address to, uint256 amount) external;
-
-    // Emergency functions
-    function rescueTokens(address token, address to, uint256 amount) external;
-    function rescueOutstandingYuzuUSD(uint256 amount, address to) external;
 
     // Getter functions for public variables
     function yzusd() external view returns (IYuzuUSD);
