@@ -105,7 +105,7 @@ contract StakedYuzuUSD is
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
         uint256 assets = super.mint(shares, receiver);
         depositedPerBlock[block.number] += assets;
-        return shares;
+        return assets;
     }
 
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
