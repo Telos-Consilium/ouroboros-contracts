@@ -12,6 +12,7 @@ import "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
 /**
  * @title StakedYuzuUSD
+ * @dev ERC4625 tokenized vault for staking yzUSD with 2-step delayed redemptions.
  */
 contract StakedYuzuUSD is
     Initializable,
@@ -20,6 +21,8 @@ contract StakedYuzuUSD is
     ReentrancyGuardUpgradeable,
     IStakedYuzuUSDDefinitions
 {
+    uint256 public redeemWindow;
+
     uint256 public currentRedeemAssetCommitment;
 
     mapping(uint256 => uint256) public depositedPerBlock;
@@ -30,13 +33,17 @@ contract StakedYuzuUSD is
     mapping(uint256 => Order) internal redeemOrders;
     uint256 public redeemOrderCount;
 
-    uint256 public redeemWindow;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
+    /**
+     * @dev Sets the values for {yzUSD}, {name}, {symbol}, {owner}, {maxDepositPerBlock}, and {maxWithdrawPerBlock}.
+     *
+     * {redeemWindow} is set to 1 day by default.
+     */
     function initialize(
         IERC20 _yzUSD,
         string memory name_,
@@ -58,64 +65,135 @@ contract StakedYuzuUSD is
         redeemWindow = 1 days;
     }
 
+    /**
+     * @dev Sets {maxDepositPerBlock}.
+     *
+     * Only callable by the owner.
+     */
     function setMaxDepositPerBlock(uint256 newMax) external onlyOwner {
         maxDepositPerBlock = newMax;
     }
 
+    /**
+     * @dev Sets {maxWithdrawPerBlock}.
+     *
+     * Only callable by the owner.
+     */
     function setMaxWithdrawPerBlock(uint256 newMax) external onlyOwner {
         maxWithdrawPerBlock = newMax;
     }
 
+    /**
+     * @dev Sets {redeemWindow}.
+     *
+     * Only callable by the owner.
+     */
     function setRedeemWindow(uint256 newWindow) external onlyOwner {
         redeemWindow = newWindow;
     }
 
+    /**
+     * @dev Returns the asset balance of the contract minus {currentRedeemAssetCommitment}.
+     *
+     * Only callable by the owner.
+     */
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() - currentRedeemAssetCommitment;
     }
 
+    /**
+     * @dev Returns the maximum deposit.
+     *
+     * Takes an address as input for ERC4625 compatibility.
+     * Deposit size is only limited by the maximum deposit per block.
+     */
     function maxDeposit(address) public view override returns (uint256) {
         uint256 deposited = depositedPerBlock[block.number];
         if (deposited >= maxDepositPerBlock) return 0;
         return maxDepositPerBlock - deposited;
     }
 
+    /**
+     * @dev Returns the maximum mint.
+     *
+     * Takes an address as input for ERC4625 compatibility.
+     * Mint size is only limited by the maximum deposit per block.
+     */
     function maxMint(address receiver) public view override returns (uint256) {
         return convertToShares(maxDeposit(receiver));
     }
 
+    /**
+     * @dev Returns the maximum withdraw.
+     *
+     * Max withdraw is limited by the maximum withdrawal per block and the owner's balance.
+     */
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
         return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - withdrawn);
     }
 
+    /**
+     * @dev Returns the maximum redeem.
+     *
+     * Max redeem is limited by the maximum withdrawal per block and the owner's shares.
+     */
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
         return Math.min(super.maxRedeem(owner), previewWithdraw(maxWithdrawPerBlock - withdrawn));
     }
 
+    /**
+     * @dev Deposits assets into the vault and mints shares to the receiver.
+     *
+     * Takes the amount of assets to deposit as input.
+     * Returns the number of shares minted.
+     */
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         depositedPerBlock[block.number] += assets;
         return shares;
     }
 
+    /**
+     * @dev Deposits assets into the vault and mints shares to the receiver.
+     *
+     * Takes the number of shares to mint as input.
+     * Returns the number of assets deposited.
+     */
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
         uint256 assets = super.mint(shares, receiver);
         depositedPerBlock[block.number] += assets;
         return assets;
     }
 
+    /**
+     * @dev Overrides the ERC4626 withdraw function to revert.
+     *
+     * Instant withdrawals are not supported.
+     */
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
+    /**
+     * @dev Overrides the ERC4626 redeem function to revert.
+     *
+     * Instant redemptions are not supported.
+     */
     function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
         revert RedeemNotSupported();
     }
 
+    /**
+     * @dev Initiates a 2-step redemption.
+     *
+     * Takes the number of shares to redeem as input.
+     * The assets will redeemable after the redeem window elapses.
+     * Returns the order ID and the amount of assets to be redeemed.
+     */
     function initiateRedeem(uint256 shares) public nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidZeroShares();
         uint256 maxShares = maxRedeem(_msgSender());
@@ -127,6 +205,11 @@ contract StakedYuzuUSD is
         return (orderId, assets);
     }
 
+    /**
+     * @dev Finalizes a 2-step redemption.
+     *
+     * Can be called by anyone, not just the owner.
+     */
     function finalizeRedeem(uint256 orderId) public nonReentrant {
         Order storage order = redeemOrders[orderId];
         if (order.shares == 0) revert InvalidOrder(orderId);
@@ -136,15 +219,30 @@ contract StakedYuzuUSD is
         emit RedeemFinalized(orderId, order.owner, order.assets, order.shares);
     }
 
+    /**
+     * @dev Rescues tokens from the contract.
+     *
+     * Only callable by the owner.
+     * Tokens that are the underlying asset of the vault cannot be rescued.
+     */
     function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
         if (token == asset()) revert InvalidToken(token);
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }
 
+    /**
+     * @dev Returns a redeem order by its ID.
+     */
     function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return redeemOrders[orderId];
     }
 
+    /**
+     * @dev Internal function to initiate a redeem order.
+     *
+     * Burns the shares and creates a redeem order with the specified assets and shares.
+     * Returns the order ID.
+     */
     function _initiateRedeem(address owner, uint256 assets, uint256 shares) internal returns (uint256) {
         _burn(owner, shares);
         uint256 orderId = redeemOrderCount;
@@ -160,6 +258,12 @@ contract StakedYuzuUSD is
         return orderId;
     }
 
+    /**
+     * @dev Internal function to finalize a redeem order.
+     *
+     * Marks the order as executed, updates the current redeem asset commitment,
+     * and transfers the assets to the owner.
+     */
     function _finalizeRedeem(Order storage order) internal {
         order.executed = true;
         currentRedeemAssetCommitment -= order.assets;
