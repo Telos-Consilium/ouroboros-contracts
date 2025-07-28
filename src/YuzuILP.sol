@@ -300,7 +300,7 @@ contract YuzuILP is
     function fillRedeemOrder(uint256 orderId) public nonReentrant onlyRole(ORDER_FILLER_ROLE) {
         Order storage order = redeemOrders[orderId];
         if (order.shares == 0) revert InvalidOrder(orderId);
-
+        if (order.executed) revert OrderAlreadyExecuted();
         _fillRedeemOrder(order, _msgSender());
         emit RedeemOrderFilled(orderId, order.owner, _msgSender(), order.assets, order.shares);
     }
@@ -404,7 +404,6 @@ contract YuzuILP is
      * Transfers assets to the owner and marks the order as executed.
      */
     function _fillRedeemOrder(Order storage order, address filler) internal {
-        if (order.executed) revert OrderAlreadyExecuted();
         order.executed = true;
         SafeERC20.safeTransferFrom(IERC20(asset()), filler, order.owner, order.assets);
     }
