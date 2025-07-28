@@ -137,7 +137,6 @@ contract StakedYuzuUSD is
     }
 
     function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
-        if (amount == 0) revert InvalidZeroAmount();
         if (token == asset()) revert InvalidToken(token);
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }

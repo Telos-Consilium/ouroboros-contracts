@@ -89,7 +89,6 @@ contract YuzuILP is
         external
         onlyRole(POOL_MANAGER_ROLE)
     {
-        if (newPoolSize > type(uint128).max) revert InvalidPoolSize(newPoolSize); // 2^128 > 10^38s
         if (newWithdrawalAllowance > newPoolSize) revert WithdrawalAllowanceExceedsPoolSize(newWithdrawalAllowance);
         if (newDailyLinearYieldRatePpm > 1e6) revert InvalidYield(newDailyLinearYieldRatePpm); // Max 1e6 ppm = 100% yield per day
 
