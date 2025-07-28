@@ -93,7 +93,8 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns the asset balance of the contract minus {currentRedeemAssetCommitment}.
+     * @dev Returns the asset balance of the contract minus the balance already committed
+     * to redemptions.
      *
      * Only callable by the owner.
      */
@@ -124,7 +125,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns the maximum withdraw.
+     * @dev Returns the maximum withdraw by an owner.
      *
      * Max withdraw is limited by the maximum withdrawal per block and the owner's balance.
      */
@@ -135,7 +136,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns the maximum redeem.
+     * @dev Returns the maximum redeem by an owner.
      *
      * Max redeem is limited by the maximum withdrawal per block and the owner's shares.
      */
@@ -161,7 +162,7 @@ contract StakedYuzuUSD is
      * @dev Deposits assets into the vault and mints shares to the receiver.
      *
      * Takes the number of shares to mint as input.
-     * Returns the number of assets deposited.
+     * Returns the amount of assets deposited.
      */
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
         uint256 assets = super.mint(shares, receiver);
