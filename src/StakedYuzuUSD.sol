@@ -80,8 +80,8 @@ contract StakedYuzuUSD is
         return maxDepositPerBlock - deposited;
     }
 
-    function maxMint(address) public view override returns (uint256) {
-        return convertToShares(maxDeposit(_msgSender()));
+    function maxMint(address receiver) public view override returns (uint256) {
+        return convertToShares(maxDeposit(receiver));
     }
 
     function maxWithdraw(address owner) public view override returns (uint256) {
