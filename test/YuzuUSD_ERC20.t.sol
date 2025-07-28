@@ -21,7 +21,7 @@ contract YuzuUSDTestERC20 is Test {
         user2 = makeAddr("user2");
 
         vm.prank(owner);
-        yzusd = new YuzuUSD(owner);
+        yzusd = new YuzuUSD("Yuzu USD", "yzUSD", owner);
     }
 
     // Constructor Tests

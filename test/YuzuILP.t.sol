@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {Order} from "../src/YuzuILP.sol";
@@ -44,9 +45,17 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         asset.mint(user2, 10_000e18);
         asset.mint(orderFiller, 10_000e18);
 
-        // Deploy YuzuILP
-        vm.prank(admin);
-        ilp = new YuzuILP(IERC20(address(asset)), admin, treasury, 0);
+        // Deploy YuzuILP implementation
+        YuzuILP implementation = new YuzuILP();
+
+        // Prepare initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            YuzuILP.initialize.selector, IERC20(address(asset)), "Yuzu ILP", "yzILP", admin, treasury, 1_000e18
+        );
+
+        // Deploy proxy and initialize
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        ilp = YuzuILP(address(proxy));
 
         // Set up roles
         vm.startPrank(admin);
@@ -70,7 +79,24 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     // Constructor Tests
     function test_Constructor_Success() public {
         uint256 maxDepositPerBlock = 1_000e18;
-        YuzuILP newIlp = new YuzuILP(IERC20(address(asset)), admin, treasury, maxDepositPerBlock);
+
+        // Deploy new implementation
+        YuzuILP newImplementation = new YuzuILP();
+
+        // Prepare initialization data
+        bytes memory newInitData = abi.encodeWithSelector(
+            YuzuILP.initialize.selector,
+            IERC20(address(asset)),
+            "Yuzu ILP",
+            "yzILP",
+            admin,
+            treasury,
+            maxDepositPerBlock
+        );
+
+        // Deploy new proxy
+        ERC1967Proxy newProxy = new ERC1967Proxy(address(newImplementation), newInitData);
+        YuzuILP newIlp = YuzuILP(address(newProxy));
 
         assertEq(address(newIlp.asset()), address(asset));
         assertEq(newIlp.name(), "Yuzu ILP");

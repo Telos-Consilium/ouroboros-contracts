@@ -1,24 +1,33 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
+
 import "./interfaces/IYuzuILP.sol";
 import "./interfaces/IYuzuILPDefinitions.sol";
 
 /**
  * @title YuzuILP
  */
-contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC4626, IYuzuILPDefinitions {
+contract YuzuILP is
+    Initializable,
+    AccessControlDefaultAdminRulesUpgradeable,
+    ReentrancyGuardUpgradeable,
+    ERC20Upgradeable,
+    IERC4626,
+    IYuzuILPDefinitions
+{
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
     bytes32 private constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
-    IERC20 private immutable _asset;
+    IERC20 private _asset;
 
     mapping(uint256 => uint256) public depositedPerBlock;
     uint256 public maxDepositPerBlock;
@@ -32,16 +41,34 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
     uint256 public dailyLinearYieldRatePpm;
     uint256 public lastPoolUpdateTimestamp;
 
-    constructor(IERC20 asset_, address _admin, address _treasury, uint256 _maxDepositPerBlock)
-        ERC20("Yuzu ILP", "yzILP")
-        AccessControlDefaultAdminRules(0, _admin)
-    {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        IERC20 asset_,
+        string memory name_,
+        string memory symbol_,
+        address _admin,
+        address _treasury,
+        uint256 _maxDepositPerBlock
+    ) external initializer {
+        __AccessControlDefaultAdminRules_init(0, _admin);
+        __ReentrancyGuard_init();
+        __ERC20_init(name_, symbol_);
+
         if (_admin == address(0)) revert InvalidZeroAddress();
         if (_treasury == address(0)) revert InvalidZeroAddress();
 
         _asset = asset_;
         treasury = _treasury;
         maxDepositPerBlock = _maxDepositPerBlock;
+        redeemOrderCount = 0;
+        poolSize = 0;
+        withdrawAllowance = 0;
+        dailyLinearYieldRatePpm = 0;
+        lastPoolUpdateTimestamp = block.timestamp;
 
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
@@ -253,4 +280,11 @@ contract YuzuILP is AccessControlDefaultAdminRules, ReentrancyGuard, ERC20, IERC
         }
         return Math.mulDiv(assets, 1e6 days, 1e6 days + dailyLinearYieldRatePpm * elapsedTime, rounding);
     }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[50] private __gap;
 }

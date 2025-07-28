@@ -2,6 +2,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {Order} from "../src/YuzuILP.sol";
 
@@ -48,9 +50,17 @@ contract YuzuILPFuzz is Test {
         asset.mint(user2, 10_000e18);
         asset.mint(orderFiller, 10_000e18);
 
-        // Deploy YuzuILP
-        vm.prank(admin);
-        ilp = new YuzuILP(IERC20(address(asset)), admin, treasury, type(uint256).max);
+        // Deploy YuzuILP implementation
+        YuzuILP implementation = new YuzuILP();
+
+        // Prepare initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            YuzuILP.initialize.selector, IERC20(address(asset)), "Yuzu ILP", "yzILP", admin, treasury, type(uint256).max
+        );
+
+        // Deploy proxy and initialize
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        ilp = YuzuILP(address(proxy));
 
         // Set up roles
         vm.startPrank(admin);

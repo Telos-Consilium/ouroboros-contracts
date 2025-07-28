@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/IStakedYuzuUSD.sol";
 import "./interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -11,7 +13,13 @@ import "./interfaces/IStakedYuzuUSDDefinitions.sol";
 /**
  * @title StakedYuzuUSD
  */
-contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSDDefinitions {
+contract StakedYuzuUSD is
+    Initializable,
+    ERC4626Upgradeable,
+    Ownable2StepUpgradeable,
+    ReentrancyGuardUpgradeable,
+    IStakedYuzuUSDDefinitions
+{
     uint256 public currentRedeemAssetCommitment;
 
     mapping(uint256 => uint256) public depositedPerBlock;
@@ -22,15 +30,32 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
     mapping(uint256 => Order) internal redeemOrders;
     uint256 public redeemOrderCount;
 
-    uint256 public redeemWindow = 1 days;
+    uint256 public redeemWindow;
 
-    constructor(IERC20 _yzUSD, address _owner, uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock)
-        ERC4626(_yzUSD)
-        ERC20("Staked Yuzu USD", "st-yzUSD")
-        Ownable(_owner)
-    {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        IERC20 _yzUSD,
+        string memory name_,
+        string memory symbol_,
+        address _owner,
+        uint256 _maxDepositPerBlock,
+        uint256 _maxWithdrawPerBlock
+    ) external initializer {
+        __ERC4626_init(_yzUSD);
+        __ERC20_init(name_, symbol_);
+        __Ownable_init(_owner);
+        __Ownable2Step_init();
+        __ReentrancyGuard_init();
+
         maxDepositPerBlock = _maxDepositPerBlock;
         maxWithdrawPerBlock = _maxWithdrawPerBlock;
+        redeemOrderCount = 0;
+        currentRedeemAssetCommitment = 0;
+        redeemWindow = 1 days;
     }
 
     function setMaxDepositPerBlock(uint256 newMax) external onlyOwner {
@@ -141,4 +166,11 @@ contract StakedYuzuUSD is ERC4626, Ownable2Step, ReentrancyGuard, IStakedYuzuUSD
         currentRedeemAssetCommitment -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.owner, order.assets);
     }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[50] private __gap;
 }

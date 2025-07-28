@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -13,7 +14,12 @@ import "./interfaces/IYuzuUSDMinterDefinitions.sol";
 /**
  * @title YuzuUSDMinter
  */
-contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzuUSDMinterDefinitions {
+contract YuzuUSDMinter is
+    Initializable,
+    AccessControlDefaultAdminRulesUpgradeable,
+    ReentrancyGuardUpgradeable,
+    IYuzuUSDMinterDefinitions
+{
     using SafeERC20 for IERC20;
 
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -21,8 +27,8 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
     bytes32 private constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
 
-    IYuzuUSD public immutable yzusd;
-    address public immutable collateralToken;
+    IYuzuUSD public yzusd;
+    address public collateralToken;
 
     address public treasury;
     address public redeemFeeRecipient;
@@ -70,7 +76,12 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         _;
     }
 
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address _yzusd,
         address _collateralToken,
         address _admin,
@@ -78,7 +89,10 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         address _redeemFeeRecipient,
         uint256 _maxMintPerBlock,
         uint256 _maxRedeemPerBlock
-    ) AccessControlDefaultAdminRules(0, _msgSender()) {
+    ) external initializer {
+        __AccessControlDefaultAdminRules_init(0, _admin);
+        __ReentrancyGuard_init();
+
         if (_yzusd == address(0)) revert InvalidZeroAddress();
         if (_collateralToken == address(0)) revert InvalidZeroAddress();
         if (_admin == address(0)) revert InvalidZeroAddress();
@@ -92,6 +106,21 @@ contract YuzuUSDMinter is AccessControlDefaultAdminRules, ReentrancyGuard, IYuzu
         redeemFeeRecipient = _redeemFeeRecipient;
         maxMintPerBlock = _maxMintPerBlock;
         maxRedeemPerBlock = _maxRedeemPerBlock;
+
+        // Initialize counters
+        fastRedeemOrderCount = 0;
+        standardRedeemOrderCount = 0;
+
+        // Initialize fee settings
+        instantRedeemFeePpm = 0;
+        fastRedeemFeePpm = 0;
+        standardRedeemFeePpm = 0;
+        fastFillWindow = 1 days;
+        standardFillWindow = 7 days;
+
+        // Initialize pending values
+        currentPendingFastRedeemValue = 0;
+        currentPendingStandardRedeemValue = 0;
 
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);

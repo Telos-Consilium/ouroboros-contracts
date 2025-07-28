@@ -21,7 +21,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         user2 = makeAddr("user2");
 
         vm.prank(owner);
-        yzusd = new YuzuUSD(owner);
+        yzusd = new YuzuUSD("Yuzu USD", "yzUSD", owner);
     }
 
     // Minter Setting Tests

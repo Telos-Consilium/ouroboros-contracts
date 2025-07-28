@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {Order} from "../src/interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -27,9 +28,23 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Deploy mock YuzuUSD token
         yzusd = new ERC20Mock();
 
-        // Deploy StakedYuzuUSD
-        vm.prank(owner);
-        stakedYzusd = new StakedYuzuUSD(IERC20(address(yzusd)), owner, MAX_MINT_PER_BLOCK, MAX_REDEEM_PER_BLOCK);
+        // Deploy StakedYuzuUSD implementation
+        StakedYuzuUSD implementation = new StakedYuzuUSD();
+
+        // Prepare initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            StakedYuzuUSD.initialize.selector,
+            IERC20(address(yzusd)),
+            "Staked Yuzu USD",
+            "st-yzUSD",
+            owner,
+            MAX_MINT_PER_BLOCK,
+            MAX_REDEEM_PER_BLOCK
+        );
+
+        // Deploy proxy and initialize
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        stakedYzusd = StakedYuzuUSD(address(proxy));
 
         // Mint some YuzuUSD to users for testing
         yzusd.mint(user1, 10000e18);

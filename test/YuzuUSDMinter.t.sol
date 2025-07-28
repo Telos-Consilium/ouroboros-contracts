@@ -3,7 +3,10 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IAccessControlDefaultAdminRules} from
+    "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
 
 import {YuzuUSDMinter} from "../src/YuzuUSDMinter.sol";
 import {YuzuUSD} from "../src/YuzuUSD.sol";
@@ -51,10 +54,16 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         // Deploy contracts
         vm.startPrank(admin);
-        yzusd = new YuzuUSD(admin);
+
+        // Deploy YuzuUSD implementation and proxy
+        yzusd = new YuzuUSD("Yuzu USD", "yzUSD", admin);
+
         collateralToken = new MockERC20("USDC", "USDC");
 
-        minter = new YuzuUSDMinter(
+        // Deploy YuzuUSDMinter implementation and proxy
+        YuzuUSDMinter minterImplementation = new YuzuUSDMinter();
+        bytes memory minterInitData = abi.encodeWithSelector(
+            YuzuUSDMinter.initialize.selector,
             address(yzusd),
             address(collateralToken),
             admin,
@@ -63,6 +72,8 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
             MAX_MINT_PER_BLOCK,
             MAX_REDEEM_PER_BLOCK
         );
+        ERC1967Proxy minterProxy = new ERC1967Proxy(address(minterImplementation), minterInitData);
+        minter = YuzuUSDMinter(address(minterProxy));
 
         // Set the minter contract as the minter for YuzuUSD
         yzusd.setMinter(address(minter));
@@ -97,8 +108,12 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_Constructor_RevertInvalidZeroAddress() public {
+        YuzuUSDMinter newImplementation = new YuzuUSDMinter();
+
+        // Test invalid yzusd address
         vm.expectRevert(InvalidZeroAddress.selector);
-        new YuzuUSDMinter(
+        bytes memory initData1 = abi.encodeWithSelector(
+            YuzuUSDMinter.initialize.selector,
             address(0),
             address(collateralToken),
             admin,
@@ -107,14 +122,30 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
             MAX_MINT_PER_BLOCK,
             MAX_REDEEM_PER_BLOCK
         );
+        new ERC1967Proxy(address(newImplementation), initData1);
 
+        // Test invalid collateral token address
         vm.expectRevert(InvalidZeroAddress.selector);
-        new YuzuUSDMinter(
-            address(yzusd), address(0), admin, treasury, redeemFeeRecipient, MAX_MINT_PER_BLOCK, MAX_REDEEM_PER_BLOCK
+        bytes memory initData2 = abi.encodeWithSelector(
+            YuzuUSDMinter.initialize.selector,
+            address(yzusd),
+            address(0),
+            admin,
+            treasury,
+            redeemFeeRecipient,
+            MAX_MINT_PER_BLOCK,
+            MAX_REDEEM_PER_BLOCK
         );
+        new ERC1967Proxy(address(newImplementation), initData2);
 
-        vm.expectRevert(InvalidZeroAddress.selector);
-        new YuzuUSDMinter(
+        // Test invalid admin address
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControlDefaultAdminRules.AccessControlInvalidDefaultAdmin.selector, address(0)
+            )
+        );
+        bytes memory initData3 = abi.encodeWithSelector(
+            YuzuUSDMinter.initialize.selector,
             address(yzusd),
             address(collateralToken),
             address(0),
@@ -123,9 +154,12 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
             MAX_MINT_PER_BLOCK,
             MAX_REDEEM_PER_BLOCK
         );
+        new ERC1967Proxy(address(newImplementation), initData3);
 
+        // Test invalid treasury address
         vm.expectRevert(InvalidZeroAddress.selector);
-        new YuzuUSDMinter(
+        bytes memory initData4 = abi.encodeWithSelector(
+            YuzuUSDMinter.initialize.selector,
             address(yzusd),
             address(collateralToken),
             admin,
@@ -134,9 +168,12 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
             MAX_MINT_PER_BLOCK,
             MAX_REDEEM_PER_BLOCK
         );
+        new ERC1967Proxy(address(newImplementation), initData4);
 
+        // Test invalid redeem fee recipient address
         vm.expectRevert(InvalidZeroAddress.selector);
-        new YuzuUSDMinter(
+        bytes memory initData5 = abi.encodeWithSelector(
+            YuzuUSDMinter.initialize.selector,
             address(yzusd),
             address(collateralToken),
             admin,
@@ -145,6 +182,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
             MAX_MINT_PER_BLOCK,
             MAX_REDEEM_PER_BLOCK
         );
+        new ERC1967Proxy(address(newImplementation), initData5);
     }
 
     // Admin Function Tests
