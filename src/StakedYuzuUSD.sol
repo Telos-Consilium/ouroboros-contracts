@@ -33,7 +33,6 @@ contract StakedYuzuUSD is
     mapping(uint256 => Order) internal redeemOrders;
     uint256 public redeemOrderCount;
 
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
