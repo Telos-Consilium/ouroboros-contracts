@@ -300,13 +300,6 @@ contract YuzuUSDMinter is
         IERC20(token).safeTransfer(to, amount);
     }
 
-    function rescueOutstandingYuzuUSD(uint256 amount, address to) external nonReentrant onlyRole(ADMIN_ROLE) {
-        if (amount == 0) revert InvalidZeroAmount();
-        uint256 outstandingCollateral = _getOutstandingCollateralBalance();
-        if (amount > outstandingCollateral) revert OutstandingBalanceExceeded(amount, outstandingCollateral);
-        IERC20(yzusd).safeTransfer(to, amount);
-    }
-
     function getFastRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return fastRedeemOrders[orderId];
     }
