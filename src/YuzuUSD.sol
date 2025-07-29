@@ -10,13 +10,16 @@ import "./interfaces/IYuzuUSDDefinitions.sol";
 
 /**
  * @title YuzuUSD
- * @dev ERC20 token mintable by a designated minter.
+ * @dev ERC-20 token mintable by a designated minter.
  */
 contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinitions {
     address public minter;
 
     /**
-     * @dev Sets the values for {name} and {symbol}.
+     * @notice Initializes the YuzuUSD contract with a name, symbol, and owner.
+     * @param name_ The name of the staked token, e.g. "Yuzu USD"
+     * @param symbol_ The symbol of the staked token, e.g. "yzUSD"
+     * @param owner The owner of the contract
      */
     constructor(string memory name_, string memory symbol_, address owner)
         ERC20(name_, symbol_)
@@ -25,7 +28,9 @@ contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinition
     {}
 
     /**
-     * @dev Sets {minter}.
+     * @dev Sets the minter to {newMinter}.
+     *
+     * Emits a `MinterUpdated` event with the old and new minter addresses.
      */
     function setMinter(address newMinter) external onlyOwner {
         address oldMinter = minter;
