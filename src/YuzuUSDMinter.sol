@@ -465,7 +465,6 @@ contract YuzuUSDMinter is
      * Reverts if {token} is the collateral or yzusd token.
      */
     function rescueTokens(address token, address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
-        if (amount == 0) revert InvalidZeroAmount();
         if (token == collateralToken || token == address(yzusd)) {
             revert InvalidToken(token);
         }

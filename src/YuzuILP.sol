@@ -312,7 +312,6 @@ contract YuzuILP is
      * Tokens that are the underlying asset of the vault cannot be rescued.
      */
     function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
-        if (amount == 0) revert InvalidZeroAmount();
         if (token == asset()) revert InvalidToken(token);
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }
