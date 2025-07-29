@@ -40,14 +40,14 @@ contract StakedYuzuUSD is
 
     /**
      * @notice Initializes the StakedYuzuUSD contract with the specified parameters.
-     * @param _yzUSD The underlying ERC20 token (yzUSD) for the vault
+     * @param _yzUSD The underlying ERC-20 token (yzUSD) for the vault
      * @param name_ The name of the staked token, e.g. "Staked YuzuUSD"
      * @param symbol_ The symbol of the staked token, e.g. "st-yzUSD"
      * @param _owner The owner of the contract
      * @param _maxDepositPerBlock Maximum assets that can be deposited per block
      * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      *
-     * Sets {redeemWindow} to 1 day by default.
+     * Sets the redeem window to 1 day by default.
      */
     function initialize(
         IERC20 _yzUSD,
@@ -75,8 +75,8 @@ contract StakedYuzuUSD is
     /**
      * @notice Sets the maximum deposit per block to {newMaxDepositPerBlock}.
      *
-     * Only callable by the owner.
      * Emits a `MaxDepositPerBlockUpdated` event with the old and new limits.
+     * Reverts if called by anyone but the owner.
      */
     function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyOwner {
         uint256 oldMaxDepositPerBlock = maxDepositPerBlock;
@@ -87,8 +87,8 @@ contract StakedYuzuUSD is
     /**
      * @notice Sets the maximum withdraw per block to {newMaxWithdrawPerBlock}.
      *
-     * Only callable by the owner.
      * Emits a `MaxWithdrawPerBlockUpdated` event with the old and new limits.
+     * Reverts if called by anyone but the owner.
      */
     function setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) external onlyOwner {
         uint256 oldMaxWithdrawPerBlock = maxWithdrawPerBlock;
@@ -97,10 +97,10 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Sets the redeem window to {newWindow}.
+     * @notice Sets the redeem window to {newRedeemWindow}.
      *
-     * Only callable by the owner.
      * Emits a `RedeemWindowUpdated` event with the old and new window durations.
+     * Reverts if called by anyone but the owner.
      */
     function setRedeemWindow(uint256 newRedeemWindow) external onlyOwner {
         uint256 oldRedeemWindow = redeemWindow;
@@ -142,7 +142,7 @@ contract StakedYuzuUSD is
     /**
      * @notice Returns the maximum withdraw by {owner}.
      *
-     * Max withdraw is limited by the maximum withdrawal per block and the owner's balance.
+     * Max withdraw is limited by the maximum withdrawal per block and the owner's shares.
      */
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
@@ -151,7 +151,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Returns the maximum redeem by {owner}
+     * @notice Returns the maximum redeem by {owner}.
      *
      * Max redeem is limited by the maximum withdrawal per block and the owner's shares.
      */
@@ -206,9 +206,10 @@ contract StakedYuzuUSD is
     /**
      * @notice Initiates a 2-step redemption of {shares}.
      *
-     * The assets will redeemable after the redeem window elapses.
+     * The assets will be redeemable after the redeem window elapses.
      * Returns the order ID and the amount of assets to be redeemed.
      * Emits a `RedeemInitiated` event with the order ID, owner, assets, and shares.
+     * Reverts if {shares} is zero or exceeds the maximum redeem allowed.
      */
     function initiateRedeem(uint256 shares) public nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidZeroShares();
@@ -227,6 +228,7 @@ contract StakedYuzuUSD is
      * Can be called by anyone, not just the owner.
      * Emits a `RedeemFinalized` event with caller, the order ID, owner, assets, and shares.
      * Emits a `Withdraw` event with the sender, receiver, owner, assets, and shares for ERC-4626 compatibility.
+     * Reverts if the order is already executed or not due yet.
      */
     function finalizeRedeem(uint256 orderId) public nonReentrant {
         Order storage order = redeemOrders[orderId];
@@ -241,8 +243,8 @@ contract StakedYuzuUSD is
     /**
      * @notice Transfers {amount} of {token} held by the vault to {to}.
      *
-     * Only callable by the owner.
-     * Tokens that are the underlying asset of the vault cannot be rescued.
+     * Reverts if called by anyone but the owner.
+     * Reverts if {token} is the underlying asset of the vault.
      */
     function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
         if (token == asset()) revert InvalidToken(token);
