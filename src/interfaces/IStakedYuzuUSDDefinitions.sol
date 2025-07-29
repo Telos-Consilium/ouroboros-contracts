@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
+struct Order {
+    uint256 assets;
+    uint256 shares;
+    address owner;
+    uint40 dueTime;
+    bool executed;
+}
 
 interface IStakedYuzuUSDDefinitions {
     event RedeemInitiated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);

@@ -3,26 +3,13 @@ pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-struct Order {
-    uint256 assets;
-    uint256 shares;
-    address owner;
-    uint40 dueTime;
-    bool executed;
-}
+import "./IStakedYuzuUSDDefinitions.sol";
 
 interface IStakedYuzuUSD is IERC4626 {
-    // Ownership functions
-    function owner() external view returns (address);
-    function pendingOwner() external view returns (address);
-    function transferOwnership(address newOwner) external;
-    function acceptOwnership() external;
-    function renounceOwnership() external;
-
     // Admin functions
-    function setMaxDepositPerBlock(uint256 newMax) external;
-    function setMaxWithdrawPerBlock(uint256 newMax) external;
-    function setRedeemWindow(uint256 newWindow) external;
+    function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external;
+    function setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) external;
+    function setRedeemWindow(uint256 newRedeemWindow) external;
     function rescueTokens(address token, address to, uint256 amount) external;
 
     // Core functions
