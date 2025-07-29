@@ -221,9 +221,9 @@ contract StakedYuzuUSD is
         uint256 assets = previewRedeem(shares);
         withdrawnPerBlock[block.number] += assets;
         uint256 orderId = _initiateRedeem(_msgSender(), assets, shares);
-        
+
         emit RedeemInitiated(orderId, _msgSender(), assets, shares);
-        
+
         return (orderId, assets);
     }
 
@@ -242,7 +242,7 @@ contract StakedYuzuUSD is
         if (block.timestamp < order.dueTime) revert OrderNotDue(orderId);
 
         _finalizeRedeem(order);
-        
+
         emit RedeemFinalized(_msgSender(), orderId, order.owner, order.assets, order.shares);
         emit Withdraw(_msgSender(), order.owner, order.owner, order.assets, order.shares);
     }

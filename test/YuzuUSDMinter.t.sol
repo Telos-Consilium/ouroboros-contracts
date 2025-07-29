@@ -487,7 +487,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(user1);
         minter.instantRedeem(user1, amount);
     }
-    
+
     function test_InstantRedeem_ZeroLimit_RevertLimitExceeded() public {
         uint256 amount = MAX_REDEEM_PER_BLOCK + 1;
 
@@ -517,7 +517,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         minter.instantRedeem(user1, redeemAmount);
         vm.stopPrank();
     }
-    
+
     function test_InstantRedeem_RevertLiquidityBufferExceeded() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
@@ -736,7 +736,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(user1);
         minter.createStandardRedeemOrder(redeemAmount);
     }
-    
+
     function test_CreateStandardRedeemOrder_RevertInsufficientFunds() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;
@@ -830,7 +830,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(user2);
         minter.fillStandardRedeemOrder(orderId);
     }
-    
+
     function test_FillStandardRedeemOrder_RevertLiquidityBufferExceeded() public {
         uint256 mintAmount = 100e18;
         uint256 redeemAmount = 50e18;

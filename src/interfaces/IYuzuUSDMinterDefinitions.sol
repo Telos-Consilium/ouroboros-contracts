@@ -40,7 +40,9 @@ interface IYuzuUSDMinterDefinitions {
     );
     event FastRedeemOrderCancelled(uint256 indexed orderId);
     event StandardRedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 amount);
-    event StandardRedeemOrderFilled(address indexed caller, uint256 indexed orderId, address indexed owner, uint256 amount, uint256 fee);
+    event StandardRedeemOrderFilled(
+        address indexed caller, uint256 indexed orderId, address indexed owner, uint256 amount, uint256 fee
+    );
 
     error InvalidZeroAddress();
     error InvalidZeroAmount();

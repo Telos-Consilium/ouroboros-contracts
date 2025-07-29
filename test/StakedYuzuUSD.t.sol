@@ -13,8 +13,10 @@ import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinit
 contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     // ERC-4626 events for testing
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
-    event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
-    
+    event Withdraw(
+        address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
+    );
+
     StakedYuzuUSD public stakedYzusd;
     ERC20Mock public yzusd;
     address public owner;
@@ -267,11 +269,13 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         stakedYzusd.deposit(depositSize, user1);
 
         // Try to initiate redeem
-        vm.expectRevert(abi.encodeWithSelector(MaxRedeemExceeded.selector, MAX_WITHDRAW_PER_BLOCK + 1, MAX_WITHDRAW_PER_BLOCK));
+        vm.expectRevert(
+            abi.encodeWithSelector(MaxRedeemExceeded.selector, MAX_WITHDRAW_PER_BLOCK + 1, MAX_WITHDRAW_PER_BLOCK)
+        );
         vm.prank(user1);
         stakedYzusd.initiateRedeem(MAX_WITHDRAW_PER_BLOCK + 1);
     }
-    
+
     function test_InitiateRedeem_RevertInsufficientShares() public {
         // Deposit
         uint256 depositSize = 200e18;
@@ -296,7 +300,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Fast forward past redeem delay
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + REDEEM_DELAY);
-        
+
         uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
 
         // Finalize redeem
@@ -371,7 +375,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.prank(user1);
         uint256 shares = stakedYzusd.deposit(depositAmount, user1);
         assertEq(stakedYzusd.totalAssets(), initialAssets + depositAmount);
-        
+
         vm.prank(user1);
         stakedYzusd.initiateRedeem(shares);
 
@@ -407,10 +411,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 depositSize = 200e18;
         vm.prank(user1);
         stakedYzusd.deposit(depositSize, user1);
-        
+
         // Double the value of the shares
         yzusd.mint(address(stakedYzusd), depositSize);
-        
 
         assertEq(stakedYzusd.maxMint(user1), (MAX_DEPOSIT_PER_BLOCK - depositSize) / 2);
     }
