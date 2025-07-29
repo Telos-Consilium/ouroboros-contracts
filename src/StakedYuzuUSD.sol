@@ -104,7 +104,7 @@ contract StakedYuzuUSD is
      */
     function setRedeemWindow(uint256 newRedeemWindow) external onlyOwner {
         uint256 oldRedeemWindow = redeemWindow;
-        redeemWindow = newWindow;
+        redeemWindow = newRedeemWindow;
         emit RedeemWindowUpdated(oldRedeemWindow, newRedeemWindow);
     }
 
