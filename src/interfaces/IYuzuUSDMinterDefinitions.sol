@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
+enum OrderStatus {
+    Pending,
+    Filled,
+    Cancelled
+}
+
+struct Order {
+    uint256 amount;
+    address owner;
+    uint32 feePpm;
+    uint40 dueTime;
+    OrderStatus status;
+}
 
 interface IYuzuUSDMinterDefinitions {
     event TreasuryUpdated(address oldTreasury, address newTreasury);

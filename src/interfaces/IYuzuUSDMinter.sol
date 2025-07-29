@@ -1,25 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
-
 import "./IYuzuUSD.sol";
+import "./IYuzuUSDMinterDefinitions.sol";
 
-enum OrderStatus {
-    Pending,
-    Filled,
-    Cancelled
-}
-
-struct Order {
-    uint256 amount;
-    address owner;
-    uint32 feePpm;
-    uint40 dueTime;
-    OrderStatus status;
-}
-
-interface IYuzuUSDMinter is IAccessControlDefaultAdminRules {
+interface IYuzuUSDMinter {
     // Admin functions
     function setTreasury(address newTreasury) external;
     function setRedeemFeeRecipient(address newRecipient) external;
