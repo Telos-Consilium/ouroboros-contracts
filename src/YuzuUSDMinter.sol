@@ -43,17 +43,17 @@ contract YuzuUSDMinter is
 
     mapping(uint256 => Order) internal fastRedeemOrders;
     mapping(uint256 => Order) internal standardRedeemOrders;
-    uint256 public fastRedeemOrderCount = 0;
-    uint256 public standardRedeemOrderCount = 0;
+    uint256 public fastRedeemOrderCount;
+    uint256 public standardRedeemOrderCount;
 
-    uint256 public instantRedeemFeePpm = 0;
-    uint256 public fastRedeemFeePpm = 0;
-    uint256 public standardRedeemFeePpm = 0;
-    uint256 public fastFillWindow = 1 days;
-    uint256 public standardRedeemDelay = 7 days;
+    uint256 public instantRedeemFeePpm;
+    uint256 public fastRedeemFeePpm;
+    uint256 public standardRedeemFeePpm;
+    uint256 public fastFillWindow;
+    uint256 public standardRedeemDelay;
 
-    uint256 public currentPendingFastRedeemValue = 0;
-    uint256 public currentPendingStandardRedeemValue = 0;
+    uint256 public currentPendingFastRedeemValue;
+    uint256 public currentPendingStandardRedeemValue;
 
     /**
      * @dev Reverts if minting {amount} would exceed the maximum allowed per block.
