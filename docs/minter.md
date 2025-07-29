@@ -14,7 +14,7 @@ The YuzuUSDMinter contract is a minting and redemption system that allows users 
 ### 2. Three-Tier Redemption System
 1. **Instant Redeem**: Immediate redemption using contract's liquidity buffer
 2. **Fast Redeem**: Order-based redemption with 24h (default) fulfillment window
-3. **Standard Redeem**: Order-based redemption with 7-day (default) fulfillment window
+3. **Standard Redeem**: Order-based redemption with 7-day (default) redemption delay
 
 ### 3. Role-Based Access Control
 The contract uses OpenZeppelin's AccessControl with hierarchical role management:
@@ -52,8 +52,8 @@ uint256 public standardRedeemFeePpm = 0;  // Standard redemption fee
 
 #### Time Windows
 ```solidity
-uint256 public fastFillWindow = 1 days;     // Fast order fulfillment deadline
-uint256 public standardFillWindow = 7 days; // Standard order fulfillment deadline
+uint256 public fastFillWindow = 1 days;        // Fast order fulfillment deadline
+uint256 public standardRedeemDelay = 7 days;   // Standard order redemption delay
 ```
 
 #### Order Management
@@ -229,7 +229,7 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 
 #### Phase 1: Order Creation - `createStandardRedeemOrder(uint256 amount)`
 
-**Purpose**: Create a standard redemption order with 7-day (default) fulfillment window
+**Purpose**: Create a standard redemption order with 7-day (default) redemption delay
 
 **Requirements**:
 - `amount > 0`
@@ -244,7 +244,7 @@ Standard redemption is a two-phase process: order creation and order fulfillment
    - `amount`: Specified amount
    - `owner`: Caller address
    - `feePpm`: Current `standardRedeemFeePpm`
-   - `dueTime`: `block.timestamp + standardFillWindow`
+   - `dueTime`: `block.timestamp + standardRedeemDelay`
    - `status`: Pending
 5. **Tracking Updates**: 
    - Increment `standardRedeemOrderCount`
@@ -355,11 +355,11 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 - **Event**: `FastFillWindowUpdated(oldWindow, newWindow)`
 - **Note**: Only affects new orders
 
-#### `setStandardFillWindow(uint256 newWindow)`
+#### `setStandardRedeemDelay(uint256 newDelay)`
 - **Role**: `REDEEM_MANAGER_ROLE`
-- **Purpose**: Set standard redemption fulfillment window
+- **Purpose**: Set standard redemption delay
 - **Units**: Seconds
-- **Event**: `StandardFillWindowUpdated(oldWindow, newWindow)`
+- **Event**: `StandardRedeemDelayUpdated(oldDelay, newDelay)`
 - **Note**: Only affects new orders
 
 ## Emergency Functions

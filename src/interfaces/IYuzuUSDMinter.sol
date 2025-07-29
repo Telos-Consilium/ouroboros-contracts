@@ -21,6 +21,8 @@ interface IYuzuUSDMinter {
     // Core functions
     function previewMint(uint256 amount) external pure returns (uint256);
     function previewInstantRedeem(uint256 amount) external view returns (uint256);
+    function previewFastRedeem(uint256 amount) external view returns (uint256);
+    function previewStandardRedeem(uint256 amount) external view returns (uint256);
     function mint(address to, uint256 amount) external;
     function instantRedeem(address to, uint256 amount) external returns (uint256);
     function createFastRedeemOrder(uint256 amount) external returns (uint256);
