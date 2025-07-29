@@ -111,7 +111,7 @@ contract StakedYuzuUSD is
     /**
      * @notice Returns the maximum deposit.
      *
-     * Takes an address as input for ERC4625 compatibility.
+     * Takes an address as input for ERC-4625 compatibility.
      * Deposit size is only limited by the maximum deposit per block.
      */
     function maxDeposit(address) public view override returns (uint256) {
@@ -123,7 +123,7 @@ contract StakedYuzuUSD is
     /**
      * @notice Returns the maximum mint.
      *
-     * Takes an address as input for ERC4625 compatibility.
+     * Takes an address as input for ERC-4625 compatibility.
      * Mint size is only limited by the maximum deposit per block.
      */
     function maxMint(address receiver) public view override returns (uint256) {
