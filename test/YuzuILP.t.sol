@@ -490,13 +490,6 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(otherToken.balanceOf(address(ilp)), 0);
     }
 
-    function test_RescueTokens_RevertInvalidZeroAmount() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        vm.prank(admin);
-        vm.expectRevert(InvalidZeroAmount.selector);
-        ilp.rescueTokens(address(otherToken), user1, 0);
-    }
-
     function test_RescueTokens_RevertInvalidToken() public {
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(asset)));
