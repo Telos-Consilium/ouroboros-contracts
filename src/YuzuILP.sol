@@ -13,7 +13,7 @@ import "./interfaces/IYuzuILPDefinitions.sol";
 
 /**
  * @title YuzuILP
- * @dev ERC4625 tokenized vault for the Yuzu Insurance Liquidity Pool.
+ * @dev ERC4626 tokenized vault for the Yuzu Insurance Liquidity Pool.
  * Deposited assets are sent to an external treasury.
  * The size of the pool is tracked and periodically updated by an external pool manager.
  * A non-compounding yield is applied to the pool size to determine the value of the shares.
@@ -157,7 +157,7 @@ contract YuzuILP is
     /**
      * @dev Returns the maximum amount of assets that can be deposited.
      *
-     * Takes an address as input for ERC4625 compatibility.
+     * Takes an address as input for ERC4626 compatibility.
      * Deposit size is only limited by the maximum deposit per block.
      */
     function maxDeposit(address) public view returns (uint256) {
@@ -169,7 +169,7 @@ contract YuzuILP is
     /**
      * @dev Returns the maximum number of shares that can be minted.
      *
-     * Takes an address as input for ERC4625 compatibility.
+     * Takes an address as input for ERC4626 compatibility.
      * Mint size is only limited by the maximum deposit per block.
      */
     function maxMint(address receiver) public view returns (uint256) {
