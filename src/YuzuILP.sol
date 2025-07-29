@@ -122,7 +122,7 @@ contract YuzuILP is
     /**
      * @notice Updates the pool parameters including size, withdrawal allowance, and yield rate.
      *
-     * Sets poolSize to newPoolSize, withdrawAllowance to {newWithdrawalAllowance}, 
+     * Sets poolSize to newPoolSize, withdrawAllowance to {newWithdrawalAllowance},
      * and {dailyLinearYieldRatePpm} to {newDailyLinearYieldRatePpm}.
      * Emits a `PoolUpdated` event with the new pool parameters.
      * Reverts if called by anyone but a pool manager.
@@ -247,7 +247,7 @@ contract YuzuILP is
 
     /**
      * @notice Deposits {assets} into the vault and mints shares to {receiver}.
-     * 
+     *
      * Returns the number of shares minted.
      * Emits a `Deposit` event with the caller, receiver, assets, and shares.
      * Reverts if the deposit exceeds the maximum allowed per block.
