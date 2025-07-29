@@ -47,7 +47,7 @@ contract StakedYuzuUSD is
      * @param _maxDepositPerBlock Maximum assets that can be deposited per block
      * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      *
-     * Sets the redeem delay to 1 day by default.
+     * Sets the redemption delay to 1 day by default.
      */
     function initialize(
         IERC20 _yzUSD,
@@ -85,7 +85,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Sets the maximum withdraw per block to {newMaxWithdrawPerBlock}.
+     * @notice Sets the maximum withdrawal per block to {newMaxWithdrawPerBlock}.
      *
      * Emits a `MaxWithdrawPerBlockUpdated` event with the old and new limits.
      * Reverts if called by anyone but the contract owner.
@@ -97,7 +97,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Sets the redeem delay to {newRedeemDelay}.
+     * @notice Sets the redemption delay to {newRedeemDelay}.
      *
      * Emits a `RedeemDelayUpdated` event with the old and new delay durations.
      * Reverts if called by anyone but the contract owner.
@@ -151,9 +151,9 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Returns the maximum redeem by {owner}.
+     * @notice Returns the maximum redemption by {owner}.
      *
-     * Maximum redeem is limited by the maximum withdrawal per block and {owner}'s shares.
+     * Maximum redemption is limited by the maximum withdrawal per block and {owner}'s shares.
      */
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
@@ -167,6 +167,7 @@ contract StakedYuzuUSD is
      * Takes the amount of assets to deposit as input.
      * Returns the number of shares minted.
      * Emits a `Deposit` event with the caller, order owner, assets, and shares.
+     * Reverts if the deposit exceeds the maximum allowed per block.
      */
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
@@ -180,6 +181,7 @@ contract StakedYuzuUSD is
      * Takes the number of shares to mint as input.
      * Returns the amount of assets deposited.
      * Emits a `Deposit` event with the caller, order owner, assets, and shares.
+     * Reverts if the deposit exceeds the maximum allowed per block.
      */
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
         uint256 assets = super.mint(shares, receiver);
@@ -206,19 +208,22 @@ contract StakedYuzuUSD is
     /**
      * @notice Initiates a 2-step redemption of {shares}.
      *
-     * Shares are burned now, assets are redeemable after the redeem delay elapses.
+     * Shares are burned now, assets are redeemable after the redemption delay elapses.
      * Returns the order ID and the amount of assets to be redeemed.
      * Emits a `RedeemInitiated` event with the order ID, order owner, assets, and shares.
-     * Reverts if {shares} is zero or exceeds the maximum redeem allowed.
+     * Reverts if {shares} is zero or exceeds the maximum redemption allowed.
      */
     function initiateRedeem(uint256 shares) public nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidZeroShares();
         uint256 maxShares = maxRedeem(_msgSender());
         if (shares > maxShares) revert MaxRedeemExceeded(shares, maxShares);
+
         uint256 assets = previewRedeem(shares);
         withdrawnPerBlock[block.number] += assets;
         uint256 orderId = _initiateRedeem(_msgSender(), assets, shares);
+        
         emit RedeemInitiated(orderId, _msgSender(), assets, shares);
+        
         return (orderId, assets);
     }
 
@@ -235,7 +240,9 @@ contract StakedYuzuUSD is
         if (order.shares == 0) revert InvalidOrder(orderId);
         if (order.executed) revert OrderAlreadyExecuted(orderId);
         if (block.timestamp < order.dueTime) revert OrderNotDue(orderId);
+
         _finalizeRedeem(order);
+        
         emit RedeemFinalized(_msgSender(), orderId, order.owner, order.assets, order.shares);
         emit Withdraw(_msgSender(), order.owner, order.owner, order.assets, order.shares);
     }
