@@ -216,8 +216,8 @@ contract StakedYuzuUSD is
      * @notice Finalizes a 2-step redemption order by {orderId}.
      *
      * Can be called by anyone, not just the owner.
-     * Emits a `Withdraw` event with the sender, owner, assets, and shares for ERC-4626 compatibility.
-     * Emits a `RedeemFinalized` event with the order ID, owner, assets, and shares.
+     * Emits a `RedeemFinalized` event with caller, the order ID, owner, assets, and shares.
+     * Emits a `Withdraw` event with the sender, receiver, owner, assets, and shares for ERC-4626 compatibility.
      */
     function finalizeRedeem(uint256 orderId) public nonReentrant {
         Order storage order = redeemOrders[orderId];
@@ -225,7 +225,8 @@ contract StakedYuzuUSD is
         if (order.executed) revert OrderAlreadyExecuted(orderId);
         if (block.timestamp < order.dueTime) revert OrderNotDue(orderId);
         _finalizeRedeem(order);
-        emit RedeemFinalized(orderId, order.owner, order.assets, order.shares);
+        emit RedeemFinalized(_msgSender(), orderId, order.owner, order.assets, order.shares);
+        emit Withdraw(_msgSender(), order.owner, order.owner, order.assets, order.shares);
     }
 
     /**

@@ -5,7 +5,9 @@ import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRule
 
 interface IStakedYuzuUSDDefinitions {
     event RedeemInitiated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
-    event RedeemFinalized(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
+    event RedeemFinalized(
+        address indexed caller, uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares
+    );
 
     error InvalidZeroShares();
     error InvalidZeroAmount();

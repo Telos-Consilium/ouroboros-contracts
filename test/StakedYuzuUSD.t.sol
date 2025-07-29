@@ -245,7 +245,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.warp(block.timestamp + REDEEM_WINDOW + 1);
 
         vm.expectEmit();
-        emit RedeemFinalized(orderId, user1, assets, shares);
+        emit RedeemFinalized(user2, orderId, user1, assets, shares);
+        vm.prank(user2);
         stakedYzusd.finalizeRedeem(orderId);
 
         assertEq(yzusd.balanceOf(user1), initialBalance + assets);
