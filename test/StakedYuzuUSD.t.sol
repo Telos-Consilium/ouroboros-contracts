@@ -57,7 +57,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     // Initialization
-    function test_Constructor() public {
+    function test_Initialize() public {
         assertEq(address(stakedYzusd.asset()), address(yzusd));
         assertEq(stakedYzusd.name(), "Staked Yuzu USD");
         assertEq(stakedYzusd.symbol(), "st-yzUSD");
@@ -118,6 +118,31 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.prank(user1);
         vm.expectRevert();
         stakedYzusd.setRedeemDelay(2 days);
+    }
+
+    function test_RescueTokens() public {
+        ERC20Mock otherToken = new ERC20Mock();
+        uint256 amount = 100e18;
+        otherToken.mint(address(stakedYzusd), amount);
+        uint256 balanceBefore = otherToken.balanceOf(user1);
+        vm.prank(owner);
+        stakedYzusd.rescueTokens(address(otherToken), user1, amount);
+        assertEq(otherToken.balanceOf(user1), balanceBefore + amount);
+    }
+
+    function test_RescueTokens_RevertOnlyOwner() public {
+        ERC20Mock otherToken = new ERC20Mock();
+        uint256 amount = 100e18;
+        otherToken.mint(address(stakedYzusd), amount);
+        vm.prank(user1);
+        vm.expectRevert();
+        stakedYzusd.rescueTokens(address(otherToken), user1, amount);
+    }
+
+    function test_RescueTokens_RevertUnderlyingToken() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(yzusd)));
+        stakedYzusd.rescueTokens(address(yzusd), user1, 100e18);
     }
 
     // Deposit
@@ -396,8 +421,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         stakedYzusd.deposit(depositSize, user1);
         vm.stopPrank();
 
-        uint256 maxMint = stakedYzusd.maxMint(user1);
-        assertEq(maxMint, MAX_DEPOSIT_PER_BLOCK - depositSize);
+        assertEq(stakedYzusd.maxMint(user1), MAX_DEPOSIT_PER_BLOCK - depositSize);
     }
 
     function test_MaxMint_WithAccruedAssets() public {
@@ -414,8 +438,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         
         vm.stopPrank();
 
-        uint256 maxMint = stakedYzusd.maxMint(user1);
-        assertEq(maxMint, (MAX_DEPOSIT_PER_BLOCK - depositSize) / 2);
+        assertEq(stakedYzusd.maxMint(user1), (MAX_DEPOSIT_PER_BLOCK - depositSize) / 2);
     }
 
     function test_MaxWithdraw() public {
@@ -649,9 +672,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.stopPrank();
 
         // Attacker tries to profit by redeeming
-        vm.startPrank(attacker);
+        vm.prank(attacker);
         (uint256 orderId,) = stakedYzusd.initiateRedeem(attackerShares);
-        vm.stopPrank();
 
         Order memory order = stakedYzusd.getRedeemOrder(orderId);
 
