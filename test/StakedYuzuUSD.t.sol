@@ -54,6 +54,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Mint some YuzuUSD to users for testing
         yzusd.mint(user1, 10_000e18);
         yzusd.mint(user2, 10_000e18);
+
+        vm.prank(user1);
+        yzusd.approve(address(stakedYzusd), type(uint256).max);
+
+        vm.prank(user2);
+        yzusd.approve(address(stakedYzusd), type(uint256).max);
     }
 
     // Initialization
@@ -81,8 +87,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_SetMaxDepositPerBlock_RevertOnlyOwner() public {
-        vm.prank(user1);
         vm.expectRevert();
+        vm.prank(user1);
         stakedYzusd.setMaxDepositPerBlock(2_000e18);
     }
 
@@ -98,8 +104,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_SetMaxWithdrawPerBlock_RevertOnlyOwner() public {
-        vm.prank(user1);
         vm.expectRevert();
+        vm.prank(user1);
         stakedYzusd.setMaxWithdrawPerBlock(1_000e18);
     }
 
@@ -115,8 +121,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_SetRedeemDelay_RevertOnlyOwner() public {
-        vm.prank(user1);
         vm.expectRevert();
+        vm.prank(user1);
         stakedYzusd.setRedeemDelay(2 days);
     }
 
@@ -134,14 +140,14 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         ERC20Mock otherToken = new ERC20Mock();
         uint256 amount = 100e18;
         otherToken.mint(address(stakedYzusd), amount);
-        vm.prank(user1);
         vm.expectRevert();
+        vm.prank(user1);
         stakedYzusd.rescueTokens(address(otherToken), user1, amount);
     }
 
     function test_RescueTokens_RevertUnderlyingToken() public {
-        vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(yzusd)));
+        vm.prank(owner);
         stakedYzusd.rescueTokens(address(yzusd), user1, 100e18);
     }
 
@@ -150,12 +156,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 depositSize = 200e18;
         uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
         vm.expectEmit();
         emit Deposit(user1, user1, depositSize, depositSize);
+        vm.prank(user1);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         assertEq(stakedYzusd.balanceOf(user1), shares);
         assertEq(stakedYzusd.totalSupply(), shares);
@@ -168,27 +172,21 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_Deposit_RevertLimitExceeded() public {
         uint256 depositSize = MAX_DEPOSIT_PER_BLOCK + 1;
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
         vm.expectRevert();
+        vm.prank(user1);
         stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
     }
 
     function test_Deposit_MultipleInSameBlock_RevertLimitExceeded() public {
         uint256 depositSize1 = MAX_DEPOSIT_PER_BLOCK;
         uint256 depositSize2 = 200e18;
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize1);
+        vm.prank(user1);
         stakedYzusd.deposit(depositSize1, user1);
-        vm.stopPrank();
 
-        vm.startPrank(user2);
-        yzusd.approve(address(stakedYzusd), depositSize2);
         vm.expectRevert();
+        vm.prank(user2);
         stakedYzusd.deposit(depositSize2, user2);
-        vm.stopPrank();
     }
 
     // Mint
@@ -196,12 +194,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 mintSize = 200e18;
         uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), type(uint256).max);
         vm.expectEmit();
         emit Deposit(user1, user1, mintSize, mintSize);
+        vm.prank(user1);
         uint256 assets = stakedYzusd.mint(mintSize, user1);
-        vm.stopPrank();
 
         assertEq(assets, mintSize);
         assertEq(stakedYzusd.balanceOf(user1), assets);
@@ -215,44 +211,35 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_Mint_RevertLimitExceeded() public {
         uint256 mintSize = MAX_DEPOSIT_PER_BLOCK + 1;
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), type(uint256).max);
         vm.expectRevert();
+        vm.prank(user1);
         stakedYzusd.mint(mintSize, user1);
-        vm.stopPrank();
     }
 
     function test_Mint_MultipleInSameBlock_RevertLimitExceeded() public {
         uint256 mintSize1 = MAX_DEPOSIT_PER_BLOCK;
         uint256 mintSize2 = 200e18;
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), mintSize1);
+        vm.prank(user1);
         stakedYzusd.mint(mintSize1, user1);
-        vm.stopPrank();
 
-        vm.startPrank(user2);
-        yzusd.approve(address(stakedYzusd), mintSize2);
         vm.expectRevert();
+        vm.prank(user2);
         stakedYzusd.mint(mintSize2, user2);
-        vm.stopPrank();
     }
 
     // Redeem Initiation
     function test_InitiateRedeem() public {
         // Deposit
         uint256 depositSize = 200e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         // Initiate redeem
-        vm.startPrank(user1);
         vm.expectEmit();
         emit RedeemInitiated(0, user1, depositSize, shares);
+        vm.prank(user1);
         (uint256 orderId, uint256 _assets) = stakedYzusd.initiateRedeem(shares);
-        vm.stopPrank();
 
         assertEq(orderId, 0);
         assertEq(_assets, depositSize);
@@ -268,36 +255,32 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_InitiateRedeem_RevertZeroShares() public {
-        vm.prank(user1);
         vm.expectRevert(InvalidZeroShares.selector);
+        vm.prank(user1);
         stakedYzusd.initiateRedeem(0);
     }
 
     function test_InitiateRedeem_RevertLimitExceeded() public {
         // Deposit
         uint256 depositSize = MAX_DEPOSIT_PER_BLOCK;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         // Try to initiate redeem
-        vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(MaxRedeemExceeded.selector, MAX_WITHDRAW_PER_BLOCK + 1, MAX_WITHDRAW_PER_BLOCK));
+        vm.prank(user1);
         stakedYzusd.initiateRedeem(MAX_WITHDRAW_PER_BLOCK + 1);
     }
     
     function test_InitiateRedeem_RevertInsufficientShares() public {
         // Deposit
         uint256 depositSize = 200e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         // Try to initiate redeem
-        vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(MaxRedeemExceeded.selector, shares + 1, shares));
+        vm.prank(user1);
         stakedYzusd.initiateRedeem(shares + 1);
     }
 
@@ -306,7 +289,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Deposit and initiate redeem
         uint256 depositSize = 200e18;
         vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
         (uint256 orderId,) = stakedYzusd.initiateRedeem(shares);
         vm.stopPrank();
@@ -344,7 +326,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Deposit and initiate redeem
         uint256 depositSize = 200e18;
         vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
         (uint256 orderId,) = stakedYzusd.initiateRedeem(shares);
         vm.stopPrank();
@@ -358,7 +339,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Deposit and initiate redeem
         uint256 depositSize = 200e18;
         vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
         (uint256 orderId,) = stakedYzusd.initiateRedeem(shares);
         vm.stopPrank();
@@ -388,12 +368,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deposit and initiate redeem
         uint256 depositAmount = 100e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositAmount);
+        vm.prank(user1);
         uint256 shares = stakedYzusd.deposit(depositAmount, user1);
         assertEq(stakedYzusd.totalAssets(), initialAssets + depositAmount);
+        
+        vm.prank(user1);
         stakedYzusd.initiateRedeem(shares);
-        vm.stopPrank();
 
         assertEq(stakedYzusd.totalAssets(), initialAssets);
     }
@@ -403,10 +383,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deposit
         uint256 depositSize = 300e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         assertEq(stakedYzusd.maxDeposit(user1), MAX_DEPOSIT_PER_BLOCK - depositSize);
     }
@@ -416,10 +394,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deposit
         uint256 depositSize = 300e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         assertEq(stakedYzusd.maxMint(user1), MAX_DEPOSIT_PER_BLOCK - depositSize);
     }
@@ -429,14 +405,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deposit
         uint256 depositSize = 200e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         stakedYzusd.deposit(depositSize, user1);
         
         // Double the value of the shares
         yzusd.mint(address(stakedYzusd), depositSize);
         
-        vm.stopPrank();
 
         assertEq(stakedYzusd.maxMint(user1), (MAX_DEPOSIT_PER_BLOCK - depositSize) / 2);
     }
@@ -446,18 +420,14 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deposit
         uint256 depositSize = 200e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         // Limited by share value
         assertEq(stakedYzusd.maxWithdraw(user1), depositSize);
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), MAX_WITHDRAW_PER_BLOCK);
+        vm.prank(user1);
         stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-        vm.stopPrank();
 
         // Limited by max withdraw per block
         assertEq(stakedYzusd.maxWithdraw(user1), MAX_WITHDRAW_PER_BLOCK);
@@ -468,18 +438,14 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         uint256 depositSize = 200e18;
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         // Limited by shares
         assertEq(stakedYzusd.maxRedeem(user1), shares);
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), MAX_WITHDRAW_PER_BLOCK);
+        vm.prank(user1);
         stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-        vm.stopPrank();
 
         // Limited by max withdraw per block
         assertEq(stakedYzusd.maxRedeem(user1), MAX_WITHDRAW_PER_BLOCK);
@@ -490,20 +456,16 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deposit
         uint256 depositSize = 200e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize);
+        vm.prank(user1);
         uint256 shares = stakedYzusd.deposit(depositSize, user1);
-        vm.stopPrank();
 
         // Double the value of the shares
         yzusd.mint(address(stakedYzusd), depositSize);
 
         assertEq(stakedYzusd.maxRedeem(user1), shares);
 
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), MAX_WITHDRAW_PER_BLOCK);
+        vm.prank(user1);
         stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-        vm.stopPrank();
 
         assertEq(stakedYzusd.maxRedeem(user1), MAX_WITHDRAW_PER_BLOCK / 2);
     }
@@ -512,17 +474,13 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_MultipleUsersDepositAndRedeem() public {
         // User1 deposits
         uint256 depositSize1 = 200e18;
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), depositSize1);
+        vm.prank(user1);
         uint256 shares1 = stakedYzusd.deposit(depositSize1, user1);
-        vm.stopPrank();
 
         // User2 deposits
         uint256 depositSize2 = 300e18;
-        vm.startPrank(user2);
-        yzusd.approve(address(stakedYzusd), depositSize2);
+        vm.prank(user2);
         uint256 shares2 = stakedYzusd.deposit(depositSize2, user2);
-        vm.stopPrank();
 
         // User1 initiates redeem
         vm.prank(user1);
@@ -597,43 +555,36 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_DepositLimitResetsAcrossBlocks() public {
         // Fill block limit in first block
-        vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), MAX_DEPOSIT_PER_BLOCK);
+        vm.prank(user1);
         stakedYzusd.deposit(MAX_DEPOSIT_PER_BLOCK, user1);
-        vm.stopPrank();
 
         // Should fail to deposit more in same block
-        vm.startPrank(user2);
-        yzusd.approve(address(stakedYzusd), 1e18);
         vm.expectRevert();
+        vm.prank(user2);
         stakedYzusd.deposit(1e18, user2);
-        vm.stopPrank();
 
         // Move to next block
         vm.roll(block.number + 1);
 
         // Should work in new block
-        vm.startPrank(user2);
-        yzusd.approve(address(stakedYzusd), 1e18);
+        vm.prank(user2);
         stakedYzusd.deposit(1e18, user2);
-        vm.stopPrank();
     }
 
     function test_RedeemLimitResetsAcrossBlocks() public {
         // Fill block limit in first block
         vm.startPrank(user1);
-        yzusd.approve(address(stakedYzusd), MAX_WITHDRAW_PER_BLOCK);
         stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
         stakedYzusd.initiateRedeem(MAX_WITHDRAW_PER_BLOCK);
         vm.stopPrank();
 
-        // Should fail to redeem more in same block
-        vm.startPrank(user2);
-        yzusd.approve(address(stakedYzusd), 1e18);
+        vm.prank(user2);
         stakedYzusd.deposit(1e18, user2);
+
+        // Should fail to redeem more in same block
         vm.expectRevert();
+        vm.prank(user2);
         stakedYzusd.initiateRedeem(1e18);
-        vm.stopPrank();
 
         // Move to next block
         vm.roll(block.number + 1);
@@ -657,19 +608,15 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.stopPrank();
 
         // Attacker deposits
-        vm.startPrank(attacker);
-        yzusd.approve(address(stakedYzusd), attackerDepositSize);
+        vm.prank(attacker);
         uint256 attackerShares = stakedYzusd.deposit(attackerDepositSize, attacker);
-        vm.stopPrank();
 
         // Attacker donates underlying directly to the vault
         yzusd.mint(address(stakedYzusd), attackerDonationSize);
 
         // Victim deposits
-        vm.startPrank(victim);
-        yzusd.approve(address(stakedYzusd), victimDepositSize);
+        vm.prank(victim);
         stakedYzusd.deposit(victimDepositSize, victim);
-        vm.stopPrank();
 
         // Attacker tries to profit by redeeming
         vm.prank(attacker);
