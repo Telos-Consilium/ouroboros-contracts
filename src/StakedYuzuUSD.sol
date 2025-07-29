@@ -158,7 +158,7 @@ contract StakedYuzuUSD is
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
-        return Math.min(super.maxRedeem(owner), previewWithdraw(maxWithdrawPerBlock - withdrawn));
+        return Math.min(super.maxRedeem(owner), previewDeposit(maxWithdrawPerBlock - withdrawn));
     }
 
     /**
