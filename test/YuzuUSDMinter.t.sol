@@ -103,7 +103,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.fastRedeemFeePpm(), 0);
         assertEq(minter.standardRedeemFeePpm(), 0);
         assertEq(minter.fastFillWindow(), 1 days);
-        assertEq(minter.standardFillWindow(), 7 days);
+        assertEq(minter.standardRedeemDelay(), 7 days);
         assertTrue(minter.hasRole(ADMIN_ROLE, admin));
     }
 
@@ -309,19 +309,19 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.fastFillWindow(), newWindow);
     }
 
-    function test_SetStandardFillWindow() public {
-        uint256 newWindow = 14 days;
+    function test_SetStandardRedeemDelay() public {
+        uint256 newDelay = 14 days;
 
         vm.prank(admin);
         minter.grantRole(REDEEM_MANAGER_ROLE, admin);
 
         vm.expectEmit();
-        emit StandardFillWindowUpdated(7 days, newWindow);
+        emit StandardRedeemDelayUpdated(7 days, newDelay);
 
         vm.prank(admin);
-        minter.setStandardFillWindow(newWindow);
+        minter.setStandardRedeemDelay(newDelay);
 
-        assertEq(minter.standardFillWindow(), newWindow);
+        assertEq(minter.standardRedeemDelay(), newDelay);
     }
 
     function test_WithdrawCollateral() public {

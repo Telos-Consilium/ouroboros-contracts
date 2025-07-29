@@ -22,7 +22,7 @@ interface IYuzuUSDMinterDefinitions {
     event FastRedeemFeePpmUpdated(uint256 oldFee, uint256 newFee);
     event StandardRedeemFeePpmUpdated(uint256 oldFee, uint256 newFee);
     event FastFillWindowUpdated(uint256 oldWindow, uint256 newWindow);
-    event StandardFillWindowUpdated(uint256 oldWindow, uint256 newWindow);
+    event StandardRedeemDelayUpdated(uint256 oldDelay, uint256 newDelay);
     event MaxMintPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
     event MaxRedeemPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
     event CollateralWithdrawn(address indexed to, uint256 amount);

@@ -14,7 +14,7 @@ interface IYuzuUSDMinter {
     function setFastRedeemFeePpm(uint256 newFeePpm) external;
     function setStandardRedeemFeePpm(uint256 newFeePpm) external;
     function setFastFillWindow(uint256 newWindow) external;
-    function setStandardFillWindow(uint256 newWindow) external;
+    function setStandardRedeemDelay(uint256 newDelay) external;
     function rescueTokens(address token, address to, uint256 amount) external;
     function withdrawCollateral(address to, uint256 amount) external;
 
@@ -46,7 +46,7 @@ interface IYuzuUSDMinter {
     function fastRedeemFeePpm() external view returns (uint256);
     function standardRedeemFeePpm() external view returns (uint256);
     function fastFillWindow() external view returns (uint256);
-    function standardFillWindow() external view returns (uint256);
+    function standardRedeemDelay() external view returns (uint256);
     function currentPendingFastRedeemValue() external view returns (uint256);
     function currentPendingStandardRedeemValue() external view returns (uint256);
 }

@@ -50,7 +50,7 @@ contract YuzuUSDMinter is
     uint256 public fastRedeemFeePpm = 0;
     uint256 public standardRedeemFeePpm = 0;
     uint256 public fastFillWindow = 1 days;
-    uint256 public standardFillWindow = 7 days;
+    uint256 public standardRedeemDelay = 7 days;
 
     uint256 public currentPendingFastRedeemValue = 0;
     uint256 public currentPendingStandardRedeemValue = 0;
@@ -104,7 +104,7 @@ contract YuzuUSDMinter is
      * @param _maxRedeemPerBlock Maximum YuzuUSD that can be redeemed per block.
      *
      * Fees are set to 0 by default.
-     * Fast and standard fill windows are set to 1 day and 7 days, respectively.
+     * Fast fill window and standard redeem delay are set to 1 day and 7 days, respectively.
      */
     function initialize(
         address _yzusd,
@@ -139,7 +139,7 @@ contract YuzuUSDMinter is
         fastRedeemFeePpm = 0;
         standardRedeemFeePpm = 0;
         fastFillWindow = 1 days;
-        standardFillWindow = 7 days;
+        standardRedeemDelay = 7 days;
 
         currentPendingFastRedeemValue = 0;
         currentPendingStandardRedeemValue = 0;
@@ -257,15 +257,15 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the standard fill window to {newWindow}.
+     * @notice Sets the standard redeem delay to {newDelay}.
      *
-     * Emits a `StandardFillWindowUpdated` event with the old and new windows.
+     * Emits a `StandardRedeemDelayUpdated` event with the old and new delays.
      * Reverts if called by anyone but a redeem manager.
      */
-    function setStandardFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {
-        uint256 oldWindow = standardFillWindow;
-        standardFillWindow = newWindow;
-        emit StandardFillWindowUpdated(oldWindow, newWindow);
+    function setStandardRedeemDelay(uint256 newDelay) external onlyRole(REDEEM_MANAGER_ROLE) {
+        uint256 oldDelay = standardRedeemDelay;
+        standardRedeemDelay = newDelay;
+        emit StandardRedeemDelayUpdated(oldDelay, newDelay);
     }
 
     /**
@@ -590,7 +590,7 @@ contract YuzuUSDMinter is
             amount: amount,
             owner: owner,
             feePpm: uint32(standardRedeemFeePpm),
-            dueTime: uint40(block.timestamp + standardFillWindow),
+            dueTime: uint40(block.timestamp + standardRedeemDelay),
             status: OrderStatus.Pending
         });
         standardRedeemOrderCount++;
