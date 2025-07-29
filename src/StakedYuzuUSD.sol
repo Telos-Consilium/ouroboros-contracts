@@ -164,7 +164,6 @@ contract StakedYuzuUSD is
     /**
      * @notice Deposits {assets} into the vault and mints shares to {receiver}.
      *
-     * Takes the amount of assets to deposit as input.
      * Returns the number of shares minted.
      * Emits a `Deposit` event with the caller, order owner, assets, and shares.
      * Reverts if the deposit exceeds the maximum allowed per block.
@@ -178,7 +177,6 @@ contract StakedYuzuUSD is
     /**
      * @notice Deposits assets into the vault and mints {shares} to {receiver}.
      *
-     * Takes the number of shares to mint as input.
      * Returns the amount of assets deposited.
      * Emits a `Deposit` event with the caller, order owner, assets, and shares.
      * Reverts if the deposit exceeds the maximum allowed per block.

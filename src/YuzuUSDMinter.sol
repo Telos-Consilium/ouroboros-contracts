@@ -488,14 +488,14 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns a fast redemption order by its ID.
+     * @notice Returns a fast redemption order by {orderId}.
      */
     function getFastRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return fastRedeemOrders[orderId];
     }
 
     /**
-     * @notice Returns a standard redemption order by its ID.
+     * @notice Returns a standard redemption order by {orderId}.
      */
     function getStandardRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return standardRedeemOrders[orderId];

@@ -52,7 +52,16 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Sets the values for {asset}, {name}, {symbol}, {admin}, {treasury}, and {maxDepositPerBlock}.
+     * @notice Initializes the YuzuILP contract with the specified parameters.
+     * @param asset_ The address of the underlying asset token.
+     * @param name_ The name of the vault token, e.g. "Yuzu ILP".
+     * @param symbol_ The symbol of the vault token, e.g. "yzILP".
+     * @param _admin The admin of the contract.
+     * @param _treasury The address of the treasury where assets are sent.
+     * @param _maxDepositPerBlock Maximum assets that can be deposited per block.
+     *
+     * Pool size, withdrawal allowance, and yield rate are set to 0 by default.
+     * Reverts if {_admin} or {_treasury} is the zero address.
      */
     function initialize(
         IERC20 asset_,
@@ -85,9 +94,10 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Sets {maxDepositPerBlock}.
+     * @notice Sets the maximum deposit per block to {newMaxDepositPerBlock}.
      *
-     * Only callable by the limit manager.
+     * Emits a `MaxDepositPerBlockUpdated` event with the old and new limits.
+     * Reverts if called by anyone but a limit manager.
      */
     function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyRole(LIMIT_MANAGER_ROLE) {
         uint256 oldMaxDepositPerBlock = maxDepositPerBlock;
@@ -96,9 +106,11 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Sets {treasury}.
+     * @notice Sets the treasury address to {newTreasury}.
      *
-     * Only callable by the admin.
+     * Emits a `TreasuryUpdated` event with the old and new treasury addresses.
+     * Reverts if called by anyone but an admin.
+     * Reverts if {newTreasury} is the zero address.
      */
     function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
         if (newTreasury == address(0)) revert InvalidZeroAddress();
@@ -108,9 +120,14 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Sets {poolSize}, {withdrawAllowance}, and {dailyLinearYieldRatePpm}.
+     * @notice Updates the pool parameters including size, withdrawal allowance, and yield rate.
      *
-     * Only callable by the pool manager.
+     * Sets poolSize to newPoolSize, withdrawAllowance to {newWithdrawalAllowance}, 
+     * and {dailyLinearYieldRatePpm} to {newDailyLinearYieldRatePpm}.
+     * Emits a `PoolUpdated` event with the new pool parameters.
+     * Reverts if called by anyone but a pool manager.
+     * Reverts if {newWithdrawalAllowance} exceeds {newPoolSize}.
+     * Reverts if {newDailyLinearYieldRatePpm} exceeds 1e6 (100% daily yield).
      */
     function updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm)
         external
@@ -128,16 +145,14 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Returns the underlying asset of the vault.
-     *
-     * Implements the IERC4626 interface.
+     * @notice Returns the address of the underlying asset of the vault.
      */
     function asset() public view returns (address) {
         return address(_asset);
     }
 
     /**
-     * @dev Returns the total assets managed by the vault.
+     * @notice Returns the total assets managed by the vault.
      *
      * Includes the pool size and the yield accrued since the last update.
      */
@@ -147,35 +162,37 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Returns the amount of assets required to mint a given number of shares.
+     * @notice Returns the amount of assets equivalent to {shares}.
+     *
+     * Returns the amount of assets required to mint the given number of shares.
      */
     function convertToAssets(uint256 shares) public view returns (uint256) {
         return previewMint(shares);
     }
 
     /**
-     * @dev Returns the number of shares minted for a given amount of assets.
+     * @notice Returns the number of shares equivalent to {assets}.
+     *
+     * Returns the number of shares minted for the given amount of assets.
      */
     function convertToShares(uint256 assets) public view returns (uint256) {
         return previewDeposit(assets);
     }
 
     /**
-     * @dev Returns the maximum amount of assets that can be deposited.
+     * @notice Returns the maximum deposit.
      *
-     * Takes an address as input for ERC4626 compatibility.
      * Deposit size is only limited by the maximum deposit per block.
      */
-    function maxDeposit(address) public view returns (uint256) {
+    function maxDeposit(address receiver) public view returns (uint256) {
         uint256 deposited = depositedPerBlock[block.number];
         if (deposited >= maxDepositPerBlock) return 0;
         return maxDepositPerBlock - deposited;
     }
 
     /**
-     * @dev Returns the maximum number of shares that can be minted.
+     * @notice Returns the maximum mint.
      *
-     * Takes an address as input for ERC4626 compatibility.
      * Mint size is only limited by the maximum deposit per block.
      */
     function maxMint(address receiver) public view returns (uint256) {
@@ -183,56 +200,57 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Returns the maximum withdraw by an owner.
+     * @notice Returns the maximum withdrawal by {owner}.
      *
-     * Max withdraw is limited by the maximum withdrawal per block and the owner's balance.
+     * Maximum withdrawal is limited by the maximum withdrawal per block and {owner}'s shares.
      */
     function maxWithdraw(address owner) public view returns (uint256) {
         return Math.min(previewRedeem(balanceOf(owner)), withdrawAllowance);
     }
 
     /**
-     * @dev Returns the maximum redeem by an owner.
+     * @notice Returns the maximum redemption by {owner}.
      *
-     * Max redeem is limited by the maximum withdrawal per block and the owner's shares.
+     * Maximum redemption is limited by the withdrawal allowance and {owner}'s shares.
      */
     function maxRedeem(address owner) public view returns (uint256) {
         return Math.min(balanceOf(owner), previewWithdraw(withdrawAllowance));
     }
 
     /**
-     * @dev Returns the number of shares minted for a given amount of assets.
+     * @notice Returns the number of shares minted for {assets}.
      */
     function previewDeposit(uint256 assets) public view returns (uint256) {
         return _convertToSharesMinted(assets);
     }
 
     /**
-     * @dev Returns the amount of assets required to mint a given number of shares.
+     * @notice Returns the amount of assets required to mint {shares}.
      */
     function previewMint(uint256 shares) public view returns (uint256) {
         return _convertToAssetsDeposited(shares);
     }
 
     /**
-     * @dev Returns the number of shares that would be redeemed for a given amount of assets.
+     * @notice Returns the number of shares redeemed for {assets}.
      */
     function previewWithdraw(uint256 assets) public view returns (uint256) {
         return _convertToSharesRedeemed(assets);
     }
 
     /**
-     * @dev Returns the amount of assets that would be redeemed for a given number of shares.
+     * @notice Returns the amount of assets withdrawn for {shares}.
      */
     function previewRedeem(uint256 shares) public view returns (uint256) {
         return _convertToAssetsWithdrawn(shares);
     }
 
     /**
-     * @dev Deposits assets into the vault and mints shares to the receiver.
-     *
-     * Takes the amount of assets to deposit as input.
+     * @notice Deposits {assets} into the vault and mints shares to {receiver}.
+     * 
      * Returns the number of shares minted.
+     * Emits a `Deposit` event with the caller, receiver, assets, and shares.
+     * Reverts if the deposit exceeds the maximum allowed per block.
      */
     function deposit(uint256 assets, address receiver) public nonReentrant returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
@@ -247,10 +265,11 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Deposits assets into the vault and mints shares to the receiver.
+     * @notice Mints {shares} to {receiver} by depositing assets.
      *
-     * Takes the number of shares to mint as input.
      * Returns the amount of assets deposited.
+     * Emits a `Deposit` event with the caller, receiver, assets, and shares.
+     * Reverts if the shares amount exceeds the maximum allowed per block.
      */
     function mint(uint256 shares, address receiver) public nonReentrant returns (uint256) {
         uint256 maxShares = maxMint(receiver);
@@ -265,28 +284,28 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Reverting ERC4626 withdraw function.
-     *
-     * Instant withdrawals are not supported.
+     * @notice Withdraw function is disabled. Instant withdrawals are not supported.
+     * @dev Use createRedeemOrder() and fillRedeemOrder() for delayed redemptions instead.
      */
     function withdraw(uint256 assets, address receiver, address owner) public pure returns (uint256) {
         revert WithdrawNotSupported();
     }
 
     /**
-     * @dev Reverting ERC4626 redeem function.
-     *
-     * Instant redemptions are not supported.
+     * @notice Redeem function is disabled. Instant redemptions are not supported.
+     * @dev Use createRedeemOrder() and fillRedeemOrder() for delayed redemptions instead.
      */
     function redeem(uint256 shares, address receiver, address owner) public pure returns (uint256) {
         revert RedeemNotSupported();
     }
 
     /**
-     * @dev Creates a redeem order for the caller.
+     * @notice Creates a redeem order for {shares}.
      *
-     * Takes the number of shares to redeem as input.
      * Returns the order ID and the amount of assets to be redeemed.
+     * Emits a `RedeemOrderCreated` event with order details.
+     * Reverts if shares is zero.
+     * Reverts if shares exceeds the maximum redeemable amount.
      */
     function createRedeemOrder(uint256 shares) public nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidZeroShares();
@@ -299,9 +318,11 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Fills a redeem order by transferring assets to the owner.
+     * @notice Fills a redeem order with {orderId} by transferring assets to the order owner.
      *
-     * Only callable by the order filler.
+     * Emits a `RedeemOrderFilled` event with order details.
+     * Reverts if called by anyone but an order filler.
+     * Reverts if the order is already executed.
      */
     function fillRedeemOrder(uint256 orderId) public nonReentrant onlyRole(ORDER_FILLER_ROLE) {
         Order storage order = redeemOrders[orderId];
@@ -313,10 +334,10 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Rescues tokens from the contract.
+     * @notice Transfers {amount} of {token} held by the vault to {to}.
      *
-     * Only callable by the admin.
-     * Tokens that are the underlying asset of the vault cannot be rescued.
+     * Reverts if called by anyone but an admin.
+     * Reverts if {token} is the underlying asset of the vault.
      */
     function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
         if (token == asset()) revert InvalidToken(token);
@@ -324,16 +345,14 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Returns a redeem order by its ID.
+     * @notice Returns a redeem order by {orderId}.
      */
     function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return redeemOrders[orderId];
     }
 
     /**
-     * @dev Converts assets to shares for minting.
-     *
-     * Internal function used to calculate shares minted from assets.
+     * @dev Internal function to convert {assets} to shares minted.
      */
     function _convertToSharesMinted(uint256 assets) internal view returns (uint256) {
         if (poolSize == 0) return assets;
@@ -342,9 +361,7 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Converts shares to assets for deposits.
-     *
-     * Internal function used to calculate assets deposited from shares.
+     * @dev Internal function to convert {assets} to shares redeemed.
      */
     function _convertToSharesRedeemed(uint256 assets) internal view returns (uint256) {
         if (poolSize == 0) return assets;
@@ -352,9 +369,7 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Converts shares to assets for withdrawals.
-     *
-     * Internal function used to calculate assets withdrawn from shares.
+     * @dev Internal function to convert {shares} to assets deposited.
      */
     function _convertToAssetsDeposited(uint256 shares) internal view returns (uint256) {
         if (poolSize == 0) return shares;
@@ -363,9 +378,7 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Converts assets to shares for withdrawals.
-     *
-     * Internal function used to calculate shares withdrawn from assets.
+     * @dev Internal function to convert shares to assets withdrawn.
      */
     function _convertToAssetsWithdrawn(uint256 shares) internal view returns (uint256) {
         if (poolSize == 0) return shares;
@@ -375,8 +388,8 @@ contract YuzuILP is
     /**
      * @dev Internal function to handle deposits.
      *
-     * Transfers assets from the caller to the treasury, mints shares to the receiver,
-     * and updates the deposited per block and pool size.
+     * Transfers {assets} from {caller} to the treasury, mints {shares} to {receiver},
+     * and increments the deposited per block, withdraw allowance, and pool size.
      */
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal {
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury, assets);
@@ -390,7 +403,7 @@ contract YuzuILP is
     /**
      * @dev Internal function to create a redeem order.
      *
-     * Reduces the withdraw allowance and pool size, burns shares, and creates a redeem order.
+     * Decrements the withdraw allowance and pool size, burns {shares}, and creates a redeem order.
      * Returns the order ID.
      * Redemptions don't include the yield accrued since the last pool update.
      */
@@ -438,7 +451,7 @@ contract YuzuILP is
 
     /**
      * @dev Returns the size of a deposit such that, if deposited at the time of the last pool update,
-     * would have accrued yield making it worth `assets` now.
+     * would have accrued yield making it worth {assets} now.
      *
      * Uses the daily linear yield rate and the time since the last update.
      * Returns the size of the deposit, rounded according to the specified rounding mode.
