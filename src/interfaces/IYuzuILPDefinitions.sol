@@ -5,6 +5,15 @@ import "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
 
 interface IYuzuILPDefinitions {
+    event MaxDepositPerBlockUpdated(
+        uint256 oldLimit, uint256 newLimit
+    );
+    event TreasuryUpdated(
+        address oldTreasury, address newTreasury
+    );
+    event PoolUpdated(
+        uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm
+    );
     event RedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares);
     event RedeemOrderFilled(
         uint256 indexed orderId, address indexed owner, address indexed filler, uint256 assets, uint256 shares

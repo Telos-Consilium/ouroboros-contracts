@@ -89,8 +89,10 @@ contract YuzuILP is
      *
      * Only callable by the limit manager.
      */
-    function setMaxDepositPerBlock(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
-        maxDepositPerBlock = newMax;
+    function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyRole(LIMIT_MANAGER_ROLE) {
+        uint256 oldMaxDepositPerBlock = maxDepositPerBlock;
+        maxDepositPerBlock = newMaxDepositPerBlock;
+        emit MaxDepositPerBlockUpdated(oldMaxDepositPerBlock, newMaxDepositPerBlock);
     }
 
     /**
@@ -100,7 +102,9 @@ contract YuzuILP is
      */
     function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
         if (newTreasury == address(0)) revert InvalidZeroAddress();
+        address oldTreasury = treasury;
         treasury = newTreasury;
+        emit TreasuryUpdated(oldTreasury, newTreasury);
     }
 
     /**
@@ -119,6 +123,8 @@ contract YuzuILP is
         withdrawAllowance = newWithdrawalAllowance;
         dailyLinearYieldRatePpm = newDailyLinearYieldRatePpm;
         lastPoolUpdateTimestamp = block.timestamp;
+
+        emit PoolUpdated(newPoolSize, newWithdrawalAllowance, newDailyLinearYieldRatePpm);
     }
 
     /**
@@ -303,6 +309,7 @@ contract YuzuILP is
         if (order.executed) revert OrderAlreadyExecuted();
         _fillRedeemOrder(order, _msgSender());
         emit RedeemOrderFilled(orderId, order.owner, _msgSender(), order.assets, order.shares);
+        emit Withdraw(_msgSender(), order.owner, order.owner, order.assets, order.shares);
     }
 
     /**
