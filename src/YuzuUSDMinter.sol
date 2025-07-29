@@ -155,6 +155,7 @@ contract YuzuUSDMinter is
      *
      * Emits a `TreasuryUpdated` event with the old and new treasury addresses.
      * Reverts if called by anyone but an admin.
+     * Reverts if {newTreasury} is the zero address.
      */
     function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
         if (newTreasury == address(0)) revert InvalidZeroAddress();
@@ -164,10 +165,11 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets redeem fee recipient address to {newRecipient}.
+     * @notice Sets the redemptions fee recipient address to {newRecipient}.
      *
      * Emits a `RedeemFeeRecipientUpdated` event with the old and new recipient addresses.
      * Reverts if called by anyone but a redeem manager.
+     * Reverts if {newRecipient} is the zero address.
      */
     function setRedeemFeeRecipient(address newRecipient) external onlyRole(REDEEM_MANAGER_ROLE) {
         if (newRecipient == address(0)) revert InvalidZeroAddress();
@@ -189,7 +191,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets maximum redeem per block to {newMaxRedeemPerBlock}.
+     * @notice Sets the maximum redemption per block to {newMaxRedeemPerBlock}.
      *
      * Emits a `MaxRedeemPerBlockUpdated` event with the old and new limits.
      * Reverts if called by anyone but a limit manager.
@@ -201,7 +203,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the instant redeem fee to {newFeePpm}.
+     * @notice Sets the instant redemptions fee to {newFeePpm}.
      *
      * Emits an `InstantRedeemFeePpmUpdated` event with the old and new fees.
      * Reverts if called by anyone but a redeem manager.
@@ -215,7 +217,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the fast redeem fee to {newFeePpm}.
+     * @notice Sets the fast redemptions fee to {newFeePpm}.
      *
      * Emits a `FastRedeemFeePpmUpdated` event with the old and new fees.
      * Reverts if called by anyone but a redeem manager.
@@ -229,7 +231,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the standard redeem fee to {newFeePpm}.
+     * @notice Sets the standard redemptions fee to {newFeePpm}.
      *
      * Emits a `StandardRedeemFeePpmUpdated` event with the old and new fees.
      * Reverts if called by anyone but a redeem manager.
@@ -268,13 +270,17 @@ contract YuzuUSDMinter is
 
     /**
      * @notice Returns the amount of collateral required to mint {amount} of yzusd.
+     *
+     * Returns the collateral amount (1:1 with yzusd).
      */
     function previewMint(uint256 amount) public pure returns (uint256) {
         return amount;
     }
 
     /**
-     * @notice Returns the amount of collateral withdrawn for an instant redeem of {amount} of yzusd.
+     * @notice Returns the amount of collateral withdrawn for an instant redemption of {amount} of yzusd.
+     *
+     * Returns the collateral amount after deducting the instant redemptions fee.
      */
     function previewInstantRedeem(uint256 amount) public view returns (uint256) {
         uint256 fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6, Math.Rounding.Ceil);
@@ -282,7 +288,9 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns the amount of collateral withdrawn for a fast redeem of {amount} of yzusd.
+     * @notice Returns the amount of collateral withdrawn for a fast redemption of {amount} of yzusd.
+     *
+     * Returns the collateral amount after deducting the fast redemptions fee.
      */
     function previewFastRedeem(uint256 amount) public view returns (uint256) {
         uint256 fee = Math.mulDiv(amount, fastRedeemFeePpm, 1e6, Math.Rounding.Ceil);
@@ -290,7 +298,9 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns the amount of collateral withdrawn for a standard redeem of {amount} of yzusd.
+     * @notice Returns the amount of collateral withdrawn for a standard redemption of {amount} of yzusd.
+     *
+     * Returns the collateral amount after deducting the standard redemptions fee.
      */
     function previewStandardRedeem(uint256 amount) public view returns (uint256) {
         uint256 fee = Math.mulDiv(amount, standardRedeemFeePpm, 1e6, Math.Rounding.Ceil);
@@ -301,8 +311,8 @@ contract YuzuUSDMinter is
      * @notice Mints {amount} of yzusd to {to}.
      *
      * Emits a `Minted` event with the caller, recipient, and amount.
-     * Reverts if the amount exceeds the maximum mint per block.
      * Reverts if the amount is zero.
+     * Reverts if the amount exceeds the maximum mint per block.
      */
     function mint(address to, uint256 amount) external nonReentrant underMaxMintPerBlock(amount) {
         if (amount == 0) revert InvalidZeroAmount();
@@ -314,10 +324,12 @@ contract YuzuUSDMinter is
     /**
      * @notice Instant redeems {amount} of yzusd to {to}.
      *
+     * Returns the amount of collateral transferred to {to} after fees.
      * Charges a fee of {instantRedeemFeePpm} ppm.
      * Emits an `InstantRedeem` event with the caller, recipient, amount, and fee.
      * Emits a `Redeemed` event with the caller, recipient, and amount.
-     * Reverts if the amount exceeds the maximum redeem per block.
+     * Reverts if the amount is zero.
+     * Reverts if the amount exceeds the maximum redemption per block.
      * Reverts if the amount exceeds the liquidity buffer size.
      */
     function instantRedeem(address to, uint256 amount)
@@ -337,12 +349,11 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Creates a fast redeem order for {amount} of yzusd.
+     * @notice Creates a fast redemption order for {amount} of yzusd.
      *
+     * Returns the order ID.
      * Emits a `FastRedeemOrderCreated` event with the order ID, order owner, and amount.
      * Reverts if the amount is zero.
-     * Reverts if the amount exceeds the maximum redeem per block.
-     * Reverts if the amount exceeds the liquidity buffer size.
      */
     function createFastRedeemOrder(uint256 amount) external nonReentrant returns (uint256) {
         if (amount == 0) revert InvalidZeroAmount();
@@ -352,13 +363,14 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Fills a fast redeem order with {orderId} by transferring the amount to the owner.
+     * @notice Fills a fast redemption order with {orderId} by transferring the amount to the owner.
      *
      * The fee is transferred to {feeRecipient}.
+     * Emits a `FastRedeemOrderFilled` event with the order ID, owner, filler, fee recipient, amount, and fee.
+     * Emits a `Redeemed` event with the order owner, recipient, and amount.
      * Reverts if called by anyone but an order filler.
+     * Reverts if the order does not exist.
      * Reverts if the order is not pending.
-     * Reverts if the order is not due.
-     * Reverts if the amount exceeds the liquidity buffer size.
      */
     function fillFastRedeemOrder(uint256 orderId, address feeRecipient)
         external
@@ -377,12 +389,13 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Cancels a fast redeem order with {orderId}.
+     * @notice Cancels a fast redemption order with {orderId}.
      *
-     * Emits a FastRedeemOrderCancelled event with the order ID.
+     * Emits a `FastRedeemOrderCancelled` event with the order ID.
      * Reverts if called by anyone but the order owner.
      * Reverts if the order does not exist.
      * Reverts if the order is not pending.
+     * Reverts if the order is not yet due for cancellation.
      */
     function cancelFastRedeemOrder(uint256 orderId) external nonReentrant {
         Order storage order = fastRedeemOrders[orderId];
@@ -397,11 +410,12 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Creates a standard redeem order for {amount} of yzusd.
+     * @notice Creates a standard redemption order for {amount} of yzusd.
      *
+     * Returns the order ID.
      * Emits a `StandardRedeemOrderCreated` event with the order ID, order owner, and amount.
      * Reverts if the amount is zero.
-     * Reverts if the amount exceeds the maximum redeem per block.
+     * Reverts if the amount exceeds the maximum redemption per block.
      */
     function createStandardRedeemOrder(uint256 amount)
         external
@@ -417,12 +431,13 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Fills a standard redeem order with {orderId} by transferring the amount to the owner.
+     * @notice Fills a standard redemption order with {orderId} by transferring the amount to the owner.
      *
      * Emits a `StandardRedeemOrderFilled` event with the order ID, owner, amount, and fee.
-     * Reverts if called by anyone but an order filler.
+     * Emits a `Redeemed` event with the order owner, recipient, and amount.
+     * Reverts if the order does not exist.
      * Reverts if the order is not pending.
-     * Reverts if the order is not due.
+     * Reverts if the order is not yet due.
      * Reverts if the amount exceeds the liquidity buffer size.
      */
     function fillStandardRedeemOrder(uint256 orderId) external nonReentrant {
@@ -445,8 +460,8 @@ contract YuzuUSDMinter is
      *
      * Emits a `CollateralWithdrawn` event with the recipient and amount.
      * Reverts if called by anyone but an admin.
-     * Reverts if the order is not pending.
-     * Reverts if the order is not due.
+     * Reverts if the amount is zero.
+     * Reverts if the amount exceeds the outstanding collateral balance.
      */
     function withdrawCollateral(address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (amount == 0) revert InvalidZeroAmount();
@@ -459,10 +474,10 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Rescues tokens from the contract.
+     * @notice Transfers {amount} of {token} held by the contract to {to}.
      *
      * Reverts if called by anyone but an admin.
-     * Reverts if {token} is the collateral or yzusd token.
+     * Reverts if {token} is the collateral token or yzusd token.
      */
     function rescueTokens(address token, address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (token == collateralToken || token == address(yzusd)) {
@@ -472,14 +487,14 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns a fast redeem order by its ID.
+     * @notice Returns a fast redemption order by its ID.
      */
     function getFastRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return fastRedeemOrders[orderId];
     }
 
     /**
-     * @notice Returns a standard redeem order by its ID.
+     * @notice Returns a standard redemption order by its ID.
      */
     function getStandardRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return standardRedeemOrders[orderId];
@@ -496,10 +511,10 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @dev Internal function to handle instant redeems.
+     * @dev Internal function to handle instant redemptions.
      *
      * Burns yzusd from {from} and transfers collateral to {to}.
-     * Transfers the fee to the redeem fee recipient if applicable.
+     * Transfers the fee to the redemptions fee recipient if applicable.
      */
     function _instantRedeem(address from, address to, uint256 amount, uint256 fee) internal {
         uint256 amountAfterFee = amount - fee;
@@ -511,9 +526,9 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @dev Internal function to create a fast redeem order.
+     * @dev Internal function to create a fast redemption order.
      *
-     * Transfers yzusd from {owner} to the contract and creates a fast redeem order.
+     * Transfers yzusd from {owner} to the contract and creates a fast redemption order.
      * Returns the order ID.
      */
     function _createFastRedeemOrder(address owner, uint256 amount) internal returns (uint256) {
@@ -532,9 +547,9 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @dev Internal function to fill a fast redeem order.
+     * @dev Internal function to fill a fast redemption order.
      *
-     * Marks the order as filled, updates the current pending fast redeem value,
+     * Marks the order as filled, updates the current pending fast redemption value,
      * and transfers the assets to the owner.
      * Transfers the fee to the fee recipient if applicable.
      */
@@ -550,9 +565,9 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @dev Internal function to cancel a fast redeem order.
+     * @dev Internal function to cancel a fast redemption order.
      *
-     * Marks the order as cancelled, updates the current pending fast redeem value,
+     * Marks the order as cancelled, updates the current pending fast redemption value,
      * and transfers the yzusd back to the owner.
      */
     function _cancelFastRedeemOrder(Order storage order) internal {
@@ -562,9 +577,9 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @dev Internal function to create a standard redeem order.
+     * @dev Internal function to create a standard redemption order.
      *
-     * Transfers yzusd from {owner} to the contract and creates a standard redeem order.
+     * Transfers yzusd from {owner} to the contract and creates a standard redemption order.
      * Returns the order ID.
      */
     function _createStandardRedeemOrder(address owner, uint256 amount) internal returns (uint256) {
@@ -583,11 +598,11 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @dev Internal function to fill a standard redeem order.
+     * @dev Internal function to fill a standard redemption order.
      *
-     * Marks the order as filled, updates the current pending standard redeem value,
+     * Marks the order as filled, updates the current pending standard redemption value,
      * and transfers the assets to the owner.
-     * Transfers the fee to the redeem fee recipient if applicable.
+     * Transfers the fee to the redemption fee recipient if applicable.
      */
     function _fillStandardRedeemOrder(Order storage order, uint256 fee) internal {
         order.status = OrderStatus.Filled;
@@ -602,6 +617,8 @@ contract YuzuUSDMinter is
 
     /**
      * @dev Returns the current liquidity buffer size.
+     *
+     * Returns the total collateral balance held by the contract.
      */
     function _getLiquidityBufferSize() internal view returns (uint256) {
         return IERC20(collateralToken).balanceOf(address(this));
@@ -610,7 +627,7 @@ contract YuzuUSDMinter is
     /**
      * @dev Returns the current outstanding collateral balance.
      *
-     * This is the total collateral minus the current pending standard redeem value.
+     * Returns the total collateral minus the current pending standard redemption value.
      */
     function _getOutstandingCollateralBalance() internal view returns (uint256) {
         uint256 balance = IERC20(collateralToken).balanceOf(address(this));
@@ -620,7 +637,7 @@ contract YuzuUSDMinter is
     /**
      * @dev Returns the current outstanding YuzuUSD balance.
      *
-     * This is the total YuzuUSD minus the current pending fast and standard redeem values.
+     * Returns the total YuzuUSD minus the current pending fast and standard redemption values.
      */
     function _getOutstandingYuzuUSDBalance() internal view returns (uint256) {
         uint256 balance = IERC20(yzusd).balanceOf(address(this));
