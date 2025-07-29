@@ -73,36 +73,45 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Sets the maximum deposit per block to {newMax}.
+     * @notice Sets the maximum deposit per block to {newMaxDepositPerBlock}.
      *
      * Only callable by the owner.
+     * Emits a `MaxDepositPerBlockUpdated` event with the old and new limits.
      */
-    function setMaxDepositPerBlock(uint256 newMax) external onlyOwner {
-        maxDepositPerBlock = newMax;
+    function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyOwner {
+        uint256 oldMaxDepositPerBlock = maxDepositPerBlock;
+        maxDepositPerBlock = newMaxDepositPerBlock;
+        emit MaxDepositPerBlockUpdated(oldMaxDepositPerBlock, newMaxDepositPerBlock);
     }
 
     /**
-     * @notice Sets the maximum withdraw per block to {newMax}.
+     * @notice Sets the maximum withdraw per block to {newMaxWithdrawPerBlock}.
      *
      * Only callable by the owner.
+     * Emits a `MaxWithdrawPerBlockUpdated` event with the old and new limits.
      */
-    function setMaxWithdrawPerBlock(uint256 newMax) external onlyOwner {
-        maxWithdrawPerBlock = newMax;
+    function setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) external onlyOwner {
+        uint256 oldMaxWithdrawPerBlock = maxWithdrawPerBlock;
+        maxWithdrawPerBlock = newMaxWithdrawPerBlock;
+        emit MaxWithdrawPerBlockUpdated(oldMaxWithdrawPerBlock, newMaxWithdrawPerBlock);
     }
 
     /**
      * @notice Sets the redeem window to {newWindow}.
      *
      * Only callable by the owner.
+     * Emits a `RedeemWindowUpdated` event with the old and new window durations.
      */
-    function setRedeemWindow(uint256 newWindow) external onlyOwner {
+    function setRedeemWindow(uint256 newRedeemWindow) external onlyOwner {
+        uint256 oldRedeemWindow = redeemWindow;
         redeemWindow = newWindow;
+        emit RedeemWindowUpdated(oldRedeemWindow, newRedeemWindow);
     }
 
     /**
      * @notice Returns the total amount of underlying asset deposits in vault.
      *
-     * Assets in active pending redemptions are not included in total assets.
+     * Assets in pending redemptions are not included in total assets.
      */
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() - currentRedeemAssetCommitment;
