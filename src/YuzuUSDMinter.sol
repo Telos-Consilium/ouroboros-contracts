@@ -433,7 +433,8 @@ contract YuzuUSDMinter is
     /**
      * @notice Fills a standard redemption order with {orderId} by transferring the amount to the owner.
      *
-     * Emits a `StandardRedeemOrderFilled` event with the order ID, owner, amount, and fee.
+     * Can be called by anyone, not just the order owner.
+     * Emits a `StandardRedeemOrderFilled` event with the caller, order ID, owner, amount, and fee.
      * Emits a `Redeemed` event with the order owner, recipient, and amount.
      * Reverts if the order does not exist.
      * Reverts if the order is not pending.
@@ -451,7 +452,7 @@ contract YuzuUSDMinter is
         uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         _fillStandardRedeemOrder(order, fee);
 
-        emit StandardRedeemOrderFilled(orderId, order.owner, order.amount, fee);
+        emit StandardRedeemOrderFilled(_msgSender(), orderId, order.owner, order.amount, fee);
         emit Redeemed(order.owner, order.owner, order.amount);
     }
 
