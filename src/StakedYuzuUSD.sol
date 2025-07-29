@@ -12,7 +12,7 @@ import "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
 /**
  * @title StakedYuzuUSD
- * @dev ERC4625 tokenized vault for staking yzUSD with 2-step delayed redemptions.
+ * @notice ERC-4625 tokenized vault for staking yzUSD with 2-step delayed redemptions.
  */
 contract StakedYuzuUSD is
     Initializable,
@@ -39,9 +39,15 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Sets the values for {yzUSD}, {name}, {symbol}, {owner}, {maxDepositPerBlock}, and {maxWithdrawPerBlock}.
+     * @notice Initializes the StakedYuzuUSD contract with the specified parameters.
+     * @param _yzUSD The underlying ERC20 token (yzUSD) for the vault
+     * @param name_ The name of the staked token, e.g. "Staked YuzuUSD"
+     * @param symbol_ The symbol of the staked token, e.g. "st-yzUSD"
+     * @param _owner The owner of the contract
+     * @param _maxDepositPerBlock Maximum assets that can be deposited per block
+     * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      *
-     * {redeemWindow} is set to 1 day by default.
+     * Sets {redeemWindow} to 1 day by default.
      */
     function initialize(
         IERC20 _yzUSD,
@@ -59,13 +65,15 @@ contract StakedYuzuUSD is
 
         maxDepositPerBlock = _maxDepositPerBlock;
         maxWithdrawPerBlock = _maxWithdrawPerBlock;
+
+        redeemWindow = 1 days;
+
         redeemOrderCount = 0;
         currentRedeemAssetCommitment = 0;
-        redeemWindow = 1 days;
     }
 
     /**
-     * @dev Sets {maxDepositPerBlock}.
+     * @notice Sets the maximum deposit per block to {newMax}.
      *
      * Only callable by the owner.
      */
@@ -74,7 +82,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Sets {maxWithdrawPerBlock}.
+     * @notice Sets the maximum withdraw per block to {newMax}.
      *
      * Only callable by the owner.
      */
@@ -83,7 +91,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Sets {redeemWindow}.
+     * @notice Sets the redeem window to {newWindow}.
      *
      * Only callable by the owner.
      */
@@ -92,17 +100,16 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns the asset balance of the contract minus the balance already committed
-     * to redemptions.
+     * @notice Returns the total amount of underlying asset deposits in vault.
      *
-     * Only callable by the owner.
+     * Assets in active pending redemptions are not included in total assets.
      */
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() - currentRedeemAssetCommitment;
     }
 
     /**
-     * @dev Returns the maximum deposit.
+     * @notice Returns the maximum deposit.
      *
      * Takes an address as input for ERC4625 compatibility.
      * Deposit size is only limited by the maximum deposit per block.
@@ -114,7 +121,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns the maximum mint.
+     * @notice Returns the maximum mint.
      *
      * Takes an address as input for ERC4625 compatibility.
      * Mint size is only limited by the maximum deposit per block.
@@ -124,7 +131,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns the maximum withdraw by an owner.
+     * @notice Returns the maximum withdraw by {owner}.
      *
      * Max withdraw is limited by the maximum withdrawal per block and the owner's balance.
      */
@@ -135,7 +142,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns the maximum redeem by an owner.
+     * @notice Returns the maximum redeem by {owner}
      *
      * Max redeem is limited by the maximum withdrawal per block and the owner's shares.
      */
@@ -146,10 +153,11 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Deposits assets into the vault and mints shares to the receiver.
+     * @notice Deposits {assets} into the vault and mints shares to {receiver}.
      *
      * Takes the amount of assets to deposit as input.
      * Returns the number of shares minted.
+     * Emits a `Deposit` event with the sender, owner, assets, and shares.
      */
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
@@ -158,10 +166,11 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Deposits assets into the vault and mints shares to the receiver.
+     * @notice Deposits assets into the vault and mints {shares} to {receiver}.
      *
      * Takes the number of shares to mint as input.
      * Returns the amount of assets deposited.
+     * Emits a `Deposit` event with the sender, owner, assets, and shares.
      */
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
         uint256 assets = super.mint(shares, receiver);
@@ -170,29 +179,27 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Overrides the ERC4626 withdraw function to revert.
-     *
-     * Instant withdrawals are not supported.
+     * @notice Withdraw function is disabled. Instant withdrawals are not supported.
+     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead.
      */
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
     /**
-     * @dev Overrides the ERC4626 redeem function to revert.
-     *
-     * Instant redemptions are not supported.
+     * @notice Redeem function is disabled. Instant redemptions are not supported.
+     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead.
      */
     function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
         revert RedeemNotSupported();
     }
 
     /**
-     * @dev Initiates a 2-step redemption.
+     * @notice Initiates a 2-step redemption of {shares}.
      *
-     * Takes the number of shares to redeem as input.
      * The assets will redeemable after the redeem window elapses.
      * Returns the order ID and the amount of assets to be redeemed.
+     * Emits a `RedeemInitiated` event with the order ID, owner, assets, and shares.
      */
     function initiateRedeem(uint256 shares) public nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidZeroShares();
@@ -206,9 +213,11 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Finalizes a 2-step redemption.
+     * @notice Finalizes a 2-step redemption order by {orderId}.
      *
      * Can be called by anyone, not just the owner.
+     * Emits a `Withdraw` event with the sender, owner, assets, and shares for ERC-4626 compatibility.
+     * Emits a `RedeemFinalized` event with the order ID, owner, assets, and shares.
      */
     function finalizeRedeem(uint256 orderId) public nonReentrant {
         Order storage order = redeemOrders[orderId];
@@ -220,7 +229,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Rescues tokens from the contract.
+     * @notice Transfers {amount} of {token} held by the vault to {to}.
      *
      * Only callable by the owner.
      * Tokens that are the underlying asset of the vault cannot be rescued.
@@ -231,7 +240,7 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @dev Returns a redeem order by its ID.
+     * @notice Returns a redeem order by {orderId}.
      */
     function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return redeemOrders[orderId];
@@ -240,7 +249,7 @@ contract StakedYuzuUSD is
     /**
      * @dev Internal function to initiate a redeem order.
      *
-     * Burns the shares and creates a redeem order with the specified assets and shares.
+     * Burns the shares and creates a redeem order for {assets} and {shares}.
      * Returns the order ID.
      */
     function _initiateRedeem(address owner, uint256 assets, uint256 shares) internal returns (uint256) {
