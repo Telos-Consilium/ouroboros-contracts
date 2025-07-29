@@ -21,7 +21,7 @@ contract StakedYuzuUSD is
     ReentrancyGuardUpgradeable,
     IStakedYuzuUSDDefinitions
 {
-    uint256 public redeemWindow;
+    uint256 public redeemDelay;
 
     uint256 public currentRedeemAssetCommitment;
 
@@ -47,7 +47,7 @@ contract StakedYuzuUSD is
      * @param _maxDepositPerBlock Maximum assets that can be deposited per block
      * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      *
-     * Sets the redeem window to 1 day by default.
+     * Sets the redeem delay to 1 day by default.
      */
     function initialize(
         IERC20 _yzUSD,
@@ -66,7 +66,7 @@ contract StakedYuzuUSD is
         maxDepositPerBlock = _maxDepositPerBlock;
         maxWithdrawPerBlock = _maxWithdrawPerBlock;
 
-        redeemWindow = 1 days;
+        redeemDelay = 1 days;
 
         redeemOrderCount = 0;
         currentRedeemAssetCommitment = 0;
@@ -97,15 +97,15 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Sets the redeem window to {newRedeemWindow}.
+     * @notice Sets the redeem delay to {newRedeemDelay}.
      *
-     * Emits a `RedeemWindowUpdated` event with the old and new window durations.
+     * Emits a `RedeemDelayUpdated` event with the old and new delay durations.
      * Reverts if called by anyone but the contract owner.
      */
-    function setRedeemWindow(uint256 newRedeemWindow) external onlyOwner {
-        uint256 oldRedeemWindow = redeemWindow;
-        redeemWindow = newRedeemWindow;
-        emit RedeemWindowUpdated(oldRedeemWindow, newRedeemWindow);
+    function setRedeemDelay(uint256 newRedeemDelay) external onlyOwner {
+        uint256 oldRedeemDelay = redeemDelay;
+        redeemDelay = newRedeemDelay;
+        emit RedeemDelayUpdated(oldRedeemDelay, newRedeemDelay);
     }
 
     /**
@@ -206,7 +206,7 @@ contract StakedYuzuUSD is
     /**
      * @notice Initiates a 2-step redemption of {shares}.
      *
-     * Shares are burned now, assets are redeemable after the redeem window elapses.
+     * Shares are burned now, assets are redeemable after the redeem delay elapses.
      * Returns the order ID and the amount of assets to be redeemed.
      * Emits a `RedeemInitiated` event with the order ID, order owner, assets, and shares.
      * Reverts if {shares} is zero or exceeds the maximum redeem allowed.
@@ -225,7 +225,7 @@ contract StakedYuzuUSD is
     /**
      * @notice Finalizes a 2-step redemption order by {orderId}.
      *
-     * Can be called by anyone, not just the owner.
+     * Can be called by anyone, not just the order owner.
      * Emits a `RedeemFinalized` event with caller, the order ID, order owner, assets, and shares.
      * Emits a `Withdraw` event with the caller, receiver, order owner, assets, and shares for ERC-4626 compatibility.
      * Reverts if the order is already executed or not due yet.
@@ -271,7 +271,7 @@ contract StakedYuzuUSD is
             assets: assets,
             shares: shares,
             owner: owner,
-            dueTime: uint40(block.timestamp + redeemWindow),
+            dueTime: uint40(block.timestamp + redeemDelay),
             executed: false
         });
         redeemOrderCount++;
@@ -283,7 +283,7 @@ contract StakedYuzuUSD is
      * @dev Internal function to finalize a redeem order.
      *
      * Marks the order as executed, updates the current redeem asset commitment,
-     * and transfers the assets to the owner.
+     * and transfers the assets to the order owner.
      */
     function _finalizeRedeem(Order storage order) internal {
         order.executed = true;

@@ -7,7 +7,7 @@ import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
-import {Order} from "../src/interfaces/IStakedYuzuUSD.sol";
+import {Order} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 
 contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
@@ -19,7 +19,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     uint256 public constant MAX_MINT_PER_BLOCK = 1000e18;
     uint256 public constant MAX_REDEEM_PER_BLOCK = 500e18;
-    uint256 public constant REDEEM_WINDOW = 1 days;
+    uint256 public constant REDEEM_DELAY = 1 days;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -60,7 +60,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(stakedYzusd.owner(), owner);
         assertEq(stakedYzusd.maxDepositPerBlock(), MAX_MINT_PER_BLOCK);
         assertEq(stakedYzusd.maxWithdrawPerBlock(), MAX_REDEEM_PER_BLOCK);
-        assertEq(stakedYzusd.redeemWindow(), REDEEM_WINDOW);
+        assertEq(stakedYzusd.redeemDelay(), REDEEM_DELAY);
     }
 
     // Owner Functions Tests
@@ -94,19 +94,19 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         stakedYzusd.setMaxWithdrawPerBlock(1000e18);
     }
 
-    function test_SetRedeemWindow_Success() public {
-        uint256 newWindow = 2 days;
+    function test_SetRedeemDelay_Success() public {
+        uint256 newDelay = 2 days;
 
         vm.prank(owner);
-        stakedYzusd.setRedeemWindow(newWindow);
+        stakedYzusd.setRedeemDelay(newDelay);
 
-        assertEq(stakedYzusd.redeemWindow(), newWindow);
+        assertEq(stakedYzusd.redeemDelay(), newDelay);
     }
 
-    function test_SetRedeemWindow_RevertOnlyOwner() public {
+    function test_SetRedeemDelay_RevertOnlyOwner() public {
         vm.prank(user1);
         vm.expectRevert();
-        stakedYzusd.setRedeemWindow(2 days);
+        stakedYzusd.setRedeemDelay(2 days);
     }
 
     // Deposit Tests
@@ -205,7 +205,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(order.assets, assets);
         assertEq(order.shares, shares);
         assertEq(order.owner, user1);
-        assertEq(order.dueTime, block.timestamp + REDEEM_WINDOW);
+        assertEq(order.dueTime, block.timestamp + REDEEM_DELAY);
         assertFalse(order.executed);
     }
 
@@ -241,8 +241,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         uint256 initialBalance = yzusd.balanceOf(user1);
 
-        // Fast forward past redeem window
-        vm.warp(block.timestamp + REDEEM_WINDOW + 1);
+        // Fast forward past redeem delay
+        vm.warp(block.timestamp + REDEEM_DELAY + 1);
 
         vm.expectEmit();
         emit RedeemFinalized(user2, orderId, user1, assets, shares);
@@ -285,7 +285,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.stopPrank();
 
         // Fast forward and finalize
-        vm.warp(block.timestamp + REDEEM_WINDOW + 1);
+        vm.warp(block.timestamp + REDEEM_DELAY + 1);
         stakedYzusd.finalizeRedeem(orderId);
 
         // Try to finalize again
@@ -369,7 +369,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         (uint256 orderId1,) = stakedYzusd.initiateRedeem(shares1);
 
         // Fast forward and finalize
-        vm.warp(block.timestamp + REDEEM_WINDOW + 1);
+        vm.warp(block.timestamp + REDEEM_DELAY + 1);
         stakedYzusd.finalizeRedeem(orderId1);
 
         // Verify balances
