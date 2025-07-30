@@ -92,7 +92,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.setMaxDepositPerBlock(maxMint);
     }
 
-    // Constructor Tests
+    // Initialization
     function test_Initialize() public {
         uint256 maxDepositPerBlock = 1_000e18;
 
@@ -123,7 +123,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertTrue(newIlp.hasRole(newIlp.DEFAULT_ADMIN_ROLE(), admin));
     }
 
-    // Role Management Tests
+    // Admin Functions
     function test_SetMaxDepositPerBlock() public {
         uint256 newMaxDepositPerBlock = 2_000e18;
 
@@ -139,6 +139,18 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.setMaxDepositPerBlock(2_000e18);
     }
 
+    function test_SetMaxDepositPerBlock_ZeroValue() public {
+        uint256 newMaxDepositPerBlock = 0;
+
+        vm.expectEmit();
+        emit MaxDepositPerBlockUpdated(1_000e18, newMaxDepositPerBlock);
+        vm.prank(limitManager);
+        ilp.setMaxDepositPerBlock(newMaxDepositPerBlock);
+
+        assertEq(ilp.maxDepositPerBlock(), newMaxDepositPerBlock);
+        assertEq(ilp.maxDeposit(user1), 0);
+    }
+
     function test_SetTreasury_OnlyAdmin() public {
         address newTreasury = makeAddr("newTreasury");
 
@@ -152,6 +164,14 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         vm.expectRevert(abi.encodeWithSelector(InvalidZeroAddress.selector));
         vm.prank(admin);
         ilp.setTreasury(address(0));
+    }
+
+    function test_SetTreasury_RevertOnlyAdmin() public {
+        address newTreasury = makeAddr("newTreasury");
+        
+        vm.expectRevert();
+        vm.prank(user1);
+        ilp.setTreasury(newTreasury);
     }
 
     function test_UpdatePool() public {
@@ -180,7 +200,116 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.updatePool(2_000e18, 1_000e18, 0);
     }
 
-    // Deposit Tests
+    function test_UpdatePool_ZeroPoolSize() public {
+        uint256 newPoolSize = 0;
+        uint256 newWithdrawAllowance = 0;
+        uint256 newYieldRate = 100_000; // 10% per day
+
+        vm.expectEmit();
+        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRate);
+        vm.prank(poolManager);
+        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRate);
+
+        assertEq(ilp.poolSize(), newPoolSize);
+        assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
+        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRate);
+        assertEq(ilp.totalAssets(), 0);
+    }
+
+    function test_UpdatePool_ZeroWithdrawAllowance() public {
+        uint256 newPoolSize = 1_000e18;
+        uint256 newWithdrawAllowance = 0;
+        uint256 newYieldRate = 100_000; // 10% per day
+
+        vm.expectEmit();
+        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRate);
+        vm.prank(poolManager);
+        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRate);
+
+        assertEq(ilp.poolSize(), newPoolSize);
+        assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
+        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRate);
+        // With zero withdraw allowance, maxWithdraw should be 0
+        assertEq(ilp.maxWithdraw(user1), 0);
+        assertEq(ilp.maxRedeem(user1), 0);
+    }
+
+    function test_UpdatePool_ZeroYieldRate() public {
+        uint256 newPoolSize = 1_000e18;
+        uint256 newWithdrawAllowance = 500e18;
+        uint256 newYieldRate = 0;
+
+        vm.expectEmit();
+        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRate);
+        vm.prank(poolManager);
+        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRate);
+
+        assertEq(ilp.poolSize(), newPoolSize);
+        assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
+        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRate);
+        
+        vm.warp(block.timestamp + 1 days);
+        assertEq(ilp.totalAssets(), newPoolSize);
+    }
+
+    function test_UpdatePool_RevertInvalidYield() public {
+        uint256 invalidYieldRate = 1e6 + 1; // Over 100% daily yield
+        
+        vm.expectRevert(abi.encodeWithSelector(InvalidYield.selector, invalidYieldRate));
+        vm.prank(poolManager);
+        ilp.updatePool(1_000e18, 500e18, invalidYieldRate);
+    }
+
+    function test_RescueTokens() public {
+        ERC20Mock otherToken = new ERC20Mock();
+        uint256 rescueAmount = 100e18;
+
+        otherToken.mint(address(ilp), rescueAmount);
+
+        uint256 balanceBefore = otherToken.balanceOf(user1);
+
+        vm.prank(admin);
+        ilp.rescueTokens(address(otherToken), user1, rescueAmount);
+
+        assertEq(otherToken.balanceOf(user1), balanceBefore + rescueAmount);
+        assertEq(otherToken.balanceOf(address(ilp)), 0);
+    }
+
+    function test_RescueTokens_RevertInvalidToken() public {
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(asset)));
+        ilp.rescueTokens(address(asset), user1, 100e18);
+    }
+
+    function test_RescueTokens_RevertOnlyAdmin() public {
+        ERC20Mock otherToken = new ERC20Mock();
+        vm.expectRevert();
+        vm.prank(user1);
+        ilp.rescueTokens(address(otherToken), user1, 100e18);
+    }
+
+    function test_RescueTokens_ZeroAmount() public {
+        ERC20Mock otherToken = new ERC20Mock();
+        uint256 rescueAmount = 0;
+        uint256 balanceBefore = otherToken.balanceOf(user1);
+
+        vm.prank(admin);
+        ilp.rescueTokens(address(otherToken), user1, rescueAmount);
+
+        assertEq(otherToken.balanceOf(user1), balanceBefore);
+    }
+
+    function test_RescueTokens_ZeroAddress() public {
+        ERC20Mock otherToken = new ERC20Mock();
+        uint256 rescueAmount = 100e18;
+        otherToken.mint(address(ilp), rescueAmount);
+
+        vm.expectRevert();
+        vm.prank(admin);
+        ilp.rescueTokens(address(otherToken), address(0), rescueAmount);
+    }
+
+    // Deposit
     function test_Deposit() public {
         uint256 depositAmount = 100e18;
 
@@ -258,7 +387,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.deposit(maxDepositsPerBlock + 1, user1);
     }
 
-    // Total Assets Tests
+    // Total Assets
     function test_TotalAssets() public {
         assertEq(ilp.totalAssets(), ilp.poolSize());
     }
@@ -296,7 +425,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.totalAssets(), expectedTotal);
     }
 
-    // Max Withdraw/Redeem Tests
+    // Max Withdraw/Redeem
     function test_MaxWithdraw_RespectsBalance() public {
         uint256 depositAmount = 100e18;
 
@@ -329,7 +458,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(maxRedeem, maxRedeemFromAllowance);
     }
 
-    // Withdraw/Redeem Not Supported Tests
+    // Withdraw/Redeem Not Supported
     function test_Withdraw_RevertWithdrawNotSupported() public {
         vm.expectRevert(WithdrawNotSupported.selector);
         ilp.withdraw(100e18, user1, user1);
@@ -340,7 +469,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.redeem(100e18, user1, user1);
     }
 
-    // Redeem Order Tests
+    // Redeem Order Creation
     function test_CreateRedeemOrder() public {
         _setMaxDepositPerBlock(1_000e18);
 
@@ -390,6 +519,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.createRedeemOrder(maxRedeem + 1);
     }
 
+    // Redeem Order Filling
     function test_FillRedeemOrder() public {
         uint256 depositAmount = 100e18;
         _setMaxDepositPerBlock(depositAmount);
@@ -456,47 +586,19 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.fillRedeemOrder(orderId);
     }
 
-    // Rescue Tokens Tests
-    function test_RescueTokens() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        uint256 rescueAmount = 100e18;
-
-        otherToken.mint(address(ilp), rescueAmount);
-
-        uint256 balanceBefore = otherToken.balanceOf(user1);
-
-        vm.prank(admin);
-        ilp.rescueTokens(address(otherToken), user1, rescueAmount);
-
-        assertEq(otherToken.balanceOf(user1), balanceBefore + rescueAmount);
-        assertEq(otherToken.balanceOf(address(ilp)), 0);
-    }
-
-    function test_RescueTokens_RevertInvalidToken() public {
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(asset)));
-        ilp.rescueTokens(address(asset), user1, 100e18);
-    }
-
-    function test_RescueTokens_RevertOnlyAdmin() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        vm.expectRevert();
-        vm.prank(user1);
-        ilp.rescueTokens(address(otherToken), user1, 100e18);
-    }
-
+    // Integration
     function test_MultipleDepositsInSameBlock() public {
         _setMaxDepositPerBlock(1_000e18);
 
-        uint256 amount1 = 300e18;
-        uint256 amount2 = 400e18;
+        uint256 deposit1 = 300e18;
+        uint256 deposit2 = 400e18;
 
         vm.startPrank(user1);
-        ilp.deposit(amount1, user1);
-        ilp.deposit(amount2, user1);
+        ilp.deposit(deposit1, user1);
+        ilp.deposit(deposit2, user1);
         vm.stopPrank();
 
-        assertEq(ilp.depositedPerBlock(block.number), amount1 + amount2);
+        assertEq(ilp.depositedPerBlock(block.number), deposit1 + deposit2);
     }
 
     function test_MintLimitResetsNextBlock() public {

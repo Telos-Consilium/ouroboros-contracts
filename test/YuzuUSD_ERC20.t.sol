@@ -25,7 +25,7 @@ contract YuzuUSDTestERC20 is Test {
         yzusd = new YuzuUSD("Yuzu USD", "yzUSD", owner);
     }
 
-    // Constructor Tests
+    // Constructor
     function test_Constructor() public view {
         assertEq(yzusd.name(), "Yuzu USD");
         assertEq(yzusd.symbol(), "yzUSD");
@@ -35,7 +35,7 @@ contract YuzuUSDTestERC20 is Test {
         assertEq(yzusd.totalSupply(), 0);
     }
 
-    // ERC20 Functionality Tests
+    // ERC20
     function test_Transfer_Success() public {
         // Setup: mint tokens to user1
         vm.prank(owner);
@@ -122,7 +122,7 @@ contract YuzuUSDTestERC20 is Test {
         assertEq(yzusd.allowance(user1, user2), 200e18);
     }
 
-    // Ownership Tests
+    // Ownership
     function test_TransferOwnership_TwoStep() public {
         vm.prank(owner);
         yzusd.transferOwnership(user1);

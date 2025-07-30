@@ -25,8 +25,8 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         yzusd = new YuzuUSD("Yuzu USD", "yzUSD", owner);
     }
 
-    // Minter Setting Tests
-    function test_SetMinter_Success() public {
+    // Admin Functions
+    function test_SetMinter() public {
         vm.prank(owner);
         vm.expectEmit();
         emit MinterUpdated(address(0), minter);
@@ -68,8 +68,8 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         assertEq(yzusd.minter(), address(0));
     }
 
-    // Minting Tests
-    function test_Mint_Success() public {
+    // Mint
+    function test_Mint() public {
         vm.prank(owner);
         yzusd.setMinter(minter);
 
@@ -111,7 +111,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         assertEq(yzusd.totalSupply(), 0);
     }
 
-    // Edge Cases and Fuzz Tests
+    // Edge Cases and Fuzz
     function testFuzz_Mint_RandomAmounts(uint256 amount) public {
         vm.assume(amount <= type(uint256).max / 2); // Avoid overflow
 
@@ -147,7 +147,7 @@ contract YuzuUSDTest is IYuzuUSDDefinitions, Test {
         assertEq(yzusd.totalSupply(), 1000e18);
     }
 
-    // Integration Tests
+    // Integration
     function test_FullWorkflow() public {
         // 1. Set minter
         vm.prank(owner);
