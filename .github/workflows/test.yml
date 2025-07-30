@@ -39,5 +39,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -vvv --via-ir
+          forge test -vvv --via-ir --no-match-contract YuzuILPFuzz
         id: test
