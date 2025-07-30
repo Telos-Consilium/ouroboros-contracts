@@ -57,6 +57,9 @@ contract StakedYuzuUSD is
         uint256 _maxDepositPerBlock,
         uint256 _maxWithdrawPerBlock
     ) external initializer {
+        if (address(_yzUSD) == address(0)) revert InvalidZeroAddress();
+        if (_owner == address(0)) revert InvalidZeroAddress();
+
         __ERC4626_init(_yzUSD);
         __ERC20_init(name_, symbol_);
         __Ownable_init(_owner);

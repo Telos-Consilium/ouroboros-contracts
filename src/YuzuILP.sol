@@ -71,12 +71,13 @@ contract YuzuILP is
         address _treasury,
         uint256 _maxDepositPerBlock
     ) external initializer {
+        if (address(asset_) == address(0)) revert InvalidZeroAddress();
+        if (_admin == address(0)) revert InvalidZeroAddress();
+        if (_treasury == address(0)) revert InvalidZeroAddress();
+
         __AccessControlDefaultAdminRules_init(0, _admin);
         __ReentrancyGuard_init();
         __ERC20_init(name_, symbol_);
-
-        if (_admin == address(0)) revert InvalidZeroAddress();
-        if (_treasury == address(0)) revert InvalidZeroAddress();
 
         _asset = asset_;
         treasury = _treasury;

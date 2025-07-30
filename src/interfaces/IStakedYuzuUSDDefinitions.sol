@@ -20,6 +20,7 @@ interface IStakedYuzuUSDDefinitions {
 
     error InvalidZeroShares();
     error InvalidZeroAmount();
+    error InvalidZeroAddress();
     error InvalidToken(address token);
     error InvalidOrder(uint256 orderId);
     error WithdrawNotSupported();
