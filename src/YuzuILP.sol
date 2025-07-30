@@ -307,7 +307,7 @@ contract YuzuILP is
      * Reverts if shares is zero.
      * Reverts if shares exceeds the maximum redeemable amount.
      */
-    function createRedeemOrder(uint256 shares) public nonReentrant returns (uint256, uint256) {
+    function createRedeemOrder(uint256 shares) external nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidZeroShares();
         uint256 maxShares = maxRedeem(_msgSender());
         if (shares > maxShares) revert MaxRedeemExceeded(shares, maxShares);
@@ -324,7 +324,7 @@ contract YuzuILP is
      * Reverts if called by anyone but an order filler.
      * Reverts if the order is already executed.
      */
-    function fillRedeemOrder(uint256 orderId) public nonReentrant onlyRole(ORDER_FILLER_ROLE) {
+    function fillRedeemOrder(uint256 orderId) external nonReentrant onlyRole(ORDER_FILLER_ROLE) {
         Order storage order = redeemOrders[orderId];
         if (order.shares == 0) revert InvalidOrder(orderId);
         if (order.executed) revert OrderAlreadyExecuted();

@@ -211,7 +211,7 @@ contract StakedYuzuUSD is
      * Emits a `RedeemInitiated` event with the order ID, order owner, assets, and shares.
      * Reverts if {shares} is zero or exceeds the maximum redemption allowed.
      */
-    function initiateRedeem(uint256 shares) public nonReentrant returns (uint256, uint256) {
+    function initiateRedeem(uint256 shares) external nonReentrant returns (uint256, uint256) {
         if (shares == 0) revert InvalidZeroShares();
         uint256 maxShares = maxRedeem(_msgSender());
         if (shares > maxShares) revert MaxRedeemExceeded(shares, maxShares);
@@ -233,7 +233,7 @@ contract StakedYuzuUSD is
      * Emits a `Withdraw` event with the caller, receiver, order owner, assets, and shares for ERC-4626 compatibility.
      * Reverts if the order is already executed or not due yet.
      */
-    function finalizeRedeem(uint256 orderId) public nonReentrant {
+    function finalizeRedeem(uint256 orderId) external nonReentrant {
         Order storage order = redeemOrders[orderId];
         if (order.shares == 0) revert InvalidOrder(orderId);
         if (order.executed) revert OrderAlreadyExecuted(orderId);
