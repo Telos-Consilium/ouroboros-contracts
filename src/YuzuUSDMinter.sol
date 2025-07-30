@@ -494,9 +494,9 @@ contract YuzuUSDMinter is
     function withdrawCollateral(address to, uint256 amount)
         external
         nonReentrant
+        onlyRole(ADMIN_ROLE)
         notZeroUint256(amount)
         underLiquidityBuffer(amount)
-        onlyRole(ADMIN_ROLE)
     {
         IERC20(collateralToken).safeTransfer(to, amount);
         emit CollateralWithdrawn(to, amount);
