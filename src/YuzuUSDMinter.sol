@@ -188,7 +188,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the redemptions fee recipient address to {newRecipient}.
+     * @notice Sets the redemption fee recipient address to {newRecipient}.
      *
      * Emits a `RedeemFeeRecipientUpdated` event with the old and new recipient addresses.
      * Reverts if called by anyone but a redeem manager.
@@ -229,7 +229,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the instant redemptions fee to {newFeePpm}.
+     * @notice Sets the instant redemption fee to {newFeePpm}.
      *
      * Emits an `InstantRedeemFeePpmUpdated` event with the old and new fees.
      * Reverts if called by anyone but a redeem manager.
@@ -242,7 +242,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the fast redemptions fee to {newFeePpm}.
+     * @notice Sets the fast redemption fee to {newFeePpm}.
      *
      * Emits a `FastRedeemFeePpmUpdated` event with the old and new fees.
      * Reverts if called by anyone but a redeem manager.
@@ -255,7 +255,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the standard redemptions fee to {newFeePpm}.
+     * @notice Sets the standard redemption fee to {newFeePpm}.
      *
      * Emits a `StandardRedeemFeePpmUpdated` event with the old and new fees.
      * Reverts if called by anyone but a redeem manager.
@@ -303,7 +303,7 @@ contract YuzuUSDMinter is
     /**
      * @notice Returns the amount of collateral withdrawn for an instant redemption of {amount} of yzusd.
      *
-     * Returns the collateral amount after deducting the instant redemptions fee.
+     * Returns the collateral amount after deducting the instant redemption fee.
      */
     function previewInstantRedeem(uint256 amount) public view returns (uint256) {
         uint256 fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6, Math.Rounding.Ceil);
@@ -313,7 +313,7 @@ contract YuzuUSDMinter is
     /**
      * @notice Returns the amount of collateral withdrawn for a fast redemption of {amount} of yzusd.
      *
-     * Returns the collateral amount after deducting the fast redemptions fee.
+     * Returns the collateral amount after deducting the fast redemption fee.
      */
     function previewFastRedeem(uint256 amount) public view returns (uint256) {
         uint256 fee = Math.mulDiv(amount, fastRedeemFeePpm, 1e6, Math.Rounding.Ceil);
@@ -323,7 +323,7 @@ contract YuzuUSDMinter is
     /**
      * @notice Returns the amount of collateral withdrawn for a standard redemption of {amount} of yzusd.
      *
-     * Returns the collateral amount after deducting the standard redemptions fee.
+     * Returns the collateral amount after deducting the standard redemption fee.
      */
     function previewStandardRedeem(uint256 amount) public view returns (uint256) {
         uint256 fee = Math.mulDiv(amount, standardRedeemFeePpm, 1e6, Math.Rounding.Ceil);
@@ -489,7 +489,7 @@ contract YuzuUSDMinter is
      * Emits a `CollateralWithdrawn` event with the recipient and amount.
      * Reverts if called by anyone but an admin.
      * Reverts if the amount is zero.
-     * Reverts if the amount exceeds the outstanding collateral balance.
+     * Reverts if the amount exceeds the liquidity buffer.
      */
     function withdrawCollateral(address to, uint256 amount)
         external
@@ -546,7 +546,7 @@ contract YuzuUSDMinter is
      * @dev Internal function to handle instant redemptions.
      *
      * Burns yzusd from {from} and transfers collateral to {to}.
-     * Transfers the fee to the redemptions fee recipient if applicable.
+     * Transfers the fee to the redemption fee recipient if applicable.
      */
     function _instantRedeem(address from, address to, uint256 amount, uint256 fee) internal {
         uint256 amountAfterFee = amount - fee;

@@ -31,6 +31,7 @@ contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinition
      * @dev Sets the minter to {newMinter}.
      *
      * Emits a `MinterUpdated` event with the old and new minter addresses.
+     * Reverts if called by anyone but the owner.
      */
     function setMinter(address newMinter) external onlyOwner {
         address oldMinter = minter;
@@ -41,7 +42,7 @@ contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinition
     /**
      * @dev Mints `amount` tokens to `to`.
      *
-     * Only callable by the minter.
+     * Reverts if called by anyone but the minter.
      */
     function mint(address to, uint256 amount) external {
         if (_msgSender() != minter) revert OnlyMinter();

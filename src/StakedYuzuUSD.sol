@@ -165,7 +165,7 @@ contract StakedYuzuUSD is
      * @notice Deposits {assets} into the vault and mints shares to {receiver}.
      *
      * Returns the number of shares minted.
-     * Emits a `Deposit` event with the caller, order owner, assets, and shares.
+     * Emits a `Deposit` event with the caller, receiver, assets, and shares.
      * Reverts if the deposit exceeds the maximum allowed per block.
      */
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
@@ -178,7 +178,7 @@ contract StakedYuzuUSD is
      * @notice Deposits assets into the vault and mints {shares} to {receiver}.
      *
      * Returns the amount of assets deposited.
-     * Emits a `Deposit` event with the caller, order owner, assets, and shares.
+     * Emits a `Deposit` event with the caller, receiver, assets, and shares.
      * Reverts if the deposit exceeds the maximum allowed per block.
      */
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
@@ -231,7 +231,9 @@ contract StakedYuzuUSD is
      * Can be called by anyone, not just the order owner.
      * Emits a `RedeemFinalized` event with caller, the order ID, order owner, assets, and shares.
      * Emits a `Withdraw` event with the caller, receiver, order owner, assets, and shares for ERC-4626 compatibility.
-     * Reverts if the order is already executed or not due yet.
+     * Reverts if the order does not exist.
+     * Reverts if the order is already executed.
+     * Reverts if the order is not due yet.
      */
     function finalizeRedeem(uint256 orderId) external nonReentrant {
         Order storage order = redeemOrders[orderId];

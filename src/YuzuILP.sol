@@ -17,7 +17,7 @@ import "./interfaces/IYuzuILPDefinitions.sol";
  * Deposited assets are sent to an external treasury.
  * The size of the pool is tracked and periodically updated by an external pool manager.
  * A non-compounding yield is applied to the pool size to determine the value of the shares.
- * Withdraws are executed by an external order filler.
+ * Withdrawals are executed by an external order filler.
  */
 contract YuzuILP is
     Initializable,
@@ -322,6 +322,7 @@ contract YuzuILP is
      *
      * Emits a `RedeemOrderFilled` event with order details.
      * Reverts if called by anyone but an order filler.
+     * Reverts if the order does not exist.
      * Reverts if the order is already executed.
      */
     function fillRedeemOrder(uint256 orderId) external nonReentrant onlyRole(ORDER_FILLER_ROLE) {
