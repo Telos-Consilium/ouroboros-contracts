@@ -117,7 +117,7 @@ Storing `feePpm` and `dueTime` as `uint32` and `uint40`, respectively, makes the
 5. **Event Emission**: Emit `Minted(from, to, amount)`
 
 **Edge Cases**:
-- **Zero Amount**: Reverts with `InvalidAmount()`
+- **Zero Amount**: Reverts with `InvalidZeroAmount()`
 - **Rate Limit Exceeded**: Reverts with `MaxMintPerBlockExceeded()`
 - **Insufficient Allowance**: Reverts from ERC20 transfer
 - **Insufficient Balance**: Reverts from ERC20 transfer
@@ -132,6 +132,7 @@ Storing `feePpm` and `dueTime` as `uint32` and `uint40`, respectively, makes the
 - `amount > 0`
 - Caller must have approved contract to spend `amount` of YuzuUSD tokens
 - `redeemedPerBlock[currentBlock] + amount <= maxRedeemPerBlock`
+- `amount <= contract's liquidity buffer`
 - `amount <= contract's collateral balance` (liquidity buffer)
 
 **Process**:
@@ -155,7 +156,7 @@ Storing `feePpm` and `dueTime` as `uint32` and `uint40`, respectively, makes the
 - **Exception**: If `redeemFeeRecipient == address(this)`, fee stays in contract as part of the liquidity buffer
 
 **Edge Cases**:
-- **Zero Amount**: Reverts with `InvalidAmount()`
+- **Zero Amount**: Reverts with `InvalidZeroAmount()`
 - **Rate Limit Exceeded**: Reverts with `MaxRedeemPerBlockExceeded()`
 - **Insufficient Liquidity**: Reverts with `LiquidityBufferExceeded()`
 - **Insufficient YuzuUSD**: Reverts from ERC20 burn
@@ -235,6 +236,7 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 - `amount > 0`
 - Caller must have approved contract to spend `amount` of YuzuUSD tokens
 - `redeemedPerBlock[currentBlock] + amount <= maxRedeemPerBlock`
+- `amount <= contract's liquidity buffer`
 
 **Process**:
 1. **Validation**: Check amount > 0 and per-block limit
@@ -304,10 +306,9 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 
 #### `withdrawCollateral(uint256 amount, address to)`
 - **Role**: `ADMIN_ROLE`
-- **Purpose**: Withdraw excess collateral not reserved for pending redemptions
-- **Calculation**: `outstandingBalance = balance - currentPendingStandardRedeemValue`
-- **Validation**: `amount <= outstandingBalance`
-- **Error**: `OutstandingBalanceExceeded()` if amount too large
+- **Purpose**: Withdraw collateral not reserved for pending standard orders
+- **Validation**: `amount <= liquidity buffer`
+- **Error**: `LiquidityBufferExceeded()` if amount too large
 - **Event**: `CollateralWithdrawn(to, amount)`
 
 ### Rate Limit Management
@@ -366,19 +367,14 @@ Standard redemption is a two-phase process: order creation and order fulfillment
 
 ### Asset Recovery
 
-#### `rescueOutstandingYuzuUSD(uint256 amount, address to)`
-- **Role**: `ADMIN_ROLE`
-- **Purpose**: Rescue YuzuUSD tokens not being escrowed for pending orders
-- **Calculation**: `outstandingBalance = balance - pendingFast - pendingStandard`
-- **Validation**: `amount <= outstandingBalance`
-- **Error**: `OutstandingBalanceExceeded()` if amount too large
-
 #### `rescueTokens(address token, address to, uint256 amount)`
 - **Role**: `ADMIN_ROLE`
 - **Purpose**: Rescue accidentally sent tokens
-- **Restriction**: Cannot rescue collateral tokens or YuzuUSD tokens
-- **Validation**: `token != collateralToken && token != address(yzusd)`
-- **Error**: `InvalidToken()` if restricted token
+- **Restriction**: Cannot rescue collateral tokens
+- **YuzuUSD Check**: If `token == address(yzusd)`, `amount` must not exceed the outstanding balance
+- **Validation**: `token != collateralToken`
+- **Error**: `InvalidToken()` if token is collateral
+- **Error**: `InsufficientOutstandingBalance()` if yzUSD amount too large
 
 ## Liquidity Management
 
@@ -399,13 +395,13 @@ The contract maintains a collateral token balance that serves as a liquidity buf
 ```solidity
 // Total liquidity buffer
 function _getLiquidityBufferSize() internal view returns (uint256) {
-    return IERC20(collateralToken).balanceOf(address(this));
-}
-
-// Available for admin withdrawal
-function _getOutstandingCollateralBalance() internal view returns (uint256) {
     uint256 balance = IERC20(collateralToken).balanceOf(address(this));
     return balance - currentPendingStandardRedeemValue;
+}
+
+function _getOutstandingYuzuUSDBalance() internal view returns (uint256) {
+    uint256 balance = IERC20(yzusd).balanceOf(address(this));
+    return balance - currentPendingFastRedeemValue - currentPendingStandardRedeemValue;
 }
 ```
 
