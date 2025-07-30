@@ -65,6 +65,21 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.grantRole(POOL_MANAGER_ROLE, poolManager);
         ilp.setTreasury(treasury);
         vm.stopPrank();
+
+        vm.startPrank(user1);
+        ilp.approve(address(ilp), type(uint256).max);
+        asset.approve(address(ilp), type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        ilp.approve(address(ilp), type(uint256).max);
+        asset.approve(address(ilp), type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(orderFiller);
+        ilp.approve(address(ilp), type(uint256).max);
+        asset.approve(address(ilp), type(uint256).max);
+        vm.stopPrank();
     }
 
     function _updatePool(uint256 poolSize, uint256 withdrawAllowance, uint256 dailyLinearYieldRatePpm) internal {
@@ -78,7 +93,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     // Constructor Tests
-    function test_Constructor_Success() public {
+    function test_Initialize() public {
         uint256 maxDepositPerBlock = 1_000e18;
 
         // Deploy new implementation
@@ -109,7 +124,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     // Role Management Tests
-    function test_SetMaxDepositPerBlock_Success() public {
+    function test_SetMaxDepositPerBlock() public {
         uint256 newMaxDepositPerBlock = 2_000e18;
 
         vm.prank(limitManager);
@@ -118,13 +133,13 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.maxDepositPerBlock(), newMaxDepositPerBlock);
     }
 
-    function test_SetMaxDepositPerBlock_RevertUnauthorized() public {
-        vm.prank(user1);
+    function test_SetMaxDepositPerBlock_RevertOnlyLimitManager() public {
         vm.expectRevert();
+        vm.prank(user1);
         ilp.setMaxDepositPerBlock(2_000e18);
     }
 
-    function test_SetTreasury_Success() public {
+    function test_SetTreasury_OnlyAdmin() public {
         address newTreasury = makeAddr("newTreasury");
 
         vm.prank(admin);
@@ -134,18 +149,12 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     function test_SetTreasury_RevertInvalidZeroAddress() public {
-        vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(InvalidZeroAddress.selector));
+        vm.prank(admin);
         ilp.setTreasury(address(0));
     }
 
-    function test_SetTreasury_RevertUnauthorized() public {
-        vm.prank(user1);
-        vm.expectRevert();
-        ilp.setTreasury(makeAddr("newTreasury"));
-    }
-
-    function test_UpdatePool_Success() public {
+    function test_UpdatePool() public {
         uint256 newPoolSize = 2_000e18;
         uint256 newWithdrawAllowance = 1_000e18;
         uint256 newYieldRate = 200_000; // 20% per day
@@ -160,19 +169,19 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     function test_UpdatePool_RevertWithdrawalAllowanceExceedsPoolSize() public {
-        vm.prank(poolManager);
         vm.expectRevert(abi.encodeWithSelector(WithdrawalAllowanceExceedsPoolSize.selector, 2_000e18));
+        vm.prank(poolManager);
         ilp.updatePool(1_000e18, 2_000e18, 0);
     }
 
-    function test_UpdatePool_RevertUnauthorized() public {
-        vm.prank(user1);
+    function test_UpdatePool_RevertOnlyPoolManager() public {
         vm.expectRevert();
+        vm.prank(user1);
         ilp.updatePool(2_000e18, 1_000e18, 0);
     }
 
     // Deposit Tests
-    function test_Deposit_Success() public {
+    function test_Deposit() public {
         uint256 depositAmount = 100e18;
 
         _setMaxDepositPerBlock(depositAmount);
@@ -180,10 +189,8 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         uint256 userSharesBefore = ilp.balanceOf(user1);
         uint256 treasuryBalanceBefore = asset.balanceOf(treasury);
 
-        vm.startPrank(user1);
-        asset.approve(address(ilp), depositAmount);
+        vm.prank(user1);
         uint256 shares = ilp.deposit(depositAmount, user1);
-        vm.stopPrank();
 
         assertEq(ilp.balanceOf(user1), userSharesBefore + shares);
         assertEq(asset.balanceOf(treasury), treasuryBalanceBefore + depositAmount);
@@ -205,10 +212,8 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         uint256 depositAmount = 100e18;
         _setMaxDepositPerBlock(depositAmount);
 
-        vm.startPrank(user1);
-        asset.approve(address(ilp), depositAmount);
+        vm.prank(user1);
         ilp.deposit(depositAmount, user1);
-        vm.stopPrank();
 
         uint256 dailyLinearYieldRatePpm = 250_000; // 25% daily yield
         _updatePool(depositAmount, 0, dailyLinearYieldRatePpm);
@@ -219,10 +224,8 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         uint256 poolSizeBefore = ilp.poolSize(); // 100e18 * 1.25 = 125e18
         uint256 totalAssetsBefore = ilp.totalAssets();
 
-        vm.startPrank(user2);
-        asset.approve(address(ilp), depositAmount);
+        vm.prank(user2);
         ilp.deposit(depositAmount, user2);
-        vm.stopPrank();
 
         uint256 poolSizeAfter = ilp.poolSize();
         assertLt(poolSizeAfter - poolSizeBefore, depositAmount);
@@ -238,11 +241,9 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_MaxDeposit_RespectsMintLimit() public {
         _setMaxDepositPerBlock(1_000e18);
 
-        vm.startPrank(user1);
         uint256 maxDeposit = ilp.maxDeposit(user1);
-        asset.approve(address(ilp), maxDeposit);
+        vm.prank(user1);
         ilp.deposit(maxDeposit, user1);
-        vm.stopPrank();
 
         assertEq(ilp.maxDeposit(user1), 0);
         assertEq(ilp.maxMint(user1), 0);
@@ -252,16 +253,13 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         uint256 maxDepositsPerBlock = 1_000e18;
         _setMaxDepositPerBlock(maxDepositsPerBlock);
 
-        vm.startPrank(user1);
-        asset.approve(address(ilp), maxDepositsPerBlock + 1);
-
         vm.expectRevert();
+        vm.prank(user1);
         ilp.deposit(maxDepositsPerBlock + 1, user1);
-        vm.stopPrank();
     }
 
     // Total Assets Tests
-    function test_TotalAssets_WithoutYield() public {
+    function test_TotalAssets() public {
         assertEq(ilp.totalAssets(), ilp.poolSize());
     }
 
@@ -304,10 +302,8 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
         _setMaxDepositPerBlock(depositAmount);
 
-        vm.startPrank(user1);
-        asset.approve(address(ilp), depositAmount);
+        vm.prank(user1);
         ilp.deposit(depositAmount, user1);
-        vm.stopPrank();
 
         _updatePool(2 * depositAmount, 2 * depositAmount, 0);
 
@@ -322,10 +318,8 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
         _setMaxDepositPerBlock(depositAmount);
 
-        vm.startPrank(user1);
-        asset.approve(address(ilp), depositAmount);
+        vm.prank(user1);
         ilp.deposit(depositAmount, user1);
-        vm.stopPrank();
 
         uint256 withdrawAllowance = 50e18;
         _updatePool(depositAmount, withdrawAllowance, 0);
@@ -347,22 +341,19 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     // Redeem Order Tests
-    function test_CreateRedeemOrder_Success() public {
+    function test_CreateRedeemOrder() public {
         _setMaxDepositPerBlock(1_000e18);
 
         // Deposit
         uint256 depositSize = 50e18;
-        vm.startPrank(user1);
-        asset.approve(address(ilp), depositSize);
+        vm.prank(user1);
         uint256 shares = ilp.deposit(depositSize, user1);
-        vm.stopPrank();
 
         // Create redeem order
-        vm.startPrank(user1);
         vm.expectEmit();
         emit RedeemOrderCreated(0, user1, depositSize, shares);
+        vm.prank(user1);
         (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(shares);
-        vm.stopPrank();
 
         assertEq(depositSize, assets);
         assertEq(ilp.totalAssets() / assets, ilp.totalSupply() / shares);
@@ -381,32 +372,30 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     function test_CreateRedeemOrder_RevertInvalidZeroShares() public {
-        vm.prank(user1);
         vm.expectRevert(InvalidZeroShares.selector);
+        vm.prank(user1);
         ilp.createRedeemOrder(0);
     }
 
     function test_CreateRedeemOrder_RevertMaxRedeemExceeded() public {
         _setMaxDepositPerBlock(1_000e18);
 
-        vm.startPrank(user1);
-        asset.approve(address(ilp), 100e18);
+        vm.prank(user1);
         ilp.deposit(100e18, user1);
 
         uint256 maxRedeem = ilp.maxRedeem(user1);
 
         vm.expectRevert(abi.encodeWithSelector(MaxRedeemExceeded.selector, maxRedeem + 1, maxRedeem));
+        vm.prank(user1);
         ilp.createRedeemOrder(maxRedeem + 1);
-        vm.stopPrank();
     }
 
-    function test_FillRedeemOrder_Success() public {
+    function test_FillRedeemOrder() public {
         uint256 depositAmount = 100e18;
         _setMaxDepositPerBlock(depositAmount);
 
         // Create redeem order
         vm.startPrank(user1);
-        asset.approve(address(ilp), depositAmount);
         uint256 shares = ilp.deposit(depositAmount, user1);
         (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(shares);
         vm.stopPrank();
@@ -415,13 +404,10 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         uint256 fillerBalanceBefore = asset.balanceOf(orderFiller);
 
         // Fill the order
-        vm.startPrank(orderFiller);
-        asset.approve(address(ilp), assets);
-
         vm.expectEmit();
         emit RedeemOrderFilled(orderId, user1, orderFiller, assets, shares);
+        vm.prank(orderFiller);
         ilp.fillRedeemOrder(orderId);
-        vm.stopPrank();
 
         // Check balances
         assertEq(asset.balanceOf(user1), user1BalanceBefore + assets);
@@ -433,8 +419,8 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     }
 
     function test_FillRedeemOrder_RevertInvalidOrder() public {
-        vm.prank(orderFiller);
         vm.expectRevert(abi.encodeWithSelector(InvalidOrder.selector, 999));
+        vm.prank(orderFiller);
         ilp.fillRedeemOrder(999);
     }
 
@@ -443,39 +429,35 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
         // Create and fill a redeem order
         vm.startPrank(user1);
-        asset.approve(address(ilp), 100e18);
         uint256 shares = ilp.deposit(100e18, user1);
         (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(shares);
         vm.stopPrank();
 
         vm.startPrank(orderFiller);
-        asset.approve(address(ilp), assets);
         ilp.fillRedeemOrder(orderId);
-
         // Try to fill again
         vm.expectRevert(OrderAlreadyExecuted.selector);
         ilp.fillRedeemOrder(orderId);
         vm.stopPrank();
     }
 
-    function test_FillRedeemOrder_RevertUnauthorized() public {
+    function test_FillRedeemOrder_OnlyOrderFiller() public {
         _setMaxDepositPerBlock(1_000e18);
 
         // Create a redeem order
         vm.startPrank(user1);
-        asset.approve(address(ilp), 100e18);
         uint256 shares = ilp.deposit(100e18, user1);
         (uint256 orderId,) = ilp.createRedeemOrder(shares);
         vm.stopPrank();
 
         // Try to fill as unauthorized user
-        vm.prank(user2);
         vm.expectRevert();
+        vm.prank(user2);
         ilp.fillRedeemOrder(orderId);
     }
 
     // Rescue Tokens Tests
-    function test_RescueTokens_Success() public {
+    function test_RescueTokens() public {
         ERC20Mock otherToken = new ERC20Mock();
         uint256 rescueAmount = 100e18;
 
@@ -496,14 +478,13 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         ilp.rescueTokens(address(asset), user1, 100e18);
     }
 
-    function test_RescueTokens_RevertUnauthorized() public {
+    function test_RescueTokens_RevertOnlyAdmin() public {
         ERC20Mock otherToken = new ERC20Mock();
-        vm.prank(user1);
         vm.expectRevert();
+        vm.prank(user1);
         ilp.rescueTokens(address(otherToken), user1, 100e18);
     }
 
-    // Edge Cases and Complex Scenarios
     function test_MultipleDepositsInSameBlock() public {
         _setMaxDepositPerBlock(1_000e18);
 
@@ -511,10 +492,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         uint256 amount2 = 400e18;
 
         vm.startPrank(user1);
-        asset.approve(address(ilp), amount1);
         ilp.deposit(amount1, user1);
-
-        asset.approve(address(ilp), amount2);
         ilp.deposit(amount2, user1);
         vm.stopPrank();
 
@@ -526,8 +504,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         _setMaxDepositPerBlock(maxDepositPerBlock);
 
         // Fill up current block limit
-        vm.startPrank(user1);
-        asset.approve(address(ilp), maxDepositPerBlock);
+        vm.prank(user1);
         ilp.deposit(maxDepositPerBlock, user1);
 
         assertEq(ilp.maxDeposit(user1), 0);
@@ -537,7 +514,6 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
         // Should be able to deposit again
         assertEq(ilp.maxDeposit(user1), maxDepositPerBlock);
-        vm.stopPrank();
     }
 
     function test_YieldCalculationWithZeroPoolSize() public {

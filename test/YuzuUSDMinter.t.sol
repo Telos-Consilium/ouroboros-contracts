@@ -857,6 +857,6 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         vm.expectRevert(abi.encodeWithSelector(LiquidityBufferExceeded.selector, redeemAmount, 0));
         vm.prank(user1);
-        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount);
     }
 }

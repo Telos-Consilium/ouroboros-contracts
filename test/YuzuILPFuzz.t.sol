@@ -69,6 +69,21 @@ contract YuzuILPFuzz is Test {
         ilp.grantRole(POOL_MANAGER_ROLE, poolManager);
         ilp.setTreasury(treasury);
         vm.stopPrank();
+
+        vm.startPrank(user1);
+        ilp.approve(address(ilp), type(uint256).max);
+        asset.approve(address(ilp), type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        ilp.approve(address(ilp), type(uint256).max);
+        asset.approve(address(ilp), type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(orderFiller);
+        ilp.approve(address(ilp), type(uint256).max);
+        asset.approve(address(ilp), type(uint256).max);
+        vm.stopPrank();
     }
 
     /// forge-config: default.fuzz.runs = 512
@@ -170,10 +185,8 @@ contract YuzuILPFuzz is Test {
         uint256 assets
     ) public returns (uint256) {
         // Mint total shares
-        vm.startPrank(user1);
-        asset.approve(address(ilp), initialShareSupply);
+        vm.prank(user1);
         ilp.deposit(initialShareSupply, user1);
-        vm.stopPrank();
 
         vm.prank(poolManager);
         ilp.updatePool(initialPoolSize, 0, dailyLinearYieldRatePpm);
@@ -190,10 +203,8 @@ contract YuzuILPFuzz is Test {
             userShares: 0
         });
 
-        vm.startPrank(user2);
-        asset.approve(address(ilp), assets);
+        vm.prank(user2);
         uint256 shares = ilp.deposit(assets, user2);
-        vm.stopPrank();
 
         uint256 totalAssetsAfter = ilp.totalAssets();
         uint256 totalSupplyAfter = ilp.totalSupply();
@@ -336,10 +347,8 @@ contract YuzuILPFuzz is Test {
             userShares: userSharesBefore
         });
 
-        vm.startPrank(user2);
-        ilp.approve(address(ilp), shares);
+        vm.prank(user2);
         (, uint256 assets) = ilp.createRedeemOrder(shares);
-        vm.stopPrank();
 
         uint256 totalAssetsAfter = ilp.totalAssets();
         uint256 totalSupplyAfter = ilp.totalSupply();
