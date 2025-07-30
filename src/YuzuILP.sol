@@ -372,17 +372,19 @@ contract YuzuILP is
      * @dev Internal function to convert {shares} to assets deposited.
      */
     function _convertToAssetsDeposited(uint256 shares) internal view returns (uint256) {
-        if (poolSize == 0) return shares;
+        uint256 supply = totalSupply();
+        if (supply == 0) return shares;
         uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding.Ceil);
-        return Math.mulDiv(_totalAssets, shares, totalSupply(), Math.Rounding.Ceil);
+        return Math.mulDiv(_totalAssets, shares, supply, Math.Rounding.Ceil);
     }
 
     /**
      * @dev Internal function to convert shares to assets withdrawn.
      */
     function _convertToAssetsWithdrawn(uint256 shares) internal view returns (uint256) {
-        if (poolSize == 0) return shares;
-        return Math.mulDiv(poolSize, shares, totalSupply(), Math.Rounding.Floor);
+        uint256 supply = totalSupply();
+        if (supply == 0) return shares;
+        return Math.mulDiv(poolSize, shares, supply, Math.Rounding.Floor);
     }
 
     /**
