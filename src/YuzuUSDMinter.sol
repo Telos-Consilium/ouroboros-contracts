@@ -88,6 +88,30 @@ contract YuzuUSDMinter is
         _;
     }
 
+    /**
+     * @dev Reverts if {value} is zero.
+     */
+    modifier notZeroUint256(uint256 value) {
+        if (value == 0) revert InvalidZeroAmount();
+        _;
+    }
+
+    /**
+     * @dev Reverts if {value} is the zero address.
+     */
+    modifier notZeroAddress(address value) {
+        if (value == address(0)) revert InvalidZeroAddress();
+        _;
+    }
+
+    /**
+     * @dev Reverts if {fee} is invalid.
+     */
+    modifier validFee(uint256 fee) {
+        if (fee > 1e6) revert InvalidFeePpm(fee);
+        _;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -157,8 +181,7 @@ contract YuzuUSDMinter is
      * Reverts if called by anyone but an admin.
      * Reverts if {newTreasury} is the zero address.
      */
-    function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
-        if (newTreasury == address(0)) revert InvalidZeroAddress();
+    function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) notZeroAddress(newTreasury) {
         address oldTreasury = treasury;
         treasury = newTreasury;
         emit TreasuryUpdated(oldTreasury, newTreasury);
@@ -171,8 +194,11 @@ contract YuzuUSDMinter is
      * Reverts if called by anyone but a redeem manager.
      * Reverts if {newRecipient} is the zero address.
      */
-    function setRedeemFeeRecipient(address newRecipient) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newRecipient == address(0)) revert InvalidZeroAddress();
+    function setRedeemFeeRecipient(address newRecipient)
+        external
+        onlyRole(REDEEM_MANAGER_ROLE)
+        notZeroAddress(newRecipient)
+    {
         address oldRecipient = redeemFeeRecipient;
         redeemFeeRecipient = newRecipient;
         emit RedeemFeeRecipientUpdated(oldRecipient, newRecipient);
@@ -209,8 +235,7 @@ contract YuzuUSDMinter is
      * Reverts if called by anyone but a redeem manager.
      * Reverts if {newFeePpm} is greater than 1,000,000 (100%).
      */
-    function setInstantRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) revert InvalidFeePpm(newFeePpm);
+    function setInstantRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) validFee(newFeePpm) {
         uint256 oldFee = instantRedeemFeePpm;
         instantRedeemFeePpm = newFeePpm;
         emit InstantRedeemFeePpmUpdated(oldFee, newFeePpm);
@@ -223,8 +248,7 @@ contract YuzuUSDMinter is
      * Reverts if called by anyone but a redeem manager.
      * Reverts if {newFeePpm} is greater than 1,000,000 (100%).
      */
-    function setFastRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) revert InvalidFeePpm(newFeePpm);
+    function setFastRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) validFee(newFeePpm) {
         uint256 oldFee = fastRedeemFeePpm;
         fastRedeemFeePpm = newFeePpm;
         emit FastRedeemFeePpmUpdated(oldFee, newFeePpm);
@@ -237,8 +261,7 @@ contract YuzuUSDMinter is
      * Reverts if called by anyone but a redeem manager.
      * Reverts if {newFeePpm} is greater than 1,000,000 (100%).
      */
-    function setStandardRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) revert InvalidFeePpm(newFeePpm);
+    function setStandardRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) validFee(newFeePpm) {
         uint256 oldFee = standardRedeemFeePpm;
         standardRedeemFeePpm = newFeePpm;
         emit StandardRedeemFeePpmUpdated(oldFee, newFeePpm);
@@ -314,8 +337,12 @@ contract YuzuUSDMinter is
      * Reverts if the amount is zero.
      * Reverts if the amount exceeds the maximum mint per block.
      */
-    function mint(address to, uint256 amount) external nonReentrant underMaxMintPerBlock(amount) {
-        if (amount == 0) revert InvalidZeroAmount();
+    function mint(address to, uint256 amount)
+        external
+        nonReentrant
+        notZeroUint256(amount)
+        underMaxMintPerBlock(amount)
+    {
         mintedPerBlock[block.number] += amount;
         _mint(_msgSender(), to, amount);
         emit Minted(_msgSender(), to, amount);
@@ -335,16 +362,18 @@ contract YuzuUSDMinter is
     function instantRedeem(address to, uint256 amount)
         external
         nonReentrant
+        notZeroUint256(amount)
         underMaxRedeemPerBlock(amount)
         underLiquidityBuffer(amount)
         returns (uint256)
     {
-        if (amount == 0) revert InvalidZeroAmount();
         redeemedPerBlock[block.number] += amount;
         uint256 fee = Math.mulDiv(amount, instantRedeemFeePpm, 1e6, Math.Rounding.Ceil);
+
         _instantRedeem(_msgSender(), to, amount, fee);
         emit InstantRedeem(_msgSender(), to, amount, fee);
         emit Redeemed(_msgSender(), to, amount);
+
         return amount - fee;
     }
 
@@ -355,8 +384,7 @@ contract YuzuUSDMinter is
      * Emits a `FastRedeemOrderCreated` event with the order ID, order owner, and amount.
      * Reverts if the amount is zero.
      */
-    function createFastRedeemOrder(uint256 amount) external nonReentrant returns (uint256) {
-        if (amount == 0) revert InvalidZeroAmount();
+    function createFastRedeemOrder(uint256 amount) external nonReentrant notZeroUint256(amount) returns (uint256) {
         uint256 orderId = _createFastRedeemOrder(_msgSender(), amount);
         emit FastRedeemOrderCreated(orderId, _msgSender(), amount);
         return orderId;
@@ -420,10 +448,11 @@ contract YuzuUSDMinter is
     function createStandardRedeemOrder(uint256 amount)
         external
         nonReentrant
+        notZeroUint256(amount)
         underMaxRedeemPerBlock(amount)
+        underLiquidityBuffer(amount)
         returns (uint256)
     {
-        if (amount == 0) revert InvalidZeroAmount();
         redeemedPerBlock[block.number] += amount;
         uint256 orderId = _createStandardRedeemOrder(_msgSender(), amount);
         emit StandardRedeemOrderCreated(orderId, _msgSender(), amount);
@@ -446,8 +475,6 @@ contract YuzuUSDMinter is
         if (order.amount == 0) revert InvalidOrder(orderId);
         if (order.status != OrderStatus.Pending) revert OrderNotPending(orderId);
         if (block.timestamp < order.dueTime) revert OrderNotDue(orderId);
-        uint256 bufferSize = _getLiquidityBufferSize();
-        if (order.amount > bufferSize) revert LiquidityBufferExceeded(order.amount, bufferSize);
 
         uint256 fee = Math.mulDiv(order.amount, order.feePpm, 1e6, Math.Rounding.Ceil);
         _fillStandardRedeemOrder(order, fee);
@@ -464,13 +491,14 @@ contract YuzuUSDMinter is
      * Reverts if the amount is zero.
      * Reverts if the amount exceeds the outstanding collateral balance.
      */
-    function withdrawCollateral(address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
-        if (amount == 0) revert InvalidZeroAmount();
-        uint256 outstandingCollateral = _getOutstandingCollateralBalance();
-        if (amount > outstandingCollateral) revert OutstandingBalanceExceeded(amount, outstandingCollateral);
-
+    function withdrawCollateral(address to, uint256 amount)
+        external
+        nonReentrant
+        notZeroUint256(amount)
+        underLiquidityBuffer(amount)
+        onlyRole(ADMIN_ROLE)
+    {
         IERC20(collateralToken).safeTransfer(to, amount);
-
         emit CollateralWithdrawn(to, amount);
     }
 
@@ -478,11 +506,14 @@ contract YuzuUSDMinter is
      * @notice Transfers {amount} of {token} held by the contract to {to}.
      *
      * Reverts if called by anyone but an admin.
-     * Reverts if {token} is the collateral token or yzusd token.
+     * Reverts if {token} is the collateral token.
+     * Reverts if {token} is the yzusd token and {amount} exceeds the outstanding balance.
      */
     function rescueTokens(address token, address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
-        if (token == collateralToken || token == address(yzusd)) {
-            revert InvalidToken(token);
+        if (token == collateralToken) revert InvalidToken(token);
+        if (token == address(yzusd)) {
+            uint256 outstandingBalance = _getOutstandingYuzuUSDBalance();
+            if (amount > outstandingBalance) revert InsufficientOutstandingBalance(amount, outstandingBalance);
         }
         IERC20(token).safeTransfer(to, amount);
     }
@@ -617,20 +648,11 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @dev Returns the current liquidity buffer size.
-     *
-     * Returns the total collateral balance held by the contract.
-     */
-    function _getLiquidityBufferSize() internal view returns (uint256) {
-        return IERC20(collateralToken).balanceOf(address(this));
-    }
-
-    /**
      * @dev Returns the current outstanding collateral balance.
      *
      * Returns the total collateral minus the current pending standard redemption value.
      */
-    function _getOutstandingCollateralBalance() internal view returns (uint256) {
+    function _getLiquidityBufferSize() internal view returns (uint256) {
         uint256 balance = IERC20(collateralToken).balanceOf(address(this));
         return balance - currentPendingStandardRedeemValue;
     }
@@ -638,6 +660,7 @@ contract YuzuUSDMinter is
     /**
      * @dev Returns the current outstanding YuzuUSD balance.
      *
+     * yzUSD that has been sent to the contract but is not committed to any redemption orders.
      * Returns the total YuzuUSD minus the current pending fast and standard redemption values.
      */
     function _getOutstandingYuzuUSDBalance() internal view returns (uint256) {

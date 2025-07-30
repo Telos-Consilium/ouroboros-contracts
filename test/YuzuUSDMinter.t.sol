@@ -382,10 +382,27 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         minter.rescueTokens(address(otherToken), user1, amount);
     }
 
-    function test_RescueTokens_RevertUnderlyingToken() public {
-        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(yzusd)));
+    function test_RescueTokens_YzUSD() public {
+        uint256 amount = 100e18;
+        vm.prank(address(minter));
+        yzusd.mint(address(minter), amount);
+        uint256 balanceBefore = yzusd.balanceOf(user1);
         vm.prank(admin);
-        minter.rescueTokens(address(yzusd), user1, 100e18);
+        minter.rescueTokens(address(yzusd), user1, amount);
+        assertEq(yzusd.balanceOf(user1), balanceBefore + amount);
+    }
+
+    function test_RescueTokens_YzUSD_RevertInsufficientOutstandingBalance() public {
+        uint256 amount = 100e18;
+        vm.expectRevert(abi.encodeWithSelector(InsufficientOutstandingBalance.selector, amount, 0));
+        vm.prank(admin);
+        minter.rescueTokens(address(yzusd), user1, amount);
+    }
+
+    function test_RescueTokens_RevertUnderlyingToken() public {
+        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(collateralToken)));
+        vm.prank(admin);
+        minter.rescueTokens(address(collateralToken), user1, 100e18);
     }
 
     // Mint
@@ -838,13 +855,8 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.prank(address(minter));
         yzusd.mint(user1, mintAmount);
 
+        vm.expectRevert(abi.encodeWithSelector(LiquidityBufferExceeded.selector, redeemAmount, 0));
         vm.prank(user1);
         uint256 orderId = minter.createStandardRedeemOrder(redeemAmount);
-
-        vm.warp(block.timestamp + minter.standardRedeemDelay());
-
-        vm.expectRevert(abi.encodeWithSelector(LiquidityBufferExceeded.selector, redeemAmount, 0));
-        vm.prank(user2);
-        minter.fillStandardRedeemOrder(orderId);
     }
 }

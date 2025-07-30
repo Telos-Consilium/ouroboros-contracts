@@ -53,7 +53,7 @@ interface IYuzuUSDMinterDefinitions {
     error MaxMintPerBlockExceeded(uint256 requested, uint256 maxAllowed);
     error MaxRedeemPerBlockExceeded(uint256 requested, uint256 maxAllowed);
     error LiquidityBufferExceeded(uint256 requested, uint256 available);
-    error OutstandingBalanceExceeded(uint256 requested, uint256 available);
+    error InsufficientOutstandingBalance(uint256 requested, uint256 available);
     error OrderNotPending(uint256 orderId);
     error OrderNotDue(uint256 orderId);
 }
