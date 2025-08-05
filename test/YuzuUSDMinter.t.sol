@@ -14,10 +14,18 @@ import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {Order, OrderStatus} from "../src/interfaces/IYuzuUSDMinter.sol";
 import {IYuzuUSDMinterDefinitions} from "../src/interfaces/IYuzuUSDMinterDefinitions.sol";
 
+contract USDCMock is ERC20Mock {
+    constructor() ERC20Mock() {}
+
+    function decimals() public view virtual override returns (uint8) {
+        return 6;
+    }
+}
+
 contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     YuzuUSDMinter public minter;
     YuzuUSD public yzusd;
-    ERC20Mock public collateralToken;
+    USDCMock public collateralToken;
 
     address public admin;
     address public treasury;
@@ -51,7 +59,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         // Deploy YuzuUSD implementation and proxy
         yzusd = new YuzuUSD("Yuzu USD", "yzUSD", admin);
 
-        collateralToken = new ERC20Mock();
+        collateralToken = new USDCMock();
 
         // Deploy YuzuUSDMinter implementation and proxy
         YuzuUSDMinter minterImplementation = new YuzuUSDMinter();
@@ -80,10 +88,10 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
 
         vm.stopPrank();
 
-        // Mint some collateral tokens to users for testing
-        collateralToken.mint(user1, 10_000e18);
-        collateralToken.mint(user2, 10_000e18);
-        collateralToken.mint(orderFiller, 10_000e18);
+        // Mint some collateral tokens to users (6 decimals)
+        collateralToken.mint(user1, 10_000e6);
+        collateralToken.mint(user2, 10_000e6);
+        collateralToken.mint(orderFiller, 10_000e6);
 
         vm.startPrank(orderFiller);
         yzusd.approve(address(minter), type(uint256).max);
@@ -207,7 +215,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.treasury(), newTreasury);
     }
 
-    function test_SetTreasury_OnlyAdmin() public {
+    function test_SetTreasury_RevertOnlyAdmin() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setTreasury(makeAddr("newTreasury"));
@@ -224,7 +232,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.redeemFeeRecipient(), newRecipient);
     }
 
-    function test_SetRedeemFeeRecipient_OnlyRedeemManager() public {
+    function test_SetRedeemFeeRecipient_RevertOnlyRedeemManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setRedeemFeeRecipient(makeAddr("newRecipient"));
@@ -241,7 +249,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.maxMintPerBlock(), newMaxMint);
     }
 
-    function test_SetMaxMintPerBlock_OnlyLimitManager() public {
+    function test_SetMaxMintPerBlock_RevertOnlyLimitManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setMaxMintPerBlock(2000e18);
@@ -258,58 +266,58 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.maxRedeemPerBlock(), newMaxRedeem);
     }
 
-    function test_SetMaxRedeemPerBlock_OnlyLimitManager() public {
+    function test_SetMaxRedeemPerBlock_RevertOnlyLimitManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setMaxRedeemPerBlock(1000e18);
     }
 
     function test_SetInstantRedeemFeePpm() public {
-        uint256 newFee = 5_000; // 0.5%
+        uint256 newFeePpm = 5_000;
 
         vm.expectEmit();
-        emit InstantRedeemFeePpmUpdated(0, newFee);
+        emit InstantRedeemFeePpmUpdated(0, newFeePpm);
         vm.prank(redeemManager);
-        minter.setInstantRedeemFeePpm(newFee);
+        minter.setInstantRedeemFeePpm(newFeePpm);
 
-        assertEq(minter.instantRedeemFeePpm(), newFee);
+        assertEq(minter.instantRedeemFeePpm(), newFeePpm);
     }
 
-    function test_SetInstantRedeemFeePpm_OnlyRedeemManager() public {
+    function test_SetInstantRedeemFeePpm_RevertOnlyRedeemManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setInstantRedeemFeePpm(5_000);
     }
 
     function test_SetFastRedeemFeePpm() public {
-        uint256 newFee = 2_500; // 0.25%
+        uint256 newFeePpm = 2_500;
 
         vm.expectEmit();
-        emit FastRedeemFeePpmUpdated(0, newFee);
+        emit FastRedeemFeePpmUpdated(0, newFeePpm);
         vm.prank(redeemManager);
-        minter.setFastRedeemFeePpm(newFee);
+        minter.setFastRedeemFeePpm(newFeePpm);
 
-        assertEq(minter.fastRedeemFeePpm(), newFee);
+        assertEq(minter.fastRedeemFeePpm(), newFeePpm);
     }
 
-    function test_SetFastRedeemFeePpm_OnlyRedeemManager() public {
+    function test_SetFastRedeemFeePpm_RevertOnlyRedeemManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setFastRedeemFeePpm(2_500);
     }
 
     function test_SetStandardRedeemFeePpm() public {
-        uint256 newFee = 1_000; // 0.1%
+        uint256 newFeePpm = 1_000;
 
         vm.expectEmit();
-        emit StandardRedeemFeePpmUpdated(0, newFee);
+        emit StandardRedeemFeePpmUpdated(0, newFeePpm);
         vm.prank(redeemManager);
-        minter.setStandardRedeemFeePpm(newFee);
+        minter.setStandardRedeemFeePpm(newFeePpm);
 
-        assertEq(minter.standardRedeemFeePpm(), newFee);
+        assertEq(minter.standardRedeemFeePpm(), newFeePpm);
     }
 
-    function test_SetStandardRedeemFeePpm_OnlyRedeemManager() public {
+    function test_SetStandardRedeemFeePpm_RevertOnlyRedeemManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setStandardRedeemFeePpm(1_000);
@@ -326,7 +334,7 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.fastFillWindow(), newWindow);
     }
 
-    function test_SetFastFillWindow_OnlyRedeemManager() public {
+    function test_SetFastFillWindow_RevertOnlyRedeemManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setFastFillWindow(2 days);
@@ -343,80 +351,82 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         assertEq(minter.standardRedeemDelay(), newDelay);
     }
 
-    function test_SetStandardRedeemDelay_OnlyRedeemManager() public {
+    function test_SetStandardRedeemDelay_RevertOnlyRedeemManager() public {
         vm.expectRevert();
         vm.prank(nonAdmin);
         minter.setStandardRedeemDelay(14 days);
     }
 
     function test_WithdrawCollateral() public {
-        uint256 amount = 100e18;
-        address to = makeAddr("recipient");
+        uint256 collateralAmount = 100e6;
+        address recipient = makeAddr("recipient");
 
-        collateralToken.mint(address(minter), amount);
+        collateralToken.mint(address(minter), collateralAmount);
 
         vm.expectEmit();
-        emit CollateralWithdrawn(to, amount);
+        emit CollateralWithdrawn(recipient, collateralAmount);
         vm.prank(admin);
-        minter.withdrawCollateral(to, amount);
+        minter.withdrawCollateral(recipient, collateralAmount);
 
-        assertEq(collateralToken.balanceOf(to), amount);
+        assertEq(collateralToken.balanceOf(recipient), collateralAmount);
     }
 
     function test_RescueTokens() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        uint256 amount = 100e18;
-        otherToken.mint(address(minter), amount);
-        uint256 balanceBefore = otherToken.balanceOf(user1);
+        USDCMock otherToken = new USDCMock();
+        uint256 tokenAmount = 100e6;
+        otherToken.mint(address(minter), tokenAmount);
+        uint256 userBalanceBefore = otherToken.balanceOf(user1);
         vm.prank(admin);
-        minter.rescueTokens(address(otherToken), user1, amount);
-        assertEq(otherToken.balanceOf(user1), balanceBefore + amount);
+        minter.rescueTokens(address(otherToken), user1, tokenAmount);
+        assertEq(otherToken.balanceOf(user1), userBalanceBefore + tokenAmount);
     }
 
     function test_RescueTokens_RevertOnlyOwner() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        uint256 amount = 100e18;
-        otherToken.mint(address(minter), amount);
+        USDCMock otherToken = new USDCMock();
+        uint256 tokenAmount = 100e6;
+        otherToken.mint(address(minter), tokenAmount);
         vm.expectRevert();
         vm.prank(user1);
-        minter.rescueTokens(address(otherToken), user1, amount);
+        minter.rescueTokens(address(otherToken), user1, tokenAmount);
     }
 
     function test_RescueTokens_YzUSD() public {
-        uint256 amount = 100e18;
+        uint256 yzusdAmount = 100e18;
         vm.prank(address(minter));
-        yzusd.mint(address(minter), amount);
-        uint256 balanceBefore = yzusd.balanceOf(user1);
+        yzusd.mint(address(minter), yzusdAmount);
+        uint256 userBalanceBefore = yzusd.balanceOf(user1);
         vm.prank(admin);
-        minter.rescueTokens(address(yzusd), user1, amount);
-        assertEq(yzusd.balanceOf(user1), balanceBefore + amount);
+        minter.rescueTokens(address(yzusd), user1, yzusdAmount);
+        assertEq(yzusd.balanceOf(user1), userBalanceBefore + yzusdAmount);
     }
 
     function test_RescueTokens_YzUSD_RevertInsufficientOutstandingBalance() public {
-        uint256 amount = 100e18;
-        vm.expectRevert(abi.encodeWithSelector(InsufficientOutstandingBalance.selector, amount, 0));
+        uint256 yzusdAmount = 100e18;
+        vm.expectRevert(abi.encodeWithSelector(InsufficientOutstandingBalance.selector, yzusdAmount, 0));
         vm.prank(admin);
-        minter.rescueTokens(address(yzusd), user1, amount);
+        minter.rescueTokens(address(yzusd), user1, yzusdAmount);
     }
 
     function test_RescueTokens_RevertUnderlyingToken() public {
         vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(collateralToken)));
         vm.prank(admin);
-        minter.rescueTokens(address(collateralToken), user1, 100e18);
+        minter.rescueTokens(address(collateralToken), user1, 100e6);
     }
 
     // Mint
     function test_Mint() public {
-        uint256 amount = 100e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 expectedDeposit_usdc = 100e6;
 
         vm.expectEmit();
-        emit Minted(user1, user1, amount);
+        emit Minted(user1, user1, mintAmount_yzusd);
         vm.prank(user1);
-        minter.mint(user1, amount);
+        uint256 depositedCollateral_usdc = minter.mint(user1, mintAmount_yzusd);
 
-        assertEq(yzusd.balanceOf(user1), amount);
-        assertEq(collateralToken.balanceOf(treasury), amount);
-        assertEq(minter.mintedPerBlock(block.number), amount);
+        assertEq(depositedCollateral_usdc, expectedDeposit_usdc);
+        assertEq(yzusd.balanceOf(user1), mintAmount_yzusd);
+        assertEq(collateralToken.balanceOf(treasury), expectedDeposit_usdc);
+        assertEq(minter.mintedPerBlock(block.number), mintAmount_yzusd);
     }
 
     function test_Mint_RevertInvalidZeroAmount() public {
@@ -426,149 +436,161 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_Mint_RevertLimitExceeded() public {
-        uint256 amount = MAX_MINT_PER_BLOCK + 1;
+        uint256 mintAmount_yzusd = MAX_MINT_PER_BLOCK + 1;
 
-        vm.expectRevert(abi.encodeWithSelector(MaxMintPerBlockExceeded.selector, amount, MAX_MINT_PER_BLOCK));
+        vm.expectRevert(abi.encodeWithSelector(MaxMintPerBlockExceeded.selector, mintAmount_yzusd, MAX_MINT_PER_BLOCK));
         vm.prank(user1);
-        minter.mint(user1, amount);
+        minter.mint(user1, mintAmount_yzusd);
     }
 
     function test_Mint_ZeroLimit_RevertLimitExceeded() public {
-        uint256 amount = 100e18;
+        uint256 mintAmount_yzusd = 100e18;
 
         vm.prank(limitManager);
         minter.setMaxMintPerBlock(0);
 
-        vm.expectRevert(abi.encodeWithSelector(MaxMintPerBlockExceeded.selector, amount, 0));
+        vm.expectRevert(abi.encodeWithSelector(MaxMintPerBlockExceeded.selector, mintAmount_yzusd, 0));
         vm.prank(user1);
-        minter.mint(user1, amount);
+        minter.mint(user1, mintAmount_yzusd);
     }
 
-    // Instant Redeem Tests
+    // Instant Redeem
     function test_InstantRedeem() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
+        uint256 expectedCollateralWithdrawal_usdc = redeemAmount_yzusd / (10 ** 12);
 
-        collateralToken.mint(address(minter), mintAmount);
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
+
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.expectEmit();
-        emit InstantRedeem(user1, user1, redeemAmount, 0);
+        emit InstantRedeem(user1, user1, redeemAmount_yzusd, 0);
         vm.expectEmit();
-        emit Redeemed(user1, user1, redeemAmount);
+        emit Redeemed(user1, user1, redeemAmount_yzusd);
         vm.prank(user1);
-        minter.instantRedeem(user1, redeemAmount);
+        uint256 withdrawnCollateral_usdc = minter.instantRedeem(user1, redeemAmount_yzusd);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore + redeemAmount);
-        assertEq(collateralToken.balanceOf(address(minter)), mintAmount - redeemAmount);
-        assertEq(minter.redeemedPerBlock(block.number), redeemAmount);
+        assertEq(withdrawnCollateral_usdc, expectedCollateralWithdrawal_usdc);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc + expectedCollateralWithdrawal_usdc);
+        assertEq(collateralToken.balanceOf(address(minter)), liquidityBuffer_usdc - expectedCollateralWithdrawal_usdc);
+        assertEq(minter.redeemedPerBlock(block.number), redeemAmount_yzusd);
     }
 
     function test_InstantRedeem_WithFee() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 feePpm = 10_000; // 1%
-        uint256 expectedFee = (redeemAmount * feePpm) / 1_000_000;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
+        uint256 feePpm = 10_000;
+        
+        uint256 collateralAmountWithFee_usdc = redeemAmount_yzusd / (10 ** 12);
+        uint256 expectedCollateralFee_usdc = Math.mulDiv(collateralAmountWithFee_usdc, feePpm, 1e6, Math.Rounding.Ceil);
+        uint256 expectedCollateralWithdrawal_usdc = collateralAmountWithFee_usdc - expectedCollateralFee_usdc;
 
-        collateralToken.mint(address(minter), mintAmount);
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
+        uint256 feeRecipientCollateralBefore_usdc = collateralToken.balanceOf(redeemFeeRecipient);
+
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(redeemManager);
         minter.setInstantRedeemFeePpm(feePpm);
 
         vm.expectEmit();
-        emit InstantRedeem(user1, user1, redeemAmount, expectedFee);
+        emit InstantRedeem(user1, user1, redeemAmount_yzusd, expectedCollateralFee_usdc);
         vm.expectEmit();
-        emit Redeemed(user1, user1, redeemAmount);
+        emit Redeemed(user1, user1, redeemAmount_yzusd);
         vm.prank(user1);
-        minter.instantRedeem(user1, redeemAmount);
+        uint256 withdrawnCollateral_usdc = minter.instantRedeem(user1, redeemAmount_yzusd);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore + redeemAmount - expectedFee);
-        assertEq(collateralToken.balanceOf(redeemFeeRecipient), expectedFee);
-        assertEq(collateralToken.balanceOf(address(minter)), mintAmount - redeemAmount);
-        assertEq(yzusd.balanceOf(user1), mintAmount - redeemAmount);
+        assertEq(withdrawnCollateral_usdc, expectedCollateralWithdrawal_usdc);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc + expectedCollateralWithdrawal_usdc);
+        assertEq(collateralToken.balanceOf(redeemFeeRecipient), feeRecipientCollateralBefore_usdc + expectedCollateralFee_usdc);
+        assertEq(yzusd.balanceOf(user1), mintAmount_yzusd - redeemAmount_yzusd);
     }
 
     function test_InstantRedeem_RevertLimitExceeded() public {
-        uint256 amount = MAX_REDEEM_PER_BLOCK + 1;
+        uint256 mintAmount_yzusd = MAX_REDEEM_PER_BLOCK + 1;
 
-        collateralToken.mint(address(minter), amount);
+        collateralToken.mint(address(minter), mintAmount_yzusd);
         vm.prank(address(minter));
-        yzusd.mint(user1, amount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
-        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, amount, MAX_REDEEM_PER_BLOCK));
+        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, mintAmount_yzusd, MAX_REDEEM_PER_BLOCK));
         vm.prank(user1);
-        minter.instantRedeem(user1, amount);
+        minter.instantRedeem(user1, mintAmount_yzusd);
     }
 
     function test_InstantRedeem_ZeroLimit_RevertLimitExceeded() public {
-        uint256 amount = MAX_REDEEM_PER_BLOCK + 1;
+        uint256 mintAmount_yzusd = MAX_REDEEM_PER_BLOCK + 1;
 
-        collateralToken.mint(address(minter), amount);
+        collateralToken.mint(address(minter), mintAmount_yzusd);
         vm.prank(address(minter));
-        yzusd.mint(user1, amount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(limitManager);
         minter.setMaxRedeemPerBlock(0);
 
-        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, amount, 0));
+        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, mintAmount_yzusd, 0));
         vm.prank(user1);
-        minter.instantRedeem(user1, amount);
+        minter.instantRedeem(user1, mintAmount_yzusd);
     }
 
     function test_InstantRedeem_RevertInsufficientFunds() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
 
-        collateralToken.mint(address(minter), mintAmount);
+        collateralToken.mint(address(minter), mintAmount_yzusd);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.startPrank(user1);
         yzusd.burn(yzusd.balanceOf(user1));
         vm.expectRevert();
-        minter.instantRedeem(user1, redeemAmount);
+        minter.instantRedeem(user1, redeemAmount_yzusd);
         vm.stopPrank();
     }
 
     function test_InstantRedeem_RevertLiquidityBufferExceeded() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 expectedCollateralWithdrawal_usdc = redeemAmount_yzusd / (10 ** 12);
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
-        vm.expectRevert(abi.encodeWithSelector(LiquidityBufferExceeded.selector, redeemAmount, 0));
+        vm.expectRevert(abi.encodeWithSelector(LiquidityBufferExceeded.selector, expectedCollateralWithdrawal_usdc, 0));
         vm.prank(user1);
-        minter.instantRedeem(user1, redeemAmount);
+        minter.instantRedeem(user1, redeemAmount_yzusd);
     }
 
-    // Fast Redeem Tests
+    // Fast Redeem
     function test_CreateFastRedeemOrder() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.expectEmit();
-        emit FastRedeemOrderCreated(0, user1, redeemAmount);
+        emit FastRedeemOrderCreated(0, user1, redeemAmount_yzusd);
         vm.prank(user1);
-        uint256 orderId = minter.createFastRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc);
         assertEq(collateralToken.balanceOf(address(minter)), 0);
         assertEq(minter.redeemedPerBlock(block.number), 0);
-        assertEq(minter.currentPendingFastRedeemValue(), redeemAmount);
+        assertEq(minter.currentPendingFastRedeemValue(), redeemAmount_yzusd);
         assertEq(minter.fastRedeemOrderCount(), 1);
 
         Order memory order = minter.getFastRedeemOrder(orderId);
-        assertEq(order.amount, redeemAmount);
+        assertEq(order.amount, redeemAmount_yzusd);
         assertEq(order.owner, user1);
         assertEq(order.feePpm, 0);
         assertEq(order.dueTime, block.timestamp + minter.fastFillWindow());
@@ -576,94 +598,103 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_FillFastRedeemOrder() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 expectedCollateralWithdrawal_usdc = 50e6;
+
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(user1);
-        uint256 orderId = minter.createFastRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
 
         vm.expectEmit();
-        emit FastRedeemOrderFilled(orderId, user1, orderFiller, redeemFeeRecipient, redeemAmount, 0);
+        emit FastRedeemOrderFilled(orderId, user1, orderFiller, redeemFeeRecipient, redeemAmount_yzusd, 0);
         vm.expectEmit();
-        emit Redeemed(user1, user1, redeemAmount);
+        emit Redeemed(user1, user1, redeemAmount_yzusd);
         vm.prank(orderFiller);
         minter.fillFastRedeemOrder(orderId, redeemFeeRecipient);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore + redeemAmount);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc + expectedCollateralWithdrawal_usdc);
 
         Order memory order = minter.getFastRedeemOrder(orderId);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
     }
 
     function test_FillFastRedeemOrder_WithFee() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 feePpm = 10_000; // 1%
-        uint256 expectedFee = (redeemAmount * feePpm) / 1_000_000;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 feePpm = 10_000;
+        
+        uint256 collateralAmountWithFee_usdc = redeemAmount_yzusd / (10 ** 12);
+        uint256 expectedCollateralFee_usdc = Math.mulDiv(collateralAmountWithFee_usdc, feePpm, 1e6, Math.Rounding.Ceil);
+        uint256 expectedCollateralWithdrawal_usdc = collateralAmountWithFee_usdc - expectedCollateralFee_usdc;
+
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
+        uint256 feeRecipientCollateralBefore_usdc = collateralToken.balanceOf(redeemFeeRecipient);
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(redeemManager);
         minter.setFastRedeemFeePpm(feePpm);
 
         vm.prank(user1);
-        uint256 orderId = minter.createFastRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
 
         vm.expectEmit();
-        emit FastRedeemOrderFilled(orderId, user1, orderFiller, redeemFeeRecipient, redeemAmount, expectedFee);
+        emit FastRedeemOrderFilled(orderId, user1, orderFiller, redeemFeeRecipient, redeemAmount_yzusd, expectedCollateralFee_usdc);
         vm.expectEmit();
-        emit Redeemed(user1, user1, redeemAmount);
+        emit Redeemed(user1, user1, redeemAmount_yzusd);
         vm.prank(orderFiller);
         minter.fillFastRedeemOrder(orderId, redeemFeeRecipient);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore + redeemAmount - expectedFee);
-        assertEq(collateralToken.balanceOf(redeemFeeRecipient), expectedFee);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc + expectedCollateralWithdrawal_usdc);
+        assertEq(collateralToken.balanceOf(redeemFeeRecipient), feeRecipientCollateralBefore_usdc + expectedCollateralFee_usdc);
 
         Order memory order = minter.getFastRedeemOrder(orderId);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
     }
 
     function test_FillFastRedeemOrder_PastDueTime() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 expectedCollateralWithdrawal_usdc = 50e6;
+
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(user1);
-        uint256 orderId = minter.createFastRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
 
         vm.warp(block.timestamp + minter.fastFillWindow());
 
         vm.expectEmit();
-        emit FastRedeemOrderFilled(orderId, user1, orderFiller, redeemFeeRecipient, redeemAmount, 0);
+        emit FastRedeemOrderFilled(orderId, user1, orderFiller, redeemFeeRecipient, redeemAmount_yzusd, 0);
         vm.expectEmit();
-        emit Redeemed(user1, user1, redeemAmount);
+        emit Redeemed(user1, user1, redeemAmount_yzusd);
         vm.prank(orderFiller);
         minter.fillFastRedeemOrder(orderId, redeemFeeRecipient);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore + redeemAmount);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc + expectedCollateralWithdrawal_usdc);
 
         Order memory order = minter.getFastRedeemOrder(orderId);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
     }
 
     function test_CancelFastRedeemOrder() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(user1);
-        uint256 orderId = minter.createFastRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
 
         vm.warp(block.timestamp + minter.fastFillWindow());
 
@@ -678,14 +709,14 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_CancelFastRedeemOrder_RevertNotOwner() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(user1);
-        uint256 orderId = minter.createFastRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
 
         vm.warp(block.timestamp + minter.fastFillWindow());
 
@@ -695,43 +726,45 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_CancelFastRedeemOrder_RevertOrderNotDue() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(user1);
-        uint256 orderId = minter.createFastRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
 
         vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
         vm.prank(user1);
         minter.cancelFastRedeemOrder(orderId);
     }
 
-    // Standard Redeem Tests
+    // Standard Redeem
     function test_CreateStandardRedeemOrder() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
 
-        collateralToken.mint(address(minter), mintAmount);
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
+
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.expectEmit();
-        emit StandardRedeemOrderCreated(0, user1, redeemAmount);
+        emit StandardRedeemOrderCreated(0, user1, redeemAmount_yzusd);
         vm.prank(user1);
-        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount_yzusd);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore);
-        assertEq(collateralToken.balanceOf(address(minter)), mintAmount);
-        assertEq(minter.redeemedPerBlock(block.number), redeemAmount);
-        assertEq(minter.currentPendingStandardRedeemValue(), redeemAmount);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc);
+        assertEq(collateralToken.balanceOf(address(minter)), liquidityBuffer_usdc);
+        assertEq(minter.redeemedPerBlock(block.number), redeemAmount_yzusd);
+        assertEq(minter.currentPendingStandardRedeemValue(), redeemAmount_yzusd);
         assertEq(minter.standardRedeemOrderCount(), 1);
 
         Order memory order = minter.getStandardRedeemOrder(orderId);
-        assertEq(order.amount, redeemAmount);
+        assertEq(order.amount, redeemAmount_yzusd);
         assertEq(order.owner, user1);
         assertEq(order.feePpm, 0);
         assertEq(order.dueTime, block.timestamp + minter.standardRedeemDelay());
@@ -739,28 +772,30 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_CreateStandardRedeemOrder_ZeroLimit_RevertLimitExceeded() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
 
-        collateralToken.mint(address(minter), mintAmount);
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(limitManager);
         minter.setMaxRedeemPerBlock(0);
 
-        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, redeemAmount, 0));
+        vm.expectRevert(abi.encodeWithSelector(MaxRedeemPerBlockExceeded.selector, redeemAmount_yzusd, 0));
         vm.prank(user1);
-        minter.createStandardRedeemOrder(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount_yzusd);
     }
 
     function test_CreateStandardRedeemOrder_RevertInsufficientFunds() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
 
-        collateralToken.mint(address(minter), mintAmount);
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(limitManager);
         minter.setMaxRedeemPerBlock(0);
@@ -768,80 +803,90 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
         vm.startPrank(user1);
         yzusd.burn(yzusd.balanceOf(user1));
         vm.expectRevert();
-        minter.createStandardRedeemOrder(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount_yzusd);
         vm.stopPrank();
     }
 
     function test_FillStandardRedeemOrder() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
+        uint256 expectedCollateralAmount_usdc = 50e6;
 
-        collateralToken.mint(address(minter), mintAmount);
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
+
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(user1);
-        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount_yzusd);
 
         vm.warp(block.timestamp + minter.standardRedeemDelay());
 
         vm.expectEmit();
-        emit StandardRedeemOrderFilled(user2, orderId, user1, redeemAmount, 0);
+        emit StandardRedeemOrderFilled(user2, orderId, user1, redeemAmount_yzusd, 0);
         vm.expectEmit();
-        emit Redeemed(user1, user1, redeemAmount);
+        emit Redeemed(user1, user1, redeemAmount_yzusd);
         vm.prank(user2);
         minter.fillStandardRedeemOrder(orderId);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore + redeemAmount);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc + expectedCollateralAmount_usdc);
 
         Order memory order = minter.getStandardRedeemOrder(orderId);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
     }
 
     function test_FillStandardRedeemOrder_WithFee() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
-        uint256 feePpm = 10_000; // 1%
-        uint256 expectedFee = (redeemAmount * feePpm) / 1_000_000;
-        uint256 collateralBalanceBefore = collateralToken.balanceOf(user1);
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
+        uint256 feePpm = 10_000;
+        
+        uint256 collateralAmountWithFee_usdc = redeemAmount_yzusd / (10 ** 12);
+        uint256 expectedCollateralFee_usdc = Math.mulDiv(collateralAmountWithFee_usdc, feePpm, 1e6, Math.Rounding.Ceil);
+        uint256 expectedCollateralAmount_usdc = collateralAmountWithFee_usdc - expectedCollateralFee_usdc;
+        
+        uint256 userCollateralBefore_usdc = collateralToken.balanceOf(user1);
+        uint256 feeRecipientCollateralBefore_usdc = collateralToken.balanceOf(redeemFeeRecipient);
 
-        collateralToken.mint(address(minter), mintAmount);
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(redeemManager);
         minter.setStandardRedeemFeePpm(feePpm);
 
         vm.prank(user1);
-        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount_yzusd);
 
         vm.warp(block.timestamp + minter.standardRedeemDelay());
 
         vm.expectEmit();
-        emit StandardRedeemOrderFilled(user2, orderId, user1, redeemAmount, expectedFee);
+        emit StandardRedeemOrderFilled(user2, orderId, user1, redeemAmount_yzusd, expectedCollateralFee_usdc);
         vm.expectEmit();
-        emit Redeemed(user1, user1, redeemAmount);
+        emit Redeemed(user1, user1, redeemAmount_yzusd);
         vm.prank(user2);
         minter.fillStandardRedeemOrder(orderId);
 
-        assertEq(collateralToken.balanceOf(user1), collateralBalanceBefore + redeemAmount - expectedFee);
-        assertEq(collateralToken.balanceOf(redeemFeeRecipient), expectedFee);
+        assertEq(collateralToken.balanceOf(user1), userCollateralBefore_usdc + expectedCollateralAmount_usdc);
+        assertEq(collateralToken.balanceOf(redeemFeeRecipient), feeRecipientCollateralBefore_usdc + expectedCollateralFee_usdc);
 
         Order memory order = minter.getStandardRedeemOrder(orderId);
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
     }
 
     function test_FillStandardRedeemOrder_RevertOrderNotDue() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 liquidityBuffer_usdc = 100e6;
 
-        collateralToken.mint(address(minter), mintAmount);
+        collateralToken.mint(address(minter), liquidityBuffer_usdc);
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
         vm.prank(user1);
-        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount);
+        uint256 orderId = minter.createStandardRedeemOrder(redeemAmount_yzusd);
 
         vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
         vm.prank(user2);
@@ -849,14 +894,126 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_FillStandardRedeemOrder_RevertLiquidityBufferExceeded() public {
-        uint256 mintAmount = 100e18;
-        uint256 redeemAmount = 50e18;
+        uint256 mintAmount_yzusd = 100e18;
+        uint256 redeemAmount_yzusd = 50e18;
+        uint256 expectedCollateralAmount_usdc = redeemAmount_yzusd / (10 ** 12);
 
         vm.prank(address(minter));
-        yzusd.mint(user1, mintAmount);
+        yzusd.mint(user1, mintAmount_yzusd);
 
-        vm.expectRevert(abi.encodeWithSelector(LiquidityBufferExceeded.selector, redeemAmount, 0));
+        vm.expectRevert(abi.encodeWithSelector(LiquidityBufferExceeded.selector, expectedCollateralAmount_usdc, 0));
         vm.prank(user1);
-        minter.createStandardRedeemOrder(redeemAmount);
+        minter.createStandardRedeemOrder(redeemAmount_yzusd);
+    }
+
+    // Fee Collection
+    function test_ContractFeeCollection() public {
+        uint256 collateralFeeAmount_usdc = 1e6;
+        
+        address customRecipient = makeAddr("customRecipient");
+        
+        vm.prank(redeemManager);
+        minter.setRedeemFeeRecipient(customRecipient);
+        
+        collateralToken.mint(address(minter), collateralFeeAmount_usdc);
+        
+        uint256 recipientCollateralBefore_usdc = collateralToken.balanceOf(customRecipient);
+        
+        uint256 redeemAmount_yzusd = 10e18;
+        uint256 feePpm = 100_000;
+        
+        vm.prank(address(minter));
+        yzusd.mint(user1, redeemAmount_yzusd);
+        
+        vm.prank(redeemManager);
+        minter.setInstantRedeemFeePpm(feePpm);
+        
+        collateralToken.mint(address(minter), 10e6);
+        
+        vm.prank(user1);
+        minter.instantRedeem(user1, redeemAmount_yzusd);
+        
+        assertEq(collateralToken.balanceOf(customRecipient), recipientCollateralBefore_usdc + collateralFeeAmount_usdc);
+    }
+
+    function test_ContractFeeCollection_SameRecipient() public {
+        uint256 redeemAmount_yzusd = 10e18;
+        uint256 feePpm = 100_000;
+        
+        vm.prank(redeemManager);
+        minter.setRedeemFeeRecipient(address(minter));
+        
+        vm.prank(address(minter));
+        yzusd.mint(user1, redeemAmount_yzusd);
+        
+        vm.prank(redeemManager);
+        minter.setInstantRedeemFeePpm(feePpm);
+        
+        collateralToken.mint(address(minter), 10e6);
+        
+        uint256 minterCollateralBefore_usdc = collateralToken.balanceOf(address(minter));
+        
+        vm.prank(user1);
+        minter.instantRedeem(user1, redeemAmount_yzusd);
+        
+        assertEq(collateralToken.balanceOf(address(minter)), minterCollateralBefore_usdc - 9e6);
+    }
+
+    function test_FillerFeeCollection() public {
+        uint256 redeemAmount_yzusd = 10e18;
+        uint256 feePpm = 100_000;
+        
+        uint256 collateralAmountWithFee_usdc = redeemAmount_yzusd / (10 ** 12);
+        uint256 collateralFeeAmount_usdc = Math.mulDiv(collateralAmountWithFee_usdc, feePpm, 1e6, Math.Rounding.Ceil);
+        uint256 collateralAmount_usdc = collateralAmountWithFee_usdc - collateralFeeAmount_usdc;
+        
+        address customFeeRecipient = makeAddr("customFeeRecipient");
+        
+        vm.prank(address(minter));
+        yzusd.mint(user1, redeemAmount_yzusd);
+        
+        vm.prank(redeemManager);
+        minter.setFastRedeemFeePpm(feePpm);
+        
+        collateralToken.mint(orderFiller, collateralAmount_usdc + collateralFeeAmount_usdc);
+        
+        vm.prank(user1);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
+        
+        uint256 fillerCollateralBefore_usdc = collateralToken.balanceOf(orderFiller);
+        uint256 recipientCollateralBefore_usdc = collateralToken.balanceOf(customFeeRecipient);
+        
+        vm.prank(orderFiller);
+        minter.fillFastRedeemOrder(orderId, customFeeRecipient);
+        
+        assertEq(collateralToken.balanceOf(orderFiller), fillerCollateralBefore_usdc - collateralAmount_usdc - collateralFeeAmount_usdc);
+        assertEq(collateralToken.balanceOf(customFeeRecipient), recipientCollateralBefore_usdc + collateralFeeAmount_usdc);
+    }
+
+    function test_FillerFeeCollection_SameRecipient() public {
+        uint256 redeemAmount_yzusd = 10e18;
+        uint256 feePpm = 100_000;
+        
+        uint256 collateralAmountWithFee_usdc = redeemAmount_yzusd / (10 ** 12);
+        uint256 collateralFeeAmount_usdc = Math.mulDiv(collateralAmountWithFee_usdc, feePpm, 1e6, Math.Rounding.Ceil);
+        uint256 collateralAmount_usdc = collateralAmountWithFee_usdc - collateralFeeAmount_usdc;
+        
+        vm.prank(address(minter));
+        yzusd.mint(user1, redeemAmount_yzusd);
+        
+        vm.prank(redeemManager);
+        minter.setFastRedeemFeePpm(feePpm);
+        
+        collateralToken.mint(orderFiller, collateralAmount_usdc);
+        
+        vm.prank(user1);
+        uint256 orderId = minter.createFastRedeemOrder(redeemAmount_yzusd);
+        
+        uint256 fillerCollateralBefore_usdc = collateralToken.balanceOf(orderFiller);
+        
+        vm.prank(orderFiller);
+        minter.fillFastRedeemOrder(orderId, orderFiller);
+        
+        assertEq(collateralToken.balanceOf(orderFiller), fillerCollateralBefore_usdc - collateralAmount_usdc);
     }
 }
