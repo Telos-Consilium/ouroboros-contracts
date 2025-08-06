@@ -355,38 +355,45 @@ contract YuzuILP is
 
     /**
      * @dev Internal function to convert {assets} to shares minted.
+     * If the pool size is zero, assets are converted to shares 1:1 adjusted for decimals.
      */
     function _convertToSharesMinted(uint256 assets) internal view returns (uint256) {
-        if (poolSize == 0) return assets;
+        if (poolSize == 0) return assets * 10 ** _decimalsOffset();
         uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding.Ceil);
         return Math.mulDiv(totalSupply(), assets, _totalAssets, Math.Rounding.Floor);
     }
 
     /**
      * @dev Internal function to convert {assets} to shares redeemed.
+     *
+     * If the pool size is zero, the total supply must be redeemed.
      */
     function _convertToSharesRedeemed(uint256 assets) internal view returns (uint256) {
-        if (poolSize == 0) return assets;
-        return Math.mulDiv(assets, totalSupply(), poolSize, Math.Rounding.Ceil);
+        if (poolSize == 0) return totalSupply();
+        return Math.mulDiv(totalSupply(), assets, poolSize, Math.Rounding.Ceil);
     }
 
     /**
      * @dev Internal function to convert {shares} to assets deposited.
+     *
+     * If the pool size or the total supply is zero, shares are converted to assets 1:1 adjusted for decimals.
+     * If the pool size is zero but the total supply is not, shares are minted at a loss for the depositor.
+     * If the total supply is zero but the pool size is not, shares are minted at a profit for the depositor.
      */
     function _convertToAssetsDeposited(uint256 shares) internal view returns (uint256) {
-        uint256 supply = totalSupply();
-        if (supply == 0) return shares;
+        if (poolSize == 0 || totalSupply() == 0) return Math.ceilDiv(shares, 10 ** _decimalsOffset());
         uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding.Ceil);
-        return Math.mulDiv(_totalAssets, shares, supply, Math.Rounding.Ceil);
+        return Math.mulDiv(_totalAssets, shares, totalSupply(), Math.Rounding.Ceil);
     }
 
     /**
      * @dev Internal function to convert shares to assets withdrawn.
+     *
+     * If the total supply is zero, no assets can be withdrawn.
      */
     function _convertToAssetsWithdrawn(uint256 shares) internal view returns (uint256) {
-        uint256 supply = totalSupply();
-        if (supply == 0) return shares;
-        return Math.mulDiv(poolSize, shares, supply, Math.Rounding.Floor);
+        if (totalSupply() == 0) return 0;
+        return Math.mulDiv(poolSize, shares, totalSupply(), Math.Rounding.Floor);
     }
 
     /**
@@ -466,6 +473,10 @@ contract YuzuILP is
             return assets;
         }
         return Math.mulDiv(assets, 1e6 days, 1e6 days + dailyLinearYieldRatePpm * elapsedTime, rounding);
+    }
+
+    function _decimalsOffset() internal view virtual returns (uint8) {
+        return 12;
     }
 
     /**

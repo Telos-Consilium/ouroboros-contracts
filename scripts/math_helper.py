@@ -34,9 +34,6 @@ def _calculate_compound_yield(
 def _calculate_linear_yield(
     principal: Decimal, rate_ppm: Decimal, time_seconds: Decimal
 ) -> Decimal:
-    # Match Solidity implementation: poolSize * dailyLinearYieldRatePpm * elapsedTime / (1e6 * 86400)
-    # This gives us: principal + (principal * rate_ppm * time_seconds) / (1e6 * 86400)
-
     # Calculate the yield portion
     yield_amount = (principal * rate_ppm * time_seconds) / (
         Decimal("1000000") * Decimal("86400")
@@ -53,9 +50,9 @@ def _calculate_share_price(
     total_assets = _calculate_compound_yield(pool_size, rate_ppm, time_seconds)
 
     # Share price = totalAssets / totalSupply * 1e18
-    share_price_e18 = (total_assets * Decimal("1000000000000000000")) / total_supply
+    share_price = (total_assets * Decimal("1000000000000000000")) / total_supply
 
-    return share_price_e18
+    return share_price
 
 
 def calculate_compound_yield(principal: str, rate_ppm: str, time_seconds: str) -> str:
@@ -86,7 +83,7 @@ def calculate_share_price(
     pool_size: str, total_supply: str, rate_ppm: str, time_seconds: str
 ) -> str:
     if total_supply == "0":
-        return _format_result(Decimal("1000000000000000000"))
+        return _format_result(Decimal("1000000"))
 
     pool_size_decimal = Decimal(pool_size)
     total_supply_decimal = Decimal(total_supply)
@@ -94,12 +91,12 @@ def calculate_share_price(
     time_seconds_decimal = Decimal(time_seconds)
 
     # Calculate share price
-    share_price_e18 = _calculate_share_price(
+    share_price = _calculate_share_price(
         pool_size_decimal, total_supply_decimal, rate_ppm_decimal, time_seconds_decimal
     )
 
     # Return the share price as a hexadecimal string
-    return _format_result(share_price_e18)
+    return _format_result(share_price)
 
 
 if __name__ == "__main__":

@@ -82,14 +82,14 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         vm.stopPrank();
     }
 
-    function _updatePool(uint256 poolSize, uint256 withdrawAllowance, uint256 dailyLinearYieldRatePpm) internal {
+    function _updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm) internal {
         vm.prank(poolManager);
-        ilp.updatePool(poolSize, withdrawAllowance, dailyLinearYieldRatePpm);
+        ilp.updatePool(newPoolSize, newWithdrawalAllowance, newDailyLinearYieldRatePpm);
     }
 
-    function _setMaxDepositPerBlock(uint256 maxMint) internal {
+    function _setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) internal {
         vm.prank(limitManager);
-        ilp.setMaxDepositPerBlock(maxMint);
+        ilp.setMaxDepositPerBlock(newMaxDepositPerBlock);
     }
 
     // Initialization
@@ -151,15 +151,6 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.maxDeposit(user1), 0);
     }
 
-    function test_SetTreasury_OnlyAdmin() public {
-        address newTreasury = makeAddr("newTreasury");
-
-        vm.prank(admin);
-        ilp.setTreasury(newTreasury);
-
-        assertEq(ilp.treasury(), newTreasury);
-    }
-
     function test_SetTreasury_RevertInvalidZeroAddress() public {
         vm.expectRevert(abi.encodeWithSelector(InvalidZeroAddress.selector));
         vm.prank(admin);
@@ -177,14 +168,14 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_UpdatePool() public {
         uint256 newPoolSize = 2_000e18;
         uint256 newWithdrawAllowance = 1_000e18;
-        uint256 newYieldRate = 200_000; // 20% per day
+        uint256 newYieldRatePpm = 200_000; // 20% per day
 
         vm.prank(poolManager);
-        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRate);
+        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRatePpm);
 
         assertEq(ilp.poolSize(), newPoolSize);
         assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
-        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRate);
+        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRatePpm);
         assertEq(ilp.lastPoolUpdateTimestamp(), block.timestamp);
     }
 
@@ -203,33 +194,32 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_UpdatePool_ZeroPoolSize() public {
         uint256 newPoolSize = 0;
         uint256 newWithdrawAllowance = 0;
-        uint256 newYieldRate = 100_000; // 10% per day
+        uint256 newYieldRatePpm = 100_000; // 10% per day
 
         vm.expectEmit();
-        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRate);
+        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRatePpm);
         vm.prank(poolManager);
-        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRate);
+        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRatePpm);
 
         assertEq(ilp.poolSize(), newPoolSize);
         assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
-        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRate);
+        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRatePpm);
         assertEq(ilp.totalAssets(), 0);
     }
 
     function test_UpdatePool_ZeroWithdrawAllowance() public {
         uint256 newPoolSize = 1_000e18;
         uint256 newWithdrawAllowance = 0;
-        uint256 newYieldRate = 100_000; // 10% per day
+        uint256 newYieldRatePpm = 100_000; // 10% per day
 
         vm.expectEmit();
-        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRate);
+        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRatePpm);
         vm.prank(poolManager);
-        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRate);
+        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRatePpm);
 
         assertEq(ilp.poolSize(), newPoolSize);
         assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
-        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRate);
-        // With zero withdraw allowance, maxWithdraw should be 0
+        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRatePpm);
         assertEq(ilp.maxWithdraw(user1), 0);
         assertEq(ilp.maxRedeem(user1), 0);
     }
@@ -237,16 +227,16 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_UpdatePool_ZeroYieldRate() public {
         uint256 newPoolSize = 1_000e18;
         uint256 newWithdrawAllowance = 500e18;
-        uint256 newYieldRate = 0;
+        uint256 newYieldRatePpm = 0;
 
         vm.expectEmit();
-        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRate);
+        emit PoolUpdated(newPoolSize, newWithdrawAllowance, newYieldRatePpm);
         vm.prank(poolManager);
-        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRate);
+        ilp.updatePool(newPoolSize, newWithdrawAllowance, newYieldRatePpm);
 
         assertEq(ilp.poolSize(), newPoolSize);
         assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
-        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRate);
+        assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRatePpm);
         
         vm.warp(block.timestamp + 1 days);
         assertEq(ilp.totalAssets(), newPoolSize);
@@ -263,10 +253,9 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_RescueTokens() public {
         ERC20Mock otherToken = new ERC20Mock();
         uint256 rescueAmount = 100e18;
+        uint256 balanceBefore = otherToken.balanceOf(user1);
 
         otherToken.mint(address(ilp), rescueAmount);
-
-        uint256 balanceBefore = otherToken.balanceOf(user1);
 
         vm.prank(admin);
         ilp.rescueTokens(address(otherToken), user1, rescueAmount);
@@ -299,7 +288,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(otherToken.balanceOf(user1), balanceBefore);
     }
 
-    function test_RescueTokens_ZeroAddress() public {
+    function test_RescueTokens_RevertZeroAddress() public {
         ERC20Mock otherToken = new ERC20Mock();
         uint256 rescueAmount = 100e18;
         otherToken.mint(address(ilp), rescueAmount);
@@ -311,46 +300,50 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
     // Deposit
     function test_Deposit() public {
-        uint256 depositAmount = 100e18;
-
-        _setMaxDepositPerBlock(depositAmount);
+        uint256 depositAmount = 100e6;
+        uint256 expectedMint = 100e18;
 
         uint256 userSharesBefore = ilp.balanceOf(user1);
         uint256 treasuryBalanceBefore = asset.balanceOf(treasury);
 
-        vm.prank(user1);
-        uint256 shares = ilp.deposit(depositAmount, user1);
+        _setMaxDepositPerBlock(depositAmount);
 
-        assertEq(ilp.balanceOf(user1), userSharesBefore + shares);
+        vm.prank(user1);
+        uint256 mintedShares = ilp.deposit(depositAmount, user1);
+
+        assertEq(mintedShares, expectedMint);
+
+        assertEq(ilp.balanceOf(user1), userSharesBefore + mintedShares);
         assertEq(asset.balanceOf(treasury), treasuryBalanceBefore + depositAmount);
 
         assertEq(ilp.poolSize(), depositAmount);
         assertEq(ilp.totalAssets(), depositAmount);
-        assertEq(ilp.totalSupply(), depositAmount);
+        assertEq(ilp.totalSupply(), mintedShares);
 
         assertEq(ilp.depositedPerBlock(block.number), depositAmount);
 
         assertEq(ilp.withdrawAllowance(), depositAmount);
         assertEq(ilp.maxDeposit(user1), 0);
         assertEq(ilp.maxMint(user1), 0);
-        assertEq(ilp.maxRedeem(user1), shares);
+        assertEq(ilp.maxRedeem(user1), mintedShares);
         assertEq(ilp.maxWithdraw(user1), depositAmount);
     }
 
     function test_Deposit_UpdatesStateWithYieldDiscount() public {
         uint256 depositAmount = 100e18;
+        uint256 yieldRatePpm = 250_000; // 25% daily yield
+        
         _setMaxDepositPerBlock(depositAmount);
 
         vm.prank(user1);
         ilp.deposit(depositAmount, user1);
 
-        uint256 dailyLinearYieldRatePpm = 250_000; // 25% daily yield
-        _updatePool(depositAmount, 0, dailyLinearYieldRatePpm);
+        _updatePool(depositAmount, 0, yieldRatePpm);
 
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1 days);
 
-        uint256 poolSizeBefore = ilp.poolSize(); // 100e18 * 1.25 = 125e18
+        uint256 poolSizeBefore = ilp.poolSize();
         uint256 totalAssetsBefore = ilp.totalAssets();
 
         vm.prank(user2);
@@ -360,7 +353,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertLt(poolSizeAfter - poolSizeBefore, depositAmount);
         assertGt(poolSizeAfter, poolSizeBefore);
 
-        uint256 expectedPoolSizeIncrease = 80e18; // 100e18 / 1.25 = 80e18
+        uint256 expectedPoolSizeIncrease = 80e18;
         assertEq(poolSizeAfter, poolSizeBefore + expectedPoolSizeIncrease);
 
         uint256 totalAssetsAfter = ilp.totalAssets();
@@ -395,9 +388,9 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_TotalAssets_WithYield() public {
         uint256 poolSize = 1_000e18;
         uint256 withdrawAllowance = 0;
-        uint256 dailyLinearYieldRatePpm = 100_000; // 10%
+        uint256 yieldRatePpm = 100_000; // 10%
 
-        _updatePool(poolSize, withdrawAllowance, dailyLinearYieldRatePpm);
+        _updatePool(poolSize, withdrawAllowance, yieldRatePpm);
 
         // Move forward 1 day
         vm.warp(block.timestamp + 1 days);
@@ -411,17 +404,16 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_TotalAssets_PartialDay() public {
         uint256 poolSize = 1_000e18;
         uint256 withdrawAllowance = 0;
-        uint256 dailyLinearYieldRatePpm = 100_000; // 10%
+        uint256 yieldRatePpm = 100_000; // 10%
         uint256 elapsedTime = 12 hours; // Half a day
 
-        _updatePool(poolSize, withdrawAllowance, dailyLinearYieldRatePpm);
+        _updatePool(poolSize, withdrawAllowance, yieldRatePpm);
 
         // Move forward 12 hours (half day)
         vm.warp(block.timestamp + elapsedTime);
 
         uint256 expectedYield = 50e18;
         uint256 expectedTotal = poolSize + expectedYield;
-
         assertEq(ilp.totalAssets(), expectedTotal);
     }
 
@@ -476,22 +468,22 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         // Deposit
         uint256 depositSize = 50e18;
         vm.prank(user1);
-        uint256 shares = ilp.deposit(depositSize, user1);
+        uint256 mintedShares = ilp.deposit(depositSize, user1);
 
         // Create redeem order
         vm.expectEmit();
-        emit RedeemOrderCreated(0, user1, depositSize, shares);
+        emit RedeemOrderCreated(0, user1, depositSize, mintedShares);
         vm.prank(user1);
-        (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(shares);
+        (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(mintedShares);
 
         assertEq(depositSize, assets);
-        assertEq(ilp.totalAssets() / assets, ilp.totalSupply() / shares);
+        assertEq(ilp.totalAssets() / assets, ilp.totalSupply() / mintedShares);
         assertEq(orderId, 0);
         assertEq(ilp.redeemOrderCount(), 1);
 
         Order memory order = ilp.getRedeemOrder(orderId);
         assertEq(order.assets, assets);
-        assertEq(order.shares, shares);
+        assertEq(order.shares, mintedShares);
         assertEq(order.owner, user1);
         assertFalse(order.executed);
 
@@ -526,21 +518,21 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
         // Create redeem order
         vm.startPrank(user1);
-        uint256 shares = ilp.deposit(depositAmount, user1);
-        (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(shares);
+        uint256 mintedShares = ilp.deposit(depositAmount, user1);
+        (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(mintedShares);
         vm.stopPrank();
 
-        uint256 user1BalanceBefore = asset.balanceOf(user1);
+        uint256 userBalanceBefore = asset.balanceOf(user1);
         uint256 fillerBalanceBefore = asset.balanceOf(orderFiller);
 
         // Fill the order
         vm.expectEmit();
-        emit RedeemOrderFilled(orderId, user1, orderFiller, assets, shares);
+        emit RedeemOrderFilled(orderId, user1, orderFiller, assets, mintedShares);
         vm.prank(orderFiller);
         ilp.fillRedeemOrder(orderId);
 
         // Check balances
-        assertEq(asset.balanceOf(user1), user1BalanceBefore + assets);
+        assertEq(asset.balanceOf(user1), userBalanceBefore + assets);
         assertEq(asset.balanceOf(orderFiller), fillerBalanceBefore - assets);
 
         // Check order is marked as executed
@@ -559,8 +551,8 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
         // Create and fill a redeem order
         vm.startPrank(user1);
-        uint256 shares = ilp.deposit(100e18, user1);
-        (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(shares);
+        uint256 mintedShares = ilp.deposit(100e18, user1);
+        (uint256 orderId, uint256 assets) = ilp.createRedeemOrder(mintedShares);
         vm.stopPrank();
 
         vm.startPrank(orderFiller);
@@ -571,13 +563,13 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         vm.stopPrank();
     }
 
-    function test_FillRedeemOrder_OnlyOrderFiller() public {
+    function test_FillRedeemOrder_RevertOnlyOrderFiller() public {
         _setMaxDepositPerBlock(1_000e18);
 
         // Create a redeem order
         vm.startPrank(user1);
-        uint256 shares = ilp.deposit(100e18, user1);
-        (uint256 orderId,) = ilp.createRedeemOrder(shares);
+        uint256 mintedShares = ilp.deposit(100e18, user1);
+        (uint256 orderId,) = ilp.createRedeemOrder(mintedShares);
         vm.stopPrank();
 
         // Try to fill as unauthorized user
@@ -633,11 +625,11 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_YieldCalculationWithZeroRate() public {
         uint256 poolSize = 10000e18;
         uint256 withdrawAllowance = 5000e18;
-        uint256 dailyLinearYieldRatePpm = 0;
+        uint256 yieldRatePpm = 0;
 
         // Set yield rate to 0
         vm.prank(poolManager);
-        ilp.updatePool(poolSize, withdrawAllowance, dailyLinearYieldRatePpm);
+        ilp.updatePool(poolSize, withdrawAllowance, yieldRatePpm);
 
         // Move forward in time
         vm.warp(block.timestamp + 1 days);

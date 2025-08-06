@@ -186,7 +186,7 @@ contract YuzuILPFuzz is Test {
     ) public returns (uint256) {
         // Mint total shares
         vm.prank(user1);
-        ilp.deposit(initialShareSupply, user1);
+        ilp.mint(initialShareSupply, user1);
 
         vm.prank(poolManager);
         ilp.updatePool(initialPoolSize, 0, dailyLinearYieldRatePpm);
@@ -325,7 +325,7 @@ contract YuzuILPFuzz is Test {
         // Mint total shares
         vm.startPrank(user1);
         asset.approve(address(ilp), initialShareSupply);
-        ilp.deposit(initialShareSupply, user1);
+        ilp.mint(initialShareSupply, user1);
         ilp.transfer(user2, shares);
         vm.stopPrank();
 
@@ -383,8 +383,8 @@ contract YuzuILPFuzz is Test {
         // Redeeming the same amount of shares should return the same amount of assets than the previous redeem
         if (totalAssetsAfter > 1e6) {
             assertApproxEqRel(ilp.previewRedeem(shares), assets, 1e6);
-        } else if (totalAssetsAfter == 0) {
-            assertEq(ilp.previewRedeem(shares), shares);
+        } else if (totalSupplyAfter == 0) {
+            assertEq(ilp.previewRedeem(shares), 0);
         }
 
         return assets;
