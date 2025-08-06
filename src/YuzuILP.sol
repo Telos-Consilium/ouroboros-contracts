@@ -27,10 +27,10 @@ contract YuzuILP is
     IERC4626,
     IYuzuILPDefinitions
 {
-    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-    bytes32 private constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     IERC20 private _asset;
 
@@ -336,14 +336,14 @@ contract YuzuILP is
     }
 
     /**
-     * @notice Transfers {amount} of {token} held by the vault to {to}.
+     * @notice Transfers {amount} of {token} held by the vault to {receiver}.
      *
      * Reverts if called by anyone but an admin.
      * Reverts if {token} is the underlying asset of the vault.
      */
-    function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
+    function rescueTokens(address token, address receiver, uint256 amount) external onlyRole(ADMIN_ROLE) {
         if (token == asset()) revert InvalidToken(token);
-        SafeERC20.safeTransfer(IERC20(token), to, amount);
+        SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
 
     /**
@@ -403,11 +403,11 @@ contract YuzuILP is
      * and increments the deposited per block, withdraw allowance, and pool size.
      */
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal {
-        SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury, assets);
-        _mint(receiver, shares);
         depositedPerBlock[block.number] += assets;
         withdrawAllowance += assets;
         poolSize += _discountYield(assets, Math.Rounding.Floor);
+        SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury, assets);
+        _mint(receiver, shares);
         emit Deposit(caller, receiver, assets, shares);
     }
 
@@ -439,14 +439,7 @@ contract YuzuILP is
     }
 
     /**
-     * @dev Returns the number of seconds since the last pool update.
-     */
-    function _timeSinceUpdate() internal view returns (uint256) {
-        return block.timestamp - lastPoolUpdateTimestamp;
-    }
-
-    /**
-     * @dev Calculates the yield accrued since the last pool update.
+     * @dev Returns the yield accrued since the last pool update.
      *
      * Uses the daily linear yield rate and the time since the last update.
      * Returns the yield amount, rounded according to the specified rounding mode.
@@ -473,6 +466,13 @@ contract YuzuILP is
             return assets;
         }
         return Math.mulDiv(assets, 1e6 days, 1e6 days + dailyLinearYieldRatePpm * elapsedTime, rounding);
+    }
+
+    /**
+     * @dev Returns the number of seconds since the last pool update.
+     */
+    function _timeSinceUpdate() internal view returns (uint256) {
+        return block.timestamp - lastPoolUpdateTimestamp;
     }
 
     function _decimalsOffset() internal view virtual returns (uint8) {

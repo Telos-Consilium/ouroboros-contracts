@@ -17,7 +17,7 @@ interface IYuzuILP is IERC4626, IAccessControlDefaultAdminRules {
     function updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm)
         external;
     function setMaxDepositPerBlock(uint256 newMax) external;
-    function rescueTokens(address token, address to, uint256 amount) external;
+    function rescueTokens(address token, address receiver, uint256 amount) external;
 
     // Core functions
     function createRedeemOrder(uint256 shares) external returns (uint256, uint256);

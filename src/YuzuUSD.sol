@@ -40,12 +40,12 @@ contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinition
     }
 
     /**
-     * @dev Mints `amount` tokens to `to`.
+     * @dev Mints `amount` tokens to `account`.
      *
      * Reverts if called by anyone but the minter.
      */
-    function mint(address to, uint256 amount) external {
+    function mint(address account, uint256 amount) external {
         if (_msgSender() != minter) revert OnlyMinter();
-        _mint(to, amount);
+        _mint(account, amount);
     }
 }

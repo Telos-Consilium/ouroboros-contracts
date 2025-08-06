@@ -251,14 +251,14 @@ contract StakedYuzuUSD is
     }
 
     /**
-     * @notice Transfers {amount} of {token} held by the vault to {to}.
+     * @notice Transfers {amount} of {token} held by the vault to {receiver}.
      *
      * Reverts if called by anyone but the contract owner.
      * Reverts if {token} is the underlying asset of the vault.
      */
-    function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
+    function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
         if (token == asset()) revert InvalidToken(token);
-        SafeERC20.safeTransfer(IERC20(token), to, amount);
+        SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
 
     /**
@@ -275,6 +275,7 @@ contract StakedYuzuUSD is
      * Returns the order ID.
      */
     function _initiateRedeem(address owner, uint256 assets, uint256 shares) internal returns (uint256) {
+        currentRedeemAssetCommitment += assets;
         _burn(owner, shares);
         uint256 orderId = redeemOrderCount;
         redeemOrders[orderId] = Order({
@@ -285,7 +286,6 @@ contract StakedYuzuUSD is
             executed: false
         });
         redeemOrderCount++;
-        currentRedeemAssetCommitment += assets;
         return orderId;
     }
 

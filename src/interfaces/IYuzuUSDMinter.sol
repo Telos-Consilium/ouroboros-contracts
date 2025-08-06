@@ -15,20 +15,21 @@ interface IYuzuUSDMinter {
     function setStandardRedeemFeePpm(uint256 newFeePpm) external;
     function setFastFillWindow(uint256 newWindow) external;
     function setStandardRedeemDelay(uint256 newDelay) external;
-    function rescueTokens(address token, address to, uint256 amount) external;
-    function withdrawCollateral(address to, uint256 amount) external;
+    function rescueTokens(address token, address receiver, uint256 amount) external;
+    function withdrawCollateral(uint256 collateralAmount, address receiver) external;
 
     // Core functions
-    function previewMint(uint256 amount) external pure returns (uint256);
-    function previewInstantRedeem(uint256 amount) external view returns (uint256);
-    function previewFastRedeem(uint256 amount) external view returns (uint256);
-    function previewStandardRedeem(uint256 amount) external view returns (uint256);
-    function mint(address to, uint256 amount) external;
-    function instantRedeem(address to, uint256 amount) external returns (uint256);
-    function createFastRedeemOrder(uint256 amount) external returns (uint256);
+    function previewDeposit(uint256 collateralAmount) external view returns (uint256);
+    function previewMint(uint256 tokenAmount) external view returns (uint256);
+    function previewInstantRedeem(uint256 tokenAmount) external view returns (uint256);
+    function previewFastRedeem(uint256 tokenAmount) external view returns (uint256);
+    function previewStandardRedeem(uint256 tokenAmount) external view returns (uint256);
+    function mint(uint256 tokenAmount, address receiver) external returns (uint256);
+    function instantRedeem(uint256 tokenAmount, address receiver) external returns (uint256);
+    function createFastRedeemOrder(uint256 tokenAmount) external returns (uint256);
     function fillFastRedeemOrder(uint256 orderId, address feeRecipient) external;
     function cancelFastRedeemOrder(uint256 orderId) external;
-    function createStandardRedeemOrder(uint256 amount) external returns (uint256);
+    function createStandardRedeemOrder(uint256 tokenAmount) external returns (uint256);
     function fillStandardRedeemOrder(uint256 orderId) external;
 
     // Getter functions for public variables

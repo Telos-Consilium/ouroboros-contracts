@@ -10,7 +10,7 @@ interface IStakedYuzuUSD is IERC4626 {
     function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external;
     function setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) external;
     function setRedeemDelay(uint256 newRedeemDelay) external;
-    function rescueTokens(address token, address to, uint256 amount) external;
+    function rescueTokens(address token, address receiver, uint256 amount) external;
 
     // Core functions
     function initiateRedeem(uint256 shares) external returns (uint256, uint256);

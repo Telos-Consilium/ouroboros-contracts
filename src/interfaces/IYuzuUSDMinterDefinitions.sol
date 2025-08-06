@@ -25,17 +25,17 @@ interface IYuzuUSDMinterDefinitions {
     event StandardRedeemDelayUpdated(uint256 oldDelay, uint256 newDelay);
     event MaxMintPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
     event MaxRedeemPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
-    event CollateralWithdrawn(address indexed to, uint256 amount);
-    event Minted(address indexed from, address indexed to, uint256 amount);
-    event Redeemed(address indexed from, address indexed to, uint256 amount);
-    event InstantRedeem(address indexed from, address indexed to, uint256 amount, uint256 fee);
-    event FastRedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 amount);
+    event CollateralWithdrawn(address indexed to, uint256 assets);
+    event Minted(address indexed from, address indexed to, uint256 shares);
+    event Redeemed(address indexed from, address indexed to, uint256 shares);
+    event InstantRedeem(address indexed from, address indexed to, uint256 shares, uint256 fee);
+    event FastRedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 shares);
     event FastRedeemOrderFilled(
         uint256 indexed orderId,
         address indexed owner,
         address indexed filler,
         address feeRecipient,
-        uint256 amount,
+        uint256 shares,
         uint256 fee
     );
     event FastRedeemOrderCancelled(uint256 indexed orderId);

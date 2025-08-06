@@ -82,7 +82,9 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         vm.stopPrank();
     }
 
-    function _updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm) internal {
+    function _updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm)
+        internal
+    {
         vm.prank(poolManager);
         ilp.updatePool(newPoolSize, newWithdrawalAllowance, newDailyLinearYieldRatePpm);
     }
@@ -159,7 +161,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
 
     function test_SetTreasury_RevertOnlyAdmin() public {
         address newTreasury = makeAddr("newTreasury");
-        
+
         vm.expectRevert();
         vm.prank(user1);
         ilp.setTreasury(newTreasury);
@@ -237,14 +239,14 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
         assertEq(ilp.poolSize(), newPoolSize);
         assertEq(ilp.withdrawAllowance(), newWithdrawAllowance);
         assertEq(ilp.dailyLinearYieldRatePpm(), newYieldRatePpm);
-        
+
         vm.warp(block.timestamp + 1 days);
         assertEq(ilp.totalAssets(), newPoolSize);
     }
 
     function test_UpdatePool_RevertInvalidYield() public {
         uint256 invalidYieldRate = 1e6 + 1; // Over 100% daily yield
-        
+
         vm.expectRevert(abi.encodeWithSelector(InvalidYield.selector, invalidYieldRate));
         vm.prank(poolManager);
         ilp.updatePool(1_000e18, 500e18, invalidYieldRate);
@@ -332,7 +334,7 @@ contract YuzuILPTest is IYuzuILPDefinitions, Test {
     function test_Deposit_UpdatesStateWithYieldDiscount() public {
         uint256 depositAmount = 100e18;
         uint256 yieldRatePpm = 250_000; // 25% daily yield
-        
+
         _setMaxDepositPerBlock(depositAmount);
 
         vm.prank(user1);

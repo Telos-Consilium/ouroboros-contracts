@@ -132,10 +132,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         stakedYzusd.setMaxWithdrawPerBlock(newMaxWithdrawPerBlock);
 
         assertEq(stakedYzusd.maxWithdrawPerBlock(), newMaxWithdrawPerBlock);
-        
+
         vm.prank(user1);
         stakedYzusd.deposit(100e18, user1);
-        
+
         assertEq(stakedYzusd.maxWithdraw(user1), 0);
         assertEq(stakedYzusd.maxRedeem(user1), 0);
     }
@@ -166,15 +166,15 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         stakedYzusd.setRedeemDelay(newRedeemDelay);
 
         assertEq(stakedYzusd.redeemDelay(), newRedeemDelay);
-        
+
         vm.prank(user1);
         uint256 mintedShares = stakedYzusd.deposit(100e18, user1);
-        
+
         vm.prank(user1);
         (uint256 orderId,) = stakedYzusd.initiateRedeem(mintedShares);
-        
+
         stakedYzusd.finalizeRedeem(orderId);
-        
+
         Order memory order = stakedYzusd.getRedeemOrder(orderId);
         assertTrue(order.executed);
     }
@@ -208,10 +208,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         ERC20Mock otherToken = new ERC20Mock();
         uint256 amount = 0;
         uint256 balanceBefore = otherToken.balanceOf(user1);
-        
+
         vm.prank(owner);
         stakedYzusd.rescueTokens(address(otherToken), user1, amount);
-        
+
         assertEq(otherToken.balanceOf(user1), balanceBefore);
     }
 
@@ -219,7 +219,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         ERC20Mock otherToken = new ERC20Mock();
         uint256 amount = 100e18;
         otherToken.mint(address(stakedYzusd), amount);
-        
+
         // Test with zero address as recipient - should revert on transfer
         vm.expectRevert();
         vm.prank(owner);

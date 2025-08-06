@@ -23,12 +23,10 @@ contract YuzuUSDMinter is
     ReentrancyGuardUpgradeable,
     IYuzuUSDMinterDefinitions
 {
-    using SafeERC20 for IERC20;
-
-    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 private constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
+    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
 
     IYuzuUSD public yzusd;
     address public collateralToken;
@@ -289,14 +287,14 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns the number of tokens minted for {assets}.
+     * @notice Returns the number of tokens minted for {collateralAmount}.
      */
     function previewDeposit(uint256 collateralAmount) public view returns (uint256) {
         return collateralAmount * 10 ** _decimalsOffset();
     }
 
     /**
-     * @notice Returns the amount of collateral required to mint {amount} of yzusd.
+     * @notice Returns the amount of collateral required to mint {tokenAmount} of yzusd.
      *
      * Returns the collateral amount (1:1 with yzusd).
      */
@@ -305,7 +303,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns the amount of collateral withdrawn for an instant redemption of {amount} of yzusd.
+     * @notice Returns the amount of collateral withdrawn for an instant redemption of {tokenAmount} of yzusd.
      *
      * Returns the collateral amount after deducting the instant redemption fee.
      */
@@ -315,7 +313,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns the amount of collateral withdrawn for a fast redemption of {amount} of yzusd.
+     * @notice Returns the amount of collateral withdrawn for a fast redemption of {tokenAmount} of yzusd.
      *
      * Returns the collateral amount after deducting the fast redemption fee.
      */
@@ -325,7 +323,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Returns the amount of collateral withdrawn for a standard redemption of {amount} of yzusd.
+     * @notice Returns the amount of collateral withdrawn for a standard redemption of {tokenAmount} of yzusd.
      *
      * Returns the collateral amount after deducting the standard redemption fee.
      */
@@ -335,13 +333,13 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Mints {amount} of yzusd to {to}.
+     * @notice Mints {tokenAmount} of yzusd to {receiver}.
      *
      * Emits a `Minted` event with the caller, recipient, and amount.
      * Reverts if the amount is zero.
      * Reverts if the amount exceeds the maximum mint per block.
      */
-    function mint(address to, uint256 tokenAmount)
+    function mint(uint256 tokenAmount, address receiver)
         external
         nonReentrant
         notZeroUint256(tokenAmount)
@@ -350,15 +348,15 @@ contract YuzuUSDMinter is
     {
         mintedPerBlock[block.number] += tokenAmount;
         uint256 collateralAmount = previewMint(tokenAmount);
-        _mint(_msgSender(), to, collateralAmount, tokenAmount);
-        emit Minted(_msgSender(), to, tokenAmount);
+        _mint(_msgSender(), receiver, collateralAmount, tokenAmount);
+        emit Minted(_msgSender(), receiver, tokenAmount);
         return collateralAmount;
     }
 
     /**
-     * @notice Instant redeems {amount} of yzusd to {to}.
+     * @notice Instant redeems {tokenAmount} of yzusd to {receiver}.
      *
-     * Returns the amount of collateral transferred to {to} after fees.
+     * Returns the amount of collateral transferred to {receiver} after fees.
      * Charges a fee of {instantRedeemFeePpm} ppm.
      * Emits an `InstantRedeem` event with the caller, recipient, amount, and fee.
      * Emits a `Redeemed` event with the caller, recipient, and amount.
@@ -366,7 +364,7 @@ contract YuzuUSDMinter is
      * Reverts if the amount exceeds the maximum redemption per block.
      * Reverts if the amount exceeds the liquidity buffer size.
      */
-    function instantRedeem(address to, uint256 tokenAmount)
+    function instantRedeem(uint256 tokenAmount, address receiver)
         external
         nonReentrant
         notZeroUint256(tokenAmount)
@@ -377,15 +375,16 @@ contract YuzuUSDMinter is
         (uint256 collateralAmount, uint256 collateralFee) = _previewRedeem(tokenAmount, instantRedeemFeePpm);
         _enforceLiquidityBufferLimit(collateralAmount);
         _collectContractFee(collateralFee);
-        _instantRedeem(_msgSender(), to, collateralAmount, tokenAmount);
-        emit InstantRedeem(_msgSender(), to, tokenAmount, collateralFee);
-        emit Redeemed(_msgSender(), to, tokenAmount);
+        _instantRedeem(_msgSender(), receiver, collateralAmount, tokenAmount);
+
+        emit InstantRedeem(_msgSender(), receiver, tokenAmount, collateralFee);
+        emit Redeemed(_msgSender(), receiver, tokenAmount);
 
         return collateralAmount;
     }
 
     /**
-     * @notice Creates a fast redemption order for {amount} of yzusd.
+     * @notice Creates a fast redemption order for {tokenAmount} of yzusd.
      *
      * Returns the order ID.
      * Emits a `FastRedeemOrderCreated` event with the order ID, order owner, and amount.
@@ -451,7 +450,7 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Creates a standard redemption order for {amount} of yzusd.
+     * @notice Creates a standard redemption order for {tokenAmount} of yzusd.
      *
      * Returns the order ID.
      * Emits a `StandardRedeemOrderCreated` event with the order ID, order owner, and amount.
@@ -499,38 +498,38 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Withdraws {amount} of collateral to {to}.
+     * @notice Withdraws {collateralAmount} of collateral to {receiver}.
      *
      * Emits a `CollateralWithdrawn` event with the recipient and amount.
      * Reverts if called by anyone but an admin.
      * Reverts if the amount is zero.
      * Reverts if the amount exceeds the liquidity buffer.
      */
-    function withdrawCollateral(address to, uint256 collateralAmount)
+    function withdrawCollateral(uint256 collateralAmount, address receiver)
         external
         nonReentrant
         onlyRole(ADMIN_ROLE)
         notZeroUint256(collateralAmount)
         underLiquidityBuffer(collateralAmount)
     {
-        IERC20(collateralToken).safeTransfer(to, collateralAmount);
-        emit CollateralWithdrawn(to, collateralAmount);
+        SafeERC20.safeTransfer(IERC20(collateralToken), receiver, collateralAmount);
+        emit CollateralWithdrawn(receiver, collateralAmount);
     }
 
     /**
-     * @notice Transfers {amount} of {token} held by the contract to {to}.
+     * @notice Transfers {amount} of {token} held by the contract to {receiver}.
      *
      * Reverts if called by anyone but an admin.
      * Reverts if {token} is the collateral token.
      * Reverts if {token} is the yzusd token and {amount} exceeds the outstanding balance.
      */
-    function rescueTokens(address token, address to, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
+    function rescueTokens(address token, address receiver, uint256 amount) external nonReentrant onlyRole(ADMIN_ROLE) {
         if (token == collateralToken) revert InvalidToken(token);
         if (token == address(yzusd)) {
             uint256 outstandingBalance = _getOutstandingYuzuUSDBalance();
             if (amount > outstandingBalance) revert InsufficientOutstandingBalance(amount, outstandingBalance);
         }
-        IERC20(token).safeTransfer(to, amount);
+        SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
 
     /**
@@ -550,11 +549,7 @@ contract YuzuUSDMinter is
     /**
      * @notice Internal function to calculate the collateral withdrawn and fee for an instant redemption of {tokenAmount} of yzusd.
      */
-    function _previewRedeem(uint256 tokenAmount, uint256 redeemFeePpm)
-        internal
-        view
-        returns (uint256, uint256)
-    {
+    function _previewRedeem(uint256 tokenAmount, uint256 redeemFeePpm) internal view returns (uint256, uint256) {
         uint256 collateralAmountWithFee = tokenAmount / 10 ** _decimalsOffset();
         uint256 collateralFee = Math.mulDiv(collateralAmountWithFee, redeemFeePpm, 1e6, Math.Rounding.Ceil);
         return (collateralAmountWithFee - collateralFee, collateralFee);
@@ -565,9 +560,9 @@ contract YuzuUSDMinter is
      *
      * Transfers collateral from {from} to the treasury and mints yzusd to {to}.
      */
-    function _mint(address from, address to, uint256 collateralAmount, uint256 tokenAmount) internal {
-        IERC20(collateralToken).safeTransferFrom(from, treasury, collateralAmount);
-        yzusd.mint(to, tokenAmount);
+    function _mint(address from, address receiver, uint256 collateralAmount, uint256 tokenAmount) internal {
+        SafeERC20.safeTransferFrom(IERC20(collateralToken), from, treasury, collateralAmount);
+        yzusd.mint(receiver, tokenAmount);
     }
 
     /**
@@ -576,9 +571,9 @@ contract YuzuUSDMinter is
      * Burns yzusd from {from} and transfers collateral to {to}.
      * Transfers the fee to the redemption fee recipient if applicable.
      */
-    function _instantRedeem(address from, address to, uint256 collateralAmount, uint256 tokenAmount) internal {
+    function _instantRedeem(address from, address receiver, uint256 collateralAmount, uint256 tokenAmount) internal {
         yzusd.burnFrom(from, tokenAmount);
-        IERC20(collateralToken).safeTransfer(to, collateralAmount);
+        SafeERC20.safeTransfer(IERC20(collateralToken), receiver, collateralAmount);
     }
 
     /**
@@ -589,7 +584,7 @@ contract YuzuUSDMinter is
      */
     function _createFastRedeemOrder(address owner, uint256 tokenAmount) internal returns (uint256) {
         currentPendingFastRedeemValue += tokenAmount;
-        IERC20(yzusd).safeTransferFrom(owner, address(this), tokenAmount);
+        SafeERC20.safeTransferFrom(IERC20(yzusd), owner, address(this), tokenAmount);
         uint256 orderId = fastRedeemOrderCount;
         fastRedeemOrders[orderId] = Order({
             amount: tokenAmount,
@@ -613,7 +608,7 @@ contract YuzuUSDMinter is
         order.status = OrderStatus.Filled;
         currentPendingFastRedeemValue -= order.amount;
         yzusd.burn(order.amount);
-        IERC20(collateralToken).safeTransferFrom(filler, order.owner, collateralAmount);
+        SafeERC20.safeTransferFrom(IERC20(collateralToken), filler, order.owner, collateralAmount);
     }
 
     /**
@@ -625,7 +620,7 @@ contract YuzuUSDMinter is
     function _cancelFastRedeemOrder(Order storage order) internal {
         order.status = OrderStatus.Cancelled;
         currentPendingFastRedeemValue -= order.amount;
-        IERC20(yzusd).safeTransfer(order.owner, order.amount);
+        SafeERC20.safeTransfer(IERC20(yzusd), order.owner, order.amount);
     }
 
     /**
@@ -636,7 +631,7 @@ contract YuzuUSDMinter is
      */
     function _createStandardRedeemOrder(address owner, uint256 tokenAmount) internal returns (uint256) {
         currentPendingStandardRedeemValue += tokenAmount;
-        IERC20(yzusd).safeTransferFrom(owner, address(this), tokenAmount);
+        SafeERC20.safeTransferFrom(IERC20(yzusd), owner, address(this), tokenAmount);
         uint256 orderId = standardRedeemOrderCount;
         standardRedeemOrders[orderId] = Order({
             amount: tokenAmount,
@@ -660,18 +655,18 @@ contract YuzuUSDMinter is
         order.status = OrderStatus.Filled;
         currentPendingStandardRedeemValue -= order.amount;
         yzusd.burn(order.amount);
-        IERC20(collateralToken).safeTransfer(order.owner, collateralAmount);
+        SafeERC20.safeTransfer(IERC20(collateralToken), order.owner, collateralAmount);
     }
 
     function _collectContractFee(uint256 collateralFee) internal {
         if (collateralFee > 0 && redeemFeeRecipient != address(this)) {
-            IERC20(collateralToken).safeTransfer(redeemFeeRecipient, collateralFee);
+            SafeERC20.safeTransfer(IERC20(collateralToken), redeemFeeRecipient, collateralFee);
         }
     }
 
     function _collectFillerFee(address filler, address feeRecipient, uint256 collateralFee) internal {
         if (collateralFee > 0 && feeRecipient != filler) {
-            IERC20(collateralToken).safeTransferFrom(filler, feeRecipient, collateralFee);
+            SafeERC20.safeTransferFrom(IERC20(collateralToken), filler, feeRecipient, collateralFee);
         }
     }
 
