@@ -20,9 +20,7 @@ interface IYuzuUSDMinterDefinitions {
     event RedeemFeeRecipientUpdated(address oldRecipient, address newRecipient);
     event InstantRedeemFeePpmUpdated(uint256 oldFee, uint256 newFee);
     event FastRedeemFeePpmUpdated(uint256 oldFee, uint256 newFee);
-    event StandardRedeemFeePpmUpdated(uint256 oldFee, uint256 newFee);
     event FastFillWindowUpdated(uint256 oldWindow, uint256 newWindow);
-    event StandardRedeemDelayUpdated(uint256 oldDelay, uint256 newDelay);
     event MaxMintPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
     event MaxRedeemPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
     event CollateralWithdrawn(address indexed to, uint256 assets);
@@ -39,10 +37,6 @@ interface IYuzuUSDMinterDefinitions {
         uint256 fee
     );
     event FastRedeemOrderCancelled(uint256 indexed orderId);
-    event StandardRedeemOrderCreated(uint256 indexed orderId, address indexed owner, uint256 amount);
-    event StandardRedeemOrderFilled(
-        address indexed caller, uint256 indexed orderId, address indexed owner, uint256 amount, uint256 fee
-    );
 
     error InvalidZeroAddress();
     error InvalidZeroAmount();

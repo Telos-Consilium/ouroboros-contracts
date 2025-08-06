@@ -15,7 +15,7 @@ import "./interfaces/IYuzuUSDMinterDefinitions.sol";
  * @title YuzuUSDMinter
  * @dev Mints and redeems YuzuUSD tokens in exchange for 1:1 collateral tokens.
  * Deposited collateral is sent to an external treasury.
- * Implements three distinct redemption mechanisms with different speed, cost, and risk trade-offs.
+ * Implements two distinct redemption mechanisms with different speed, cost, and risk trade-offs.
  */
 contract YuzuUSDMinter is
     Initializable,
@@ -40,18 +40,13 @@ contract YuzuUSDMinter is
     uint256 public maxRedeemPerBlock;
 
     mapping(uint256 => Order) internal fastRedeemOrders;
-    mapping(uint256 => Order) internal standardRedeemOrders;
     uint256 public fastRedeemOrderCount;
-    uint256 public standardRedeemOrderCount;
 
     uint256 public instantRedeemFeePpm;
     uint256 public fastRedeemFeePpm;
-    uint256 public standardRedeemFeePpm;
     uint256 public fastFillWindow;
-    uint256 public standardRedeemDelay;
 
     uint256 public currentPendingFastRedeemValue;
-    uint256 public currentPendingStandardRedeemValue;
 
     /**
      * @dev Reverts if minting {tokenAmount} would exceed the maximum allowed per block.
@@ -123,7 +118,7 @@ contract YuzuUSDMinter is
      * @param _maxRedeemPerBlock Maximum YuzuUSD that can be redeemed per block.
      *
      * Fees are set to 0 by default.
-     * Fast fill window and standard redeem delay are set to 1 day and 7 days, respectively.
+     * Fast fill window is set to 1 day by default.
      */
     function initialize(
         address _yzusd,
@@ -152,16 +147,12 @@ contract YuzuUSDMinter is
         maxRedeemPerBlock = _maxRedeemPerBlock;
 
         fastRedeemOrderCount = 0;
-        standardRedeemOrderCount = 0;
 
         instantRedeemFeePpm = 0;
         fastRedeemFeePpm = 0;
-        standardRedeemFeePpm = 0;
         fastFillWindow = 1 days;
-        standardRedeemDelay = 7 days;
 
         currentPendingFastRedeemValue = 0;
-        currentPendingStandardRedeemValue = 0;
 
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
@@ -250,19 +241,6 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Sets the standard redemption fee to {newFeePpm}.
-     *
-     * Emits a `StandardRedeemFeePpmUpdated` event with the old and new fees.
-     * Reverts if called by anyone but a redeem manager.
-     * Reverts if {newFeePpm} is greater than 1,000,000 (100%).
-     */
-    function setStandardRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) validFee(newFeePpm) {
-        uint256 oldFee = standardRedeemFeePpm;
-        standardRedeemFeePpm = newFeePpm;
-        emit StandardRedeemFeePpmUpdated(oldFee, newFeePpm);
-    }
-
-    /**
      * @notice Sets the fast fill window to {newWindow}.
      *
      * Emits a `FastFillWindowUpdated` event with the old and new windows.
@@ -272,18 +250,6 @@ contract YuzuUSDMinter is
         uint256 oldWindow = fastFillWindow;
         fastFillWindow = newWindow;
         emit FastFillWindowUpdated(oldWindow, newWindow);
-    }
-
-    /**
-     * @notice Sets the standard redeem delay to {newDelay}.
-     *
-     * Emits a `StandardRedeemDelayUpdated` event with the old and new delays.
-     * Reverts if called by anyone but a redeem manager.
-     */
-    function setStandardRedeemDelay(uint256 newDelay) external onlyRole(REDEEM_MANAGER_ROLE) {
-        uint256 oldDelay = standardRedeemDelay;
-        standardRedeemDelay = newDelay;
-        emit StandardRedeemDelayUpdated(oldDelay, newDelay);
     }
 
     /**
@@ -319,16 +285,6 @@ contract YuzuUSDMinter is
      */
     function previewFastRedeem(uint256 tokenAmount) public view returns (uint256) {
         (uint256 collateralAmount,) = _previewRedeem(tokenAmount, fastRedeemFeePpm);
-        return collateralAmount;
-    }
-
-    /**
-     * @notice Returns the amount of collateral withdrawn for a standard redemption of {tokenAmount} of yzusd.
-     *
-     * Returns the collateral amount after deducting the standard redemption fee.
-     */
-    function previewStandardRedeem(uint256 tokenAmount) public view returns (uint256) {
-        (uint256 collateralAmount,) = _previewRedeem(tokenAmount, standardRedeemFeePpm);
         return collateralAmount;
     }
 
@@ -450,54 +406,6 @@ contract YuzuUSDMinter is
     }
 
     /**
-     * @notice Creates a standard redemption order for {tokenAmount} of yzusd.
-     *
-     * Returns the order ID.
-     * Emits a `StandardRedeemOrderCreated` event with the order ID, order owner, and amount.
-     * Reverts if the amount is zero.
-     * Reverts if the amount exceeds the maximum redemption per block.
-     */
-    function createStandardRedeemOrder(uint256 tokenAmount)
-        external
-        nonReentrant
-        notZeroUint256(tokenAmount)
-        underMaxRedeemPerBlock(tokenAmount)
-        returns (uint256)
-    {
-        redeemedPerBlock[block.number] += tokenAmount;
-        (uint256 collateralAmount,) = _previewRedeem(tokenAmount, standardRedeemFeePpm);
-        _enforceLiquidityBufferLimit(collateralAmount);
-        uint256 orderId = _createStandardRedeemOrder(_msgSender(), tokenAmount);
-        emit StandardRedeemOrderCreated(orderId, _msgSender(), tokenAmount);
-        return orderId;
-    }
-
-    /**
-     * @notice Fills a standard redemption order with {orderId} by transferring the amount to the owner.
-     *
-     * Can be called by anyone, not just the order owner.
-     * Emits a `StandardRedeemOrderFilled` event with the caller, order ID, owner, amount, and fee.
-     * Emits a `Redeemed` event with the order owner, recipient, and amount.
-     * Reverts if the order does not exist.
-     * Reverts if the order is not pending.
-     * Reverts if the order is not yet due.
-     * Reverts if the amount exceeds the liquidity buffer size.
-     */
-    function fillStandardRedeemOrder(uint256 orderId) external nonReentrant {
-        Order storage order = standardRedeemOrders[orderId];
-        if (order.amount == 0) revert InvalidOrder(orderId);
-        if (order.status != OrderStatus.Pending) revert OrderNotPending(orderId);
-        if (block.timestamp < order.dueTime) revert OrderNotDue(orderId);
-
-        (uint256 collateralAmount, uint256 collateralFee) = _previewRedeem(order.amount, order.feePpm);
-        _collectContractFee(collateralFee);
-        _fillStandardRedeemOrder(order, collateralAmount);
-
-        emit StandardRedeemOrderFilled(_msgSender(), orderId, order.owner, order.amount, collateralFee);
-        emit Redeemed(order.owner, order.owner, order.amount);
-    }
-
-    /**
      * @notice Withdraws {collateralAmount} of collateral to {receiver}.
      *
      * Emits a `CollateralWithdrawn` event with the recipient and amount.
@@ -537,13 +445,6 @@ contract YuzuUSDMinter is
      */
     function getFastRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return fastRedeemOrders[orderId];
-    }
-
-    /**
-     * @notice Returns a standard redemption order by {orderId}.
-     */
-    function getStandardRedeemOrder(uint256 orderId) external view returns (Order memory) {
-        return standardRedeemOrders[orderId];
     }
 
     /**
@@ -623,41 +524,6 @@ contract YuzuUSDMinter is
         SafeERC20.safeTransfer(IERC20(yzusd), order.owner, order.amount);
     }
 
-    /**
-     * @dev Internal function to create a standard redemption order.
-     *
-     * Transfers yzusd from {owner} to the contract and creates a standard redemption order.
-     * Returns the order ID.
-     */
-    function _createStandardRedeemOrder(address owner, uint256 tokenAmount) internal returns (uint256) {
-        currentPendingStandardRedeemValue += tokenAmount;
-        SafeERC20.safeTransferFrom(IERC20(yzusd), owner, address(this), tokenAmount);
-        uint256 orderId = standardRedeemOrderCount;
-        standardRedeemOrders[orderId] = Order({
-            amount: tokenAmount,
-            owner: owner,
-            feePpm: uint32(standardRedeemFeePpm),
-            dueTime: uint40(block.timestamp + standardRedeemDelay),
-            status: OrderStatus.Pending
-        });
-        standardRedeemOrderCount++;
-        return orderId;
-    }
-
-    /**
-     * @dev Internal function to fill a standard redemption order.
-     *
-     * Marks the order as filled, updates the current pending standard redemption value,
-     * and transfers the assets to the owner.
-     * Transfers the fee to the redemption fee recipient if applicable.
-     */
-    function _fillStandardRedeemOrder(Order storage order, uint256 collateralAmount) internal {
-        order.status = OrderStatus.Filled;
-        currentPendingStandardRedeemValue -= order.amount;
-        yzusd.burn(order.amount);
-        SafeERC20.safeTransfer(IERC20(collateralToken), order.owner, collateralAmount);
-    }
-
     function _collectContractFee(uint256 collateralFee) internal {
         if (collateralFee > 0 && redeemFeeRecipient != address(this)) {
             SafeERC20.safeTransfer(IERC20(collateralToken), redeemFeeRecipient, collateralFee);
@@ -680,22 +546,21 @@ contract YuzuUSDMinter is
     /**
      * @dev Returns the current outstanding collateral balance.
      *
-     * Returns the total collateral minus the current pending standard redemption value.
+     * Returns the total collateral balance.
      */
     function _getLiquidityBufferSize() internal view returns (uint256) {
-        uint256 balance = IERC20(collateralToken).balanceOf(address(this));
-        return balance - previewMint(currentPendingStandardRedeemValue);
+        return IERC20(collateralToken).balanceOf(address(this));
     }
 
     /**
      * @dev Returns the current outstanding YuzuUSD balance.
      *
      * yzUSD that has been sent to the contract but is not committed to any redemption orders.
-     * Returns the total YuzuUSD minus the current pending fast and standard redemption values.
+     * Returns the total YuzuUSD minus the current pending fast redemption values.
      */
     function _getOutstandingYuzuUSDBalance() internal view returns (uint256) {
         uint256 balance = IERC20(yzusd).balanceOf(address(this));
-        return balance - currentPendingFastRedeemValue - currentPendingStandardRedeemValue;
+        return balance - currentPendingFastRedeemValue;
     }
 
     function _decimalsOffset() internal view virtual returns (uint8) {
