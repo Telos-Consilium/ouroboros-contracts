@@ -239,14 +239,14 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_SetMaxMintPerBlock() public {
-        uint256 newMaxMint = 2000e18;
+        uint256 newMaxMintPerBlock = 2000e18;
 
         vm.expectEmit();
-        emit MaxMintPerBlockUpdated(MAX_MINT_PER_BLOCK, newMaxMint);
+        emit MaxMintPerBlockUpdated(MAX_MINT_PER_BLOCK, newMaxMintPerBlock);
         vm.prank(limitManager);
-        minter.setMaxMintPerBlock(newMaxMint);
+        minter.setMaxMintPerBlock(newMaxMintPerBlock);
 
-        assertEq(minter.maxMintPerBlock(), newMaxMint);
+        assertEq(minter.maxMintPerBlock(), newMaxMintPerBlock);
     }
 
     function test_SetMaxMintPerBlock_RevertOnlyLimitManager() public {
@@ -256,14 +256,14 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_SetMaxRedeemPerBlock() public {
-        uint256 newMaxRedeem = 1000e18;
+        uint256 newMaxRedeemPerBlock = 1000e18;
 
         vm.expectEmit();
-        emit MaxRedeemPerBlockUpdated(MAX_REDEEM_PER_BLOCK, newMaxRedeem);
+        emit MaxRedeemPerBlockUpdated(MAX_REDEEM_PER_BLOCK, newMaxRedeemPerBlock);
         vm.prank(limitManager);
-        minter.setMaxRedeemPerBlock(newMaxRedeem);
+        minter.setMaxRedeemPerBlock(newMaxRedeemPerBlock);
 
-        assertEq(minter.maxRedeemPerBlock(), newMaxRedeem);
+        assertEq(minter.maxRedeemPerBlock(), newMaxRedeemPerBlock);
     }
 
     function test_SetMaxRedeemPerBlock_RevertOnlyLimitManager() public {
@@ -273,14 +273,14 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_SetInstantRedeemFeePpm() public {
-        uint256 newFeePpm = 5_000;
+        uint256 newInstantRedeemFeePpm = 5_000;
 
         vm.expectEmit();
-        emit InstantRedeemFeePpmUpdated(0, newFeePpm);
+        emit InstantRedeemFeePpmUpdated(0, newInstantRedeemFeePpm);
         vm.prank(redeemManager);
-        minter.setInstantRedeemFeePpm(newFeePpm);
+        minter.setInstantRedeemFeePpm(newInstantRedeemFeePpm);
 
-        assertEq(minter.instantRedeemFeePpm(), newFeePpm);
+        assertEq(minter.instantRedeemFeePpm(), newInstantRedeemFeePpm);
     }
 
     function test_SetInstantRedeemFeePpm_RevertOnlyRedeemManager() public {
@@ -290,14 +290,14 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_SetFastRedeemFeePpm() public {
-        uint256 newFeePpm = 2_500;
+        uint256 newFastRedeemFeePpm = 2_500;
 
         vm.expectEmit();
-        emit FastRedeemFeePpmUpdated(0, newFeePpm);
+        emit FastRedeemFeePpmUpdated(0, newFastRedeemFeePpm);
         vm.prank(redeemManager);
-        minter.setFastRedeemFeePpm(newFeePpm);
+        minter.setFastRedeemFeePpm(newFastRedeemFeePpm);
 
-        assertEq(minter.fastRedeemFeePpm(), newFeePpm);
+        assertEq(minter.fastRedeemFeePpm(), newFastRedeemFeePpm);
     }
 
     function test_SetFastRedeemFeePpm_RevertOnlyRedeemManager() public {
@@ -307,14 +307,14 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_SetStandardRedeemFeePpm() public {
-        uint256 newFeePpm = 1_000;
+        uint256 newStandardRedeemFeePpm = 1_000;
 
         vm.expectEmit();
-        emit StandardRedeemFeePpmUpdated(0, newFeePpm);
+        emit StandardRedeemFeePpmUpdated(0, newStandardRedeemFeePpm);
         vm.prank(redeemManager);
-        minter.setStandardRedeemFeePpm(newFeePpm);
+        minter.setStandardRedeemFeePpm(newStandardRedeemFeePpm);
 
-        assertEq(minter.standardRedeemFeePpm(), newFeePpm);
+        assertEq(minter.standardRedeemFeePpm(), newStandardRedeemFeePpm);
     }
 
     function test_SetStandardRedeemFeePpm_RevertOnlyRedeemManager() public {
@@ -324,14 +324,14 @@ contract YuzuUSDMinterTest is IYuzuUSDMinterDefinitions, Test {
     }
 
     function test_SetFastFillWindow() public {
-        uint256 newWindow = 2 days;
+        uint256 newFastFillWindow = 2 days;
 
         vm.expectEmit();
-        emit FastFillWindowUpdated(1 days, newWindow);
+        emit FastFillWindowUpdated(1 days, newFastFillWindow);
         vm.prank(redeemManager);
-        minter.setFastFillWindow(newWindow);
+        minter.setFastFillWindow(newFastFillWindow);
 
-        assertEq(minter.fastFillWindow(), newWindow);
+        assertEq(minter.fastFillWindow(), newFastFillWindow);
     }
 
     function test_SetFastFillWindow_RevertOnlyRedeemManager() public {
