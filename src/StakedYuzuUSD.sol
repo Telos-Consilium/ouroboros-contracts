@@ -11,7 +11,7 @@ import {IStakedYuzuUSDDefinitions, Order, OrderStatus} from "./interfaces/IStake
 
 /**
  * @title StakedYuzuUSD
- * @notice ERC-4626 tokenized vault for staking yzUsd with 2-step delayed redemptions.
+ * @notice ERC-4626 tokenized vault for staking yzUsd with 2-step delayed redemptions
  */
 contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYuzuUSDDefinitions {
     mapping(uint256 => uint256) public depositedPerBlock;
@@ -33,19 +33,17 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     }
 
     /**
-     * @notice Initializes the StakedYuzuUSD contract with the specified parameters.
-     * @param _yzUsd The underlying ERC-20 token (yzUsd) for the vault
-     * @param name_ The name of the staked token, e.g. "Staked YuzuUSD"
-     * @param symbol_ The symbol of the staked token, e.g. "st-yzUsd"
+     * @notice Initializes the StakedYuzuUSD contract
+     * @param _asset The underlying ERC-20 token for the vault
+     * @param name_ The name of the staked token
+     * @param symbol_ The symbol of the staked token
      * @param _owner The owner of the contract
      * @param _maxDepositPerBlock Maximum assets that can be deposited per block
      * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      * @param _redeemDelay The delay in seconds before a redeem order can be finalized
-     *
-     * Redemption delay is set to 1 day by default.
      */
     function initialize(
-        IERC20 _yzUsd,
+        IERC20 _asset,
         string memory name_,
         string memory symbol_,
         address _owner,
@@ -53,10 +51,10 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         uint256 _maxWithdrawPerBlock,
         uint256 _redeemDelay
     ) external initializer {
-        if (address(_yzUsd) == address(0)) revert InvalidZeroAddress();
+        if (address(_asset) == address(0)) revert InvalidZeroAddress();
         if (_owner == address(0)) revert InvalidZeroAddress();
 
-        __ERC4626_init(_yzUsd);
+        __ERC4626_init(_asset);
         __ERC20_init(name_, symbol_);
         __Ownable_init(_owner);
         __Ownable2Step_init();
@@ -66,45 +64,31 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         redeemDelay = _redeemDelay;
     }
 
-    /**
-     * @notice Returns the total amount of underlying asset deposits in the vault.
-     *
-     * Assets in pending redemptions are not included in total assets.
-     */
+    /// @notice Returns the total amount of underlying asset deposits in the vault
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() - currentPendingOrderValue;
     }
 
-    /// @dev Preview adding an exit fee on withdraw. See {IERC4626-previewWithdraw}.
+    /// @notice Preview the amount of shares needed to withdraw `assets` including fees
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemOrderFeePpm);
         return super.previewWithdraw(assets + fee);
     }
 
-    /// @dev Preview taking an exit fee on redeem. See {IERC4626-previewRedeem}.
+    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
     function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
         return assets - _feeOnTotal(assets, redeemOrderFeePpm);
     }
 
-    /**
-     * @notice Returns the maximum deposit.
-     *
-     * Takes an address as input for ERC-4626 compatibility.
-     * Deposit size is only limited by the maximum deposit per block.
-     */
+    /// @notice Returns the maximum deposit amount
     function maxDeposit(address) public view override returns (uint256) {
         uint256 deposited = depositedPerBlock[block.number];
         if (deposited >= maxDepositPerBlock) return 0;
         return maxDepositPerBlock - deposited;
     }
 
-    /**
-     * @notice Returns the maximum mint.
-     *
-     * Takes an address as input for ERC-4626 compatibility.
-     * Mint size is only limited by the maximum deposit per block.
-     */
+    /// @notice Returns the maximum mint amount
     function maxMint(address receiver) public view override returns (uint256) {
         uint256 _maxDeposit = maxDeposit(receiver);
         if (_maxDeposit == type(uint256).max) {
@@ -113,56 +97,42 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         return convertToShares(_maxDeposit);
     }
 
-    /**
-     * @notice Returns the maximum withdrawal by {owner}.
-     *
-     * Maximum withdrawal is limited by the maximum withdrawal per block and {owner}'s shares.
-     */
+    /// @notice Returns the maximum withdrawal for `owner`
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
         return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - withdrawn);
     }
 
-    /**
-     * @notice Returns the maximum redemption by {owner}.
-     *
-     * Maximum redemption is limited by the maximum withdrawal per block and {owner}'s shares.
-     */
+    /// @notice Returns the maximum redemption for `owner`
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
         return Math.min(super.maxRedeem(owner), previewWithdraw(maxWithdrawPerBlock - withdrawn));
     }
 
+    /// @notice Returns the maximum redemption order amount for `owner`
     function maxRedeemOrder(address owner) public view returns (uint256) {
         return maxRedeem(owner);
     }
 
     /**
-     * @notice Withdraw function is disabled. Instant withdrawals are not supported.
-     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead.
+     * @notice Withdraw function is disabled - instant withdrawals are not supported
+     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
     /**
-     * @notice Redeem function is disabled. Instant redemptions are not supported.
-     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead.
+     * @notice Redeem function is disabled - instant redemptions are not supported
+     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
     function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
         revert RedeemNotSupported();
     }
 
-    /**
-     * @notice Initiates a 2-step redemption of {shares}.
-     *
-     * Shares are burned now, assets are redeemable after the redemption delay elapses.
-     * Returns the order ID and the amount of assets to be redeemed.
-     * Emits a `RedeemInitiated` event with the order ID, order owner, assets, and shares.
-     * Reverts if {shares} is zero or exceeds the maximum redemption allowed.
-     */
+    /// @notice Initiates a 2-step redemption of `shares`
     function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256) {
         uint256 maxShares = maxRedeem(owner);
         if (shares > maxShares) {
@@ -178,16 +148,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         return (orderId, assets);
     }
 
-    /**
-     * @notice Finalizes a 2-step redemption order by {orderId}.
-     *
-     * Can be called by anyone, not just the order owner.
-     * Emits a `RedeemFinalized` event with caller, the order ID, order owner, assets, and shares.
-     * Emits a `Withdraw` event with the caller, receiver, order owner, assets, and shares for ERC-4626 compatibility.
-     * Reverts if the order does not exist.
-     * Reverts if the order is already executed.
-     * Reverts if the order is not due yet.
-     */
+    /// @notice Finalizes a 2-step redemption order by `orderId`
     function finalizeRedeem(uint256 orderId) external {
         Order storage order = orders[orderId];
         if (order.status != OrderStatus.Pending) {
@@ -204,60 +165,39 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         emit Withdraw(caller, order.owner, order.owner, order.assets, order.shares);
     }
 
-    /**
-     * @notice Transfers {amount} of {token} held by the vault to {receiver}.
-     *
-     * Reverts if called by anyone but the contract owner.
-     * Reverts if {token} is the underlying asset of the vault.
-     */
+    /// @notice Transfers `amount` of `token` held by the vault to `receiver`
     function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
         if (token == asset()) revert InvalidAssetRescue(token);
         SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
 
-    /**
-     * @notice Returns a redeem order by {orderId}.
-     */
+    /// @notice Returns a redeem order by `orderId`
     function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return orders[orderId];
     }
 
-    /**
-     * @notice Sets the maximum deposit per block to {newMax}.
-     *
-     * Emits a `UpdatedMaxDepositPerBlock` event with the old and new limits.
-     * Reverts if called by anyone but the contract owner.
-     */
+    /// @notice Sets the maximum deposit per block to `newMax`
     function setMaxDepositPerBlock(uint256 newMax) external onlyOwner {
         uint256 oldMax = maxDepositPerBlock;
         maxDepositPerBlock = newMax;
         emit UpdatedMaxDepositPerBlock(oldMax, newMax);
     }
 
-    /**
-     * @notice Sets the maximum withdrawal per block to {newMax}.
-     *
-     * Emits a `UpdatedMaxWithdrawPerBlock` event with the old and new limits.
-     * Reverts if called by anyone but the contract owner.
-     */
+    /// @notice Sets the maximum withdrawal per block to `newMax`
     function setMaxWithdrawPerBlock(uint256 newMax) external onlyOwner {
         uint256 oldMax = maxWithdrawPerBlock;
         maxWithdrawPerBlock = newMax;
         emit UpdatedMaxWithdrawPerBlock(oldMax, newMax);
     }
 
-    /**
-     * @notice Sets the redemption delay to {newDelay}.
-     *
-     * Emits a `UpdatedRedeemDelay` event with the old and new delay durations.
-     * Reverts if called by anyone but the contract owner.
-     */
+    /// @notice Sets the redemption delay to `newDelay`
     function setRedeemDelay(uint256 newDelay) external onlyOwner {
         uint256 oldDelay = redeemDelay;
         redeemDelay = newDelay;
         emit UpdatedRedeemDelay(oldDelay, newDelay);
     }
 
+    /// @notice Sets the redeem order fee to `newFeePpm`
     function setRedeemOrderFee(uint256 newFeePpm) external onlyOwner {
         if (newFeePpm > 1e6) revert InvalidRedeemOrderFee(newFeePpm);
         uint256 oldFeePpm = redeemOrderFeePpm;
@@ -270,12 +210,6 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         super._deposit(caller, receiver, assets, shares);
     }
 
-    /**
-     * @dev Internal function to initiate a redeem order.
-     *
-     * Burns the shares and creates a redeem order for {assets} and {shares}.
-     * Returns the order ID.
-     */
     function _initiateRedeem(address caller, address receiver, address owner, uint256 assets, uint256 shares)
         internal
         returns (uint256)
@@ -302,12 +236,6 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         return orderId;
     }
 
-    /**
-     * @dev Internal function to finalize a redeem order.
-     *
-     * Marks the order as executed, updates the current redeem asset commitment,
-     * and transfers the assets to the order owner.
-     */
     function _finalizeRedeem(address caller, Order storage order) internal {
         order.status = OrderStatus.Executed;
         currentPendingOrderValue -= order.assets;

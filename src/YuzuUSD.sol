@@ -5,6 +5,10 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {YuzuProto} from "./proto/YuzuProto.sol";
 
+/**
+ * @title YuzuUSD
+ * @notice YuzuUSD token implementation with 1:1 peg to underlying asset
+ */
 contract YuzuUSD is YuzuProto {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -12,17 +16,15 @@ contract YuzuUSD is YuzuProto {
     }
 
     /**
-     * @notice Initializes the YuzuUSDMinter contract with the specified parameters.
-     * @param __asset The address of the collateral token contract.
-     * @param __name The name of the YuzuUSD token.
-     * @param __symbol The symbol of the YuzuUSD token.
-     * @param _admin The admin of the contract.
-     * @param __treasury The address of the treasury where collateral is sent.
-     * @param _maxDepositPerBlock Maximum YuzuUSD that can be minted per block.
-     * @param _maxWithdrawPerBlock Maximum YuzuUSD that can be redeemed per block.
-     * @param _fillWindow The window in seconds during which redeem orders can be filled.
-     *
-     * Fees are set to 0 by default.
+     * @notice Initializes the YuzuUSD contract
+     * @param __asset The address of the collateral token contract
+     * @param __name The name of the YuzuUSD token
+     * @param __symbol The symbol of the YuzuUSD token
+     * @param _admin The admin of the contract
+     * @param __treasury The address of the treasury where collateral is sent
+     * @param _maxDepositPerBlock Maximum collateral that can be deposited per block
+     * @param _maxWithdrawPerBlock Maximum collateral that can be withdrawn per block
+     * @param _fillWindow The fill window in seconds after which redeem order become cancellable
      */
     function initialize(
         address __asset,
@@ -39,26 +41,31 @@ contract YuzuUSD is YuzuProto {
         );
     }
 
+    /// @notice Preview the amount of shares to receive when depositing `assets`
     function previewDeposit(uint256 assets) public view override returns (uint256) {
         return assets * 10 ** _decimalsOffset();
     }
 
+    /// @notice Preview the amount of assets needed to mint `shares`
     function previewMint(uint256 tokens) public view override returns (uint256) {
         return Math.ceilDiv(tokens, 10 ** _decimalsOffset());
     }
 
+    /// @notice Preview the amount of shares needed to withdraw `assets` including fees
     function previewWithdraw(uint256 assets) public view override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 tokens = previewDeposit(assets + fee);
         return tokens;
     }
 
+    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
     function previewRedeem(uint256 tokens) public view override returns (uint256) {
         uint256 assets = previewMint(tokens);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return assets - fee;
     }
 
+    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         uint256 assets = previewMint(tokens);
 

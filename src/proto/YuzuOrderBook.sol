@@ -40,13 +40,6 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return __yuzu_balanceOf(owner);
     }
 
-    /**
-     * @notice Creates a redemption order for {tokenAmount} of yzusd.
-     *
-     * Returns the order ID.
-     * Emits a `CreatedRedeemOrder` event with the order ID, order owner, and amount.
-     * Reverts if the amount is zero.
-     */
     function createRedeemOrder(uint256 tokens, address receiver, address owner)
         public
         virtual
@@ -66,16 +59,6 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return (orderId, assets);
     }
 
-    /**
-     * @notice Fills a redemption order with {orderId} by transferring the amount to the owner.
-     *
-     * The fee is transferred to {feeRecipient}.
-     * Emits a `FilledRedeemOrder` event with the order ID, owner, filler, fee recipient, amount, and fee.
-     * Emits a `Redeemed` event with the order owner, recipient, and amount.
-     * Reverts if called by anyone but an order filler.
-     * Reverts if the order does not exist.
-     * Reverts if the order is not pending.
-     */
     function fillRedeemOrder(uint256 orderId) public virtual {
         Order storage order = _getOrder(orderId);
         if (order.status != OrderStatus.Pending) {
@@ -90,15 +73,6 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
     }
 
-    /**
-     * @notice Cancels a redemption order with {orderId}.
-     *
-     * Emits a `CancelledRedeemOrder` event with the order ID.
-     * Reverts if called by anyone but the order owner.
-     * Reverts if the order does not exist.
-     * Reverts if the order is not pending.
-     * Reverts if the order is not yet due for cancellation.
-     */
     function cancelRedeemOrder(uint256 orderId) public virtual {
         Order storage order = _getOrder(orderId);
         if (_msgSender() != order.owner) {
@@ -131,19 +105,10 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return $._orderCount;
     }
 
-    /**
-     * @notice Returns a redemption order by {orderId}.
-     */
     function getRedeemOrder(uint256 orderId) public view returns (Order memory) {
         return _getOrder(orderId);
     }
 
-    /**
-     * @dev Internal function to create a redemption order.
-     *
-     * Transfers yzusd from {owner} to the contract and creates a redemption order.
-     * Returns the order ID.
-     */
     function _createRedeemOrder(address caller, address receiver, address owner, uint256 tokens, uint256 assets)
         internal
         virtual
@@ -171,13 +136,6 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return orderId;
     }
 
-    /**
-     * @dev Internal function to fill a redemption order.
-     *
-     * Marks the order as filled, updates the current pending redemption value,
-     * and transfers the assets to the owner.
-     * Transfers the fee to the fee recipient if applicable.
-     */
     function _fillRedeemOrder(address caller, Order storage order) internal virtual {
         order.status = OrderStatus.Filled;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
@@ -187,12 +145,6 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, order.receiver, order.assets);
     }
 
-    /**
-     * @dev Internal function to cancel a redemption order.
-     *
-     * Marks the order as cancelled, updates the current pending redemption value,
-     * and transfers the yzusd back to the owner.
-     */
     function _cancelRedeemOrder(Order storage order) internal virtual {
         order.status = OrderStatus.Cancelled;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
