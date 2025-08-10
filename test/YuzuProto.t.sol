@@ -247,8 +247,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(sender), senderTokensBefore);
         assertEq(proto.balanceOf(receiver), receiverTokensBefore + expectedTokens);
 
-        assertEq(proto.totalSupply(), mintedTokens);
-        assertEq(proto.depositedPerBlock(block.number), depositAmount);
+        assertEq(proto.totalSupply(), supplyBefore + mintedTokens);
+        assertEq(proto.depositedPerBlock(block.number), depositedPerBlockBefore + depositAmount);
     }
 
     function test_Deposit_Revert_ExceedsMaxDeposit() public {
@@ -293,8 +293,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(sender), senderTokensBefore);
         assertEq(proto.balanceOf(receiver), receiverTokensBefore + mintAmount);
 
-        assertEq(proto.totalSupply(), mintAmount);
-        assertEq(proto.depositedPerBlock(block.number), expectedAssets);
+        assertEq(proto.totalSupply(), supplyBefore + mintAmount);
+        assertEq(proto.depositedPerBlock(block.number), depositedPerBlockBefore + expectedAssets);
     }
 
     function test_Mint_Revert_ExceedsMaxMint() public {
@@ -706,16 +706,16 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_RescueTokens() public {
         ERC20Mock otherAsset = new ERC20Mock();
         otherAsset.mint(address(proto), 100e6);
-        uint256 balanceBefore = otherAsset.balanceOf(admin);
+        uint256 balanceBefore = otherAsset.balanceOf(user1);
 
         vm.prank(admin);
-        proto.rescueTokens(address(otherAsset), admin, 50e6);
+        proto.rescueTokens(address(otherAsset), user1, 50e6);
 
-        assertEq(otherAsset.balanceOf(admin), balanceBefore + 50e6);
+        assertEq(otherAsset.balanceOf(user1), balanceBefore + 50e6);
         assertEq(otherAsset.balanceOf(address(proto)), 50e6);
     }
 
-    function test_RescueTokens_Token() public {
+    function test_RescueTokens_UnderlyingToken() public {
         _deposit(user1, 100e6);
 
         vm.prank(user1);
@@ -724,16 +724,16 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.prank(user1);
         proto.createRedeemOrder(50e18, user1, user1);
 
-        uint256 balanceBefore = proto.balanceOf(admin);
+        uint256 balanceBefore = proto.balanceOf(user1);
 
         vm.prank(admin);
-        proto.rescueTokens(address(proto), admin, 50e18);
+        proto.rescueTokens(address(proto), user1, 50e18);
 
-        assertEq(proto.balanceOf(admin), balanceBefore + 50e18);
+        assertEq(proto.balanceOf(user1), balanceBefore + 50e18);
         assertEq(proto.balanceOf(address(proto)), 50e18);
     }
 
-    function test_RescueTokens_Token_Revert_ExceededOutstandingBalance() public {
+    function test_RescueTokens_UnderlyingToken_Revert_ExceededOutstandingBalance() public {
         _deposit(user1, 100e6);
 
         vm.prank(user1);
@@ -754,7 +754,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
         );
-        proto.rescueTokens(address(otherAsset), user1, 50e6);
+        proto.rescueTokens(address(otherAsset), user2, 50e6);
     }
 
     // Configuration functions
