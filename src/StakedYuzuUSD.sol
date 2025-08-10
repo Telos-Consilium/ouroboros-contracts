@@ -20,7 +20,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     uint256 public maxWithdrawPerBlock;
 
     uint256 public redeemDelay;
-    uint256 public redeemFeePpm;
+    uint256 public redeemOrderFeePpm;
 
     uint256 public currentPendingOrderValue;
 
@@ -77,14 +77,14 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     /// @dev Preview adding an exit fee on withdraw. See {IERC4626-previewWithdraw}.
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
+        uint256 fee = _feeOnRaw(assets, redeemOrderFeePpm);
         return super.previewWithdraw(assets + fee);
     }
 
     /// @dev Preview taking an exit fee on redeem. See {IERC4626-previewRedeem}.
     function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
-        return assets - _feeOnTotal(assets, redeemFeePpm);
+        return assets - _feeOnTotal(assets, redeemOrderFeePpm);
     }
 
     /**
@@ -132,7 +132,11 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
-        return Math.min(super.maxRedeem(owner), previewDeposit(maxWithdrawPerBlock - withdrawn));
+        return Math.min(super.maxRedeem(owner), previewWithdraw(maxWithdrawPerBlock - withdrawn));
+    }
+
+    function maxRedeemOrder(address owner) public view returns (uint256) {
+        return maxRedeem(owner);
     }
 
     /**
@@ -207,7 +211,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
      * Reverts if {token} is the underlying asset of the vault.
      */
     function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
-        if (token == asset()) revert InvalidToken(token);
+        if (token == asset()) revert InvalidAssetRescue(token);
         SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
 
@@ -254,10 +258,11 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         emit UpdatedRedeemDelay(oldRedeemDelay, newRedeemDelay);
     }
 
-    function setRedeemFee(uint256 newRedeemFeePpm) external onlyOwner {
-        uint256 oldRedeemFeePpm = redeemFeePpm;
-        redeemFeePpm = newRedeemFeePpm;
-        emit UpdatedRedeemFee(oldRedeemFeePpm, newRedeemFeePpm);
+    function setRedeemOrderFee(uint256 newRedeemFeePpm) external onlyOwner {
+        if (newRedeemFeePpm > 1e6) revert InvalidRedeemOrderFee(newRedeemFeePpm);
+        uint256 oldRedeemFeePpm = redeemOrderFeePpm;
+        redeemOrderFeePpm = newRedeemFeePpm;
+        emit UpdatedRedeemOrderFee(oldRedeemFeePpm, newRedeemFeePpm);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {

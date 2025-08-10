@@ -36,12 +36,13 @@ interface IStakedYuzuUSDDefinitions {
     event UpdatedMaxDepositPerBlock(uint256 oldLimit, uint256 newLimit);
     event UpdatedMaxWithdrawPerBlock(uint256 oldLimit, uint256 newLimit);
     event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
-    event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
+    event UpdatedRedeemOrderFee(uint256 oldFee, uint256 newFee);
 
     // error InvalidZeroShares();
     // error InvalidZeroAmount();
     error InvalidZeroAddress();
-    error InvalidToken(address token);
+    error InvalidRedeemOrderFee(uint256 provided);
+    error InvalidAssetRescue(address token);
     error WithdrawNotSupported();
     error RedeemNotSupported();
     error OrderNotPending(uint256 orderId);
