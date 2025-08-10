@@ -97,7 +97,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
      * @notice Returns the number of shares redeemed for {assets}.
      */
     function previewWithdraw(uint256 assets) public view override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redemptionFeePpm);
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 shares = _convertToSharesRedeemed(assets + fee);
         return shares;
     }
@@ -107,7 +107,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
      */
     function previewRedeem(uint256 shares) public view override returns (uint256) {
         uint256 assets = _convertToAssetsWithdrawn(shares);
-        uint256 fee = _feeOnTotal(assets, redemptionFeePpm);
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return assets - fee;
     }
 
@@ -115,13 +115,13 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (totalSupply() == 0) return 0;
         uint256 assets = Math.mulDiv(poolSize, shares, totalSupply(), Math.Rounding.Floor);
 
-        if (redemptionOrderFeePpm >= 0) {
+        if (redeemOrderFeePpm >= 0) {
             // Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, uint256(redemptionOrderFeePpm));
+            uint256 fee = _feeOnTotal(assets, uint256(redeemOrderFeePpm));
             return assets - fee;
         } else {
             // Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, uint256(-redemptionOrderFeePpm));
+            uint256 incentive = _feeOnRaw(assets, uint256(-redeemOrderFeePpm));
             return assets + incentive;
         }
     }

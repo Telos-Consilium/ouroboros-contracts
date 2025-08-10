@@ -139,7 +139,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newRedeemDelay = 2 days;
 
         vm.expectEmit();
-        emit UpdatedRedemptionDelay(REDEEM_DELAY, newRedeemDelay);
+        emit UpdatedRedeemDelay(REDEEM_DELAY, newRedeemDelay);
         vm.prank(owner);
         stakedYzusd.setRedeemDelay(newRedeemDelay);
 
@@ -156,7 +156,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newRedeemDelay = 0;
 
         vm.expectEmit();
-        emit UpdatedRedemptionDelay(REDEEM_DELAY, newRedeemDelay);
+        emit UpdatedRedeemDelay(REDEEM_DELAY, newRedeemDelay);
         vm.prank(owner);
         stakedYzusd.setRedeemDelay(newRedeemDelay);
 

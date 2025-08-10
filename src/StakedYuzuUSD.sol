@@ -245,13 +245,13 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     /**
      * @notice Sets the redemption delay to {newRedeemDelay}.
      *
-     * Emits a `UpdatedRedemptionDelay` event with the old and new delay durations.
+     * Emits a `UpdatedRedeemDelay` event with the old and new delay durations.
      * Reverts if called by anyone but the contract owner.
      */
     function setRedeemDelay(uint256 newRedeemDelay) external onlyOwner {
         uint256 oldRedeemDelay = redeemDelay;
         redeemDelay = newRedeemDelay;
-        emit UpdatedRedemptionDelay(oldRedeemDelay, newRedeemDelay);
+        emit UpdatedRedeemDelay(oldRedeemDelay, newRedeemDelay);
     }
 
     function setRedeemFee(uint256 newRedeemFeePpm) external onlyOwner {

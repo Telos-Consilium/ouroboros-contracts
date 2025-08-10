@@ -27,8 +27,8 @@ abstract contract YuzuProto is
     address internal _asset;
     address internal _treasury;
 
-    uint256 public redemptionFeePpm;
-    int256 public redemptionOrderFeePpm;
+    uint256 public redeemFeePpm;
+    int256 public redeemOrderFeePpm;
 
     function __YuzuProto_init(
         address __asset,
@@ -129,18 +129,18 @@ abstract contract YuzuProto is
         emit UpdatedTreasury(oldTreasury, newTreasury);
     }
 
-    function setRedemptionFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) revert InvalidRedemptionFee(newFeePpm);
-        uint256 oldFee = redemptionFeePpm;
-        redemptionFeePpm = newFeePpm;
-        emit UpdatedRedemptionFee(oldFee, newFeePpm);
+    function setRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) revert InvalidRedeemFee(newFeePpm);
+        uint256 oldFee = redeemFeePpm;
+        redeemFeePpm = newFeePpm;
+        emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    function setRedemptionOrderFeePpm(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6 || newFeePpm < -1e6) revert InvalidRedemptionOrderFee(newFeePpm);
-        int256 oldFee = redemptionOrderFeePpm;
-        redemptionOrderFeePpm = newFeePpm;
-        emit UpdatedRedemptionOrderFee(oldFee, newFeePpm);
+    function setRedeemOrderFeePpm(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newFeePpm > 1e6 || newFeePpm < -1e6) revert InvalidRedeemOrderFee(newFeePpm);
+        int256 oldFee = redeemOrderFeePpm;
+        redeemOrderFeePpm = newFeePpm;
+        emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
     function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyRole(LIMIT_MANAGER_ROLE) {

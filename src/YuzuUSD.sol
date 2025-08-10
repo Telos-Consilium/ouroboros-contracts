@@ -48,27 +48,27 @@ contract YuzuUSD is YuzuProto {
     }
 
     function previewWithdraw(uint256 assets) public view override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redemptionFeePpm);
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 tokens = previewDeposit(assets + fee);
         return tokens;
     }
 
     function previewRedeem(uint256 tokens) public view override returns (uint256) {
         uint256 assets = previewMint(tokens);
-        uint256 fee = _feeOnTotal(assets, redemptionFeePpm);
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return assets - fee;
     }
 
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         uint256 assets = previewMint(tokens);
 
-        if (redemptionOrderFeePpm >= 0) {
+        if (redeemOrderFeePpm >= 0) {
             // Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, uint256(redemptionOrderFeePpm));
+            uint256 fee = _feeOnTotal(assets, uint256(redeemOrderFeePpm));
             return assets - fee;
         } else {
             // Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, uint256(-redemptionOrderFeePpm));
+            uint256 incentive = _feeOnRaw(assets, uint256(-redeemOrderFeePpm));
             return assets + incentive;
         }
     }

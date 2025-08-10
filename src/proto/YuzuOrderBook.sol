@@ -41,7 +41,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     /**
-     * @notice Creates a  redemption order for {tokenAmount} of yzusd.
+     * @notice Creates a redemption order for {tokenAmount} of yzusd.
      *
      * Returns the order ID.
      * Emits a `CreatedRedeemOrder` event with the order ID, order owner, and amount.
@@ -67,7 +67,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     /**
-     * @notice Fills a  redemption order with {orderId} by transferring the amount to the owner.
+     * @notice Fills a redemption order with {orderId} by transferring the amount to the owner.
      *
      * The fee is transferred to {feeRecipient}.
      * Emits a `FilledRedeemOrder` event with the order ID, owner, filler, fee recipient, amount, and fee.
@@ -91,7 +91,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     /**
-     * @notice Cancels a  redemption order with {orderId}.
+     * @notice Cancels a redemption order with {orderId}.
      *
      * Emits a `CancelledRedeemOrder` event with the order ID.
      * Reverts if called by anyone but the order owner.
@@ -132,16 +132,16 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     /**
-     * @notice Returns a  redemption order by {orderId}.
+     * @notice Returns a redemption order by {orderId}.
      */
     function getRedeemOrder(uint256 orderId) public view returns (Order memory) {
         return _getOrder(orderId);
     }
 
     /**
-     * @dev Internal function to create a  redemption order.
+     * @dev Internal function to create a redemption order.
      *
-     * Transfers yzusd from {owner} to the contract and creates a  redemption order.
+     * Transfers yzusd from {owner} to the contract and creates a redemption order.
      * Returns the order ID.
      */
     function _createRedeemOrder(address caller, address receiver, address owner, uint256 tokens, uint256 assets)
@@ -172,9 +172,9 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     /**
-     * @dev Internal function to fill a  redemption order.
+     * @dev Internal function to fill a redemption order.
      *
-     * Marks the order as filled, updates the current pending  redemption value,
+     * Marks the order as filled, updates the current pending redemption value,
      * and transfers the assets to the owner.
      * Transfers the fee to the fee recipient if applicable.
      */
@@ -188,9 +188,9 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     /**
-     * @dev Internal function to cancel a  redemption order.
+     * @dev Internal function to cancel a redemption order.
      *
-     * Marks the order as cancelled, updates the current pending  redemption value,
+     * Marks the order as cancelled, updates the current pending redemption value,
      * and transfers the yzusd back to the owner.
      */
     function _cancelRedeemOrder(Order storage order) internal virtual {
