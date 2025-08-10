@@ -57,7 +57,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         if (_maxDeposit == type(uint256).max) {
             return type(uint256).max;
         }
-        return previewDeposit(maxDeposit(receiver));
+        return previewDeposit(_maxDeposit);
     }
 
     function maxWithdraw(address owner) public view virtual returns (uint256) {
@@ -141,12 +141,12 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return $._maxWithdrawPerBlock;
     }
 
-    function getDepositedPerBlock(uint256 blockNumber) public view returns (uint256) {
+    function depositedPerBlock(uint256 blockNumber) public view returns (uint256) {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
         return $._depositedPerBlock[blockNumber];
     }
 
-    function getWithdrawnPerBlock(uint256 blockNumber) public view returns (uint256) {
+    function withdrawnPerBlock(uint256 blockNumber) public view returns (uint256) {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
         return $._withdrawnPerBlock[blockNumber];
     }

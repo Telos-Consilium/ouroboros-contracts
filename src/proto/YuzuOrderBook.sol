@@ -83,7 +83,9 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         }
 
         address caller = _msgSender();
+
         _fillRedeemOrder(caller, order);
+
         emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
     }
@@ -99,13 +101,18 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
      */
     function cancelRedeemOrder(uint256 orderId) public virtual {
         Order storage order = _getOrder(orderId);
-        if (_msgSender() != order.owner) revert Unauthorized(_msgSender(), order.owner);
+        if (_msgSender() != order.owner) {
+            revert Unauthorized(_msgSender(), order.owner);
+        }
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
         }
-        if (block.timestamp < order.dueTime) revert OrderNotDue(orderId);
+        if (block.timestamp < order.dueTime) {
+            revert OrderNotDue(orderId);
+        }
 
         _cancelRedeemOrder(order);
+
         emit CancelledRedeemOrder(orderId);
     }
 
@@ -144,6 +151,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._currentPendingOrderValue += assets;
+
         uint256 orderId = $._orderCount;
         $._orders[orderId] = Order({
             assets: assets,

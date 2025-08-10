@@ -231,7 +231,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 receiverTokensBefore = proto.balanceOf(receiver);
 
         uint256 supplyBefore = proto.totalSupply();
-        uint256 depositedPerBlockBefore = proto.getDepositedPerBlock(block.number);
+        uint256 depositedPerBlockBefore = proto.depositedPerBlock(block.number);
 
         vm.prank(sender);
         vm.expectEmit();
@@ -248,7 +248,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(receiver), receiverTokensBefore + expectedTokens);
 
         assertEq(proto.totalSupply(), mintedTokens);
-        assertEq(proto.getDepositedPerBlock(block.number), depositAmount);
+        assertEq(proto.depositedPerBlock(block.number), depositAmount);
     }
 
     function test_Deposit_Revert_ExceedsMaxDeposit() public {
@@ -277,7 +277,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 receiverTokensBefore = proto.balanceOf(receiver);
 
         uint256 supplyBefore = proto.totalSupply();
-        uint256 depositedPerBlockBefore = proto.getDepositedPerBlock(block.number);
+        uint256 depositedPerBlockBefore = proto.depositedPerBlock(block.number);
 
         vm.prank(sender);
         vm.expectEmit();
@@ -294,7 +294,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(receiver), receiverTokensBefore + mintAmount);
 
         assertEq(proto.totalSupply(), mintAmount);
-        assertEq(proto.getDepositedPerBlock(block.number), expectedAssets);
+        assertEq(proto.depositedPerBlock(block.number), expectedAssets);
     }
 
     function test_Mint_Revert_ExceedsMaxMint() public {
@@ -321,7 +321,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 receiverTokensBefore = proto.balanceOf(receiver);
 
         uint256 supplyBefore = proto.totalSupply();
-        uint256 withdrawnPerBlockBefore = proto.getWithdrawnPerBlock(block.number);
+        uint256 withdrawnPerBlockBefore = proto.withdrawnPerBlock(block.number);
 
         vm.prank(sender);
         vm.expectEmit();
@@ -338,7 +338,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(receiver), receiverTokensBefore);
 
         assertEq(proto.totalSupply(), supplyBefore - redeemedTokens);
-        assertEq(proto.getWithdrawnPerBlock(block.number), withdrawnPerBlockBefore + withdrawAmount);
+        assertEq(proto.withdrawnPerBlock(block.number), withdrawnPerBlockBefore + withdrawAmount);
     }
 
     function test_Withdraw() public {
@@ -379,7 +379,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 receiverTokensBefore = proto.balanceOf(receiver);
 
         uint256 supplyBefore = proto.totalSupply();
-        uint256 withdrawnPerBlockBefore = proto.getWithdrawnPerBlock(block.number);
+        uint256 withdrawnPerBlockBefore = proto.withdrawnPerBlock(block.number);
 
         vm.prank(sender);
         vm.expectEmit();
@@ -396,7 +396,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(receiver), receiverTokensBefore);
 
         assertEq(proto.totalSupply(), supplyBefore - redeemAmount);
-        assertEq(proto.getWithdrawnPerBlock(block.number), withdrawnPerBlockBefore + expectedAssets);
+        assertEq(proto.withdrawnPerBlock(block.number), withdrawnPerBlockBefore + expectedAssets);
     }
 
     function test_Redeem() public {
@@ -438,7 +438,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 protoTokensBefore = proto.balanceOf(address(proto));
 
         uint256 supplyBefore = proto.totalSupply();
-        uint256 withdrawnPerBlockBefore = proto.getWithdrawnPerBlock(block.number);
+        uint256 withdrawnPerBlockBefore = proto.withdrawnPerBlock(block.number);
 
         uint256 orderCountBefore = proto.orderCount();
 
@@ -467,7 +467,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(address(proto)), protoTokensBefore + redeemAmount);
 
         assertEq(proto.totalSupply(), supplyBefore);
-        assertEq(proto.getWithdrawnPerBlock(block.number), withdrawnPerBlockBefore);
+        assertEq(proto.withdrawnPerBlock(block.number), withdrawnPerBlockBefore);
     }
 
     function test_CreateRedeemOrder() public {
@@ -511,7 +511,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 fillerTokensBefore = proto.balanceOf(filler);
 
         uint256 supplyBefore = proto.totalSupply();
-        uint256 withdrawnPerBlockBefore = proto.getWithdrawnPerBlock(block.number);
+        uint256 withdrawnPerBlockBefore = proto.withdrawnPerBlock(block.number);
 
         vm.prank(orderFiller);
         vm.expectEmit();
@@ -544,7 +544,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(filler), fillerTokensBefore);
 
         assertEq(proto.totalSupply(), supplyBefore - orderAfter.tokens);
-        assertEq(proto.getWithdrawnPerBlock(block.number), withdrawnPerBlockBefore);
+        assertEq(proto.withdrawnPerBlock(block.number), withdrawnPerBlockBefore);
     }
 
     function test_FillRedeemOrder() public {
@@ -630,7 +630,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 protoTokensBefore = proto.balanceOf(address(proto));
 
         uint256 supplyBefore = proto.totalSupply();
-        uint256 withdrawnPerBlockBefore = proto.getWithdrawnPerBlock(block.number);
+        uint256 withdrawnPerBlockBefore = proto.withdrawnPerBlock(block.number);
 
         vm.prank(orderBefore.owner);
         vm.expectEmit();
@@ -657,7 +657,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(address(proto)), protoTokensBefore - orderAfter.tokens);
 
         assertEq(proto.totalSupply(), supplyBefore);
-        assertEq(proto.getWithdrawnPerBlock(block.number), withdrawnPerBlockBefore);
+        assertEq(proto.withdrawnPerBlock(block.number), withdrawnPerBlockBefore);
     }
 
     function test_CancelRedeemOrder_Revert_NotDue() public {
@@ -880,25 +880,25 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Miscellaneous
-    function test_GetDepositedPerBlock() public {
+    function test_depositedPerBlock() public {
         _deposit(user1, 100e6);
-        assertEq(proto.getDepositedPerBlock(block.number), 100e6);
+        assertEq(proto.depositedPerBlock(block.number), 100e6);
 
         _deposit(user2, 200e6);
-        assertEq(proto.getDepositedPerBlock(block.number), 300e6);
+        assertEq(proto.depositedPerBlock(block.number), 300e6);
     }
 
-    function test_GetWithdrawnPerBlock() public {
+    function test_withdrawnPerBlock() public {
         _deposit(user1, 300e6);
         asset.mint(address(proto), 300e6);
 
         vm.prank(user1);
         proto.withdraw(100e6, user2, user1);
-        assertEq(proto.getWithdrawnPerBlock(block.number), 100e6);
+        assertEq(proto.withdrawnPerBlock(block.number), 100e6);
 
         vm.prank(user1);
         proto.withdraw(200e6, user2, user1);
-        assertEq(proto.getWithdrawnPerBlock(block.number), 300e6);
+        assertEq(proto.withdrawnPerBlock(block.number), 300e6);
     }
 
     function test_MaxDeposit_MaxMint_AcrossBlocks() public {

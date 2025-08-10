@@ -22,8 +22,8 @@ interface IYuzuIssuer is IYuzu, IYuzuIssuerDefinitions {
 
     function withdrawCollateral(uint256 assets, address receiver) external;
 
-    function getDepositedPerBlock(uint256 blockNumber) external view returns (uint256);
-    function getWithdrawnPerBlock(uint256 blockNumber) external view returns (uint256);
+    function depositedPerBlock(uint256 blockNumber) external view returns (uint256);
+    function withdrawnPerBlock(uint256 blockNumber) external view returns (uint256);
 
     function treasury() external view returns (address);
     function maxDepositPerBlock() external view returns (uint256);
