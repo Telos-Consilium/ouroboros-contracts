@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-import "./IStakedYuzuUSDDefinitions.sol";
+import {IStakedYuzuUSDDefinitions, Order} from "./IStakedYuzuUSDDefinitions.sol";
 
 interface IStakedYuzuUSD is IERC4626 {
     // Admin functions

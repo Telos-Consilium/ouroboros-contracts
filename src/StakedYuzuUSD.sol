@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./interfaces/IStakedYuzuUSD.sol";
-import "./interfaces/IStakedYuzuUSDDefinitions.sol";
+import {IStakedYuzuUSD} from "./interfaces/IStakedYuzuUSD.sol";
+import {IStakedYuzuUSDDefinitions, Order} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
 /**
  * @title StakedYuzuUSD
@@ -47,7 +48,7 @@ contract StakedYuzuUSD is
      * @param _maxDepositPerBlock Maximum assets that can be deposited per block
      * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      *
-     * Sets the redemption delay to 1 day by default.
+     * Redemption delay is set to 1 day by default.
      */
     function initialize(
         IERC20 _yzUSD,
@@ -78,37 +79,37 @@ contract StakedYuzuUSD is
     /**
      * @notice Sets the maximum deposit per block to {newMaxDepositPerBlock}.
      *
-     * Emits a `MaxDepositPerBlockUpdated` event with the old and new limits.
+     * Emits a `UpdatedMaxDepositPerBlock` event with the old and new limits.
      * Reverts if called by anyone but the contract owner.
      */
     function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyOwner {
         uint256 oldMaxDepositPerBlock = maxDepositPerBlock;
         maxDepositPerBlock = newMaxDepositPerBlock;
-        emit MaxDepositPerBlockUpdated(oldMaxDepositPerBlock, newMaxDepositPerBlock);
+        emit UpdatedMaxDepositPerBlock(oldMaxDepositPerBlock, newMaxDepositPerBlock);
     }
 
     /**
      * @notice Sets the maximum withdrawal per block to {newMaxWithdrawPerBlock}.
      *
-     * Emits a `MaxWithdrawPerBlockUpdated` event with the old and new limits.
+     * Emits a `UpdatedMaxWithdrawPerBlock` event with the old and new limits.
      * Reverts if called by anyone but the contract owner.
      */
     function setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) external onlyOwner {
         uint256 oldMaxWithdrawPerBlock = maxWithdrawPerBlock;
         maxWithdrawPerBlock = newMaxWithdrawPerBlock;
-        emit MaxWithdrawPerBlockUpdated(oldMaxWithdrawPerBlock, newMaxWithdrawPerBlock);
+        emit UpdatedMaxWithdrawPerBlock(oldMaxWithdrawPerBlock, newMaxWithdrawPerBlock);
     }
 
     /**
      * @notice Sets the redemption delay to {newRedeemDelay}.
      *
-     * Emits a `RedeemDelayUpdated` event with the old and new delay durations.
+     * Emits a `UpdatedRedeemDelay` event with the old and new delay durations.
      * Reverts if called by anyone but the contract owner.
      */
     function setRedeemDelay(uint256 newRedeemDelay) external onlyOwner {
         uint256 oldRedeemDelay = redeemDelay;
         redeemDelay = newRedeemDelay;
-        emit RedeemDelayUpdated(oldRedeemDelay, newRedeemDelay);
+        emit UpdatedRedeemDelay(oldRedeemDelay, newRedeemDelay);
     }
 
     /**
@@ -306,5 +307,5 @@ contract StakedYuzuUSD is
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[50] private __gap;
+    uint256[50] private __gap; // TODO
 }

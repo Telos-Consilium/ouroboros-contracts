@@ -1,36 +1,25 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
+import {IYuzuILPDefinitions} from "./IYuzuILPDefinitions.sol";
+import {IYuzuProto} from "./proto/IYuzuProto.sol";
 
-struct Order {
-    uint256 assets;
-    uint256 shares;
-    address owner;
-    bool executed;
-}
+interface IYuzuILP is IYuzuProto, IYuzuILPDefinitions {
+    function initialize(
+        address __asset,
+        string memory __name,
+        string memory __symbol,
+        address _admin,
+        address __treasury,
+        uint256 _maxDepositPerBlock,
+        uint256 _maxWithdrawPerBlock,
+        uint256 _fillWindow
+    ) external;
 
-interface IYuzuILP is IERC4626, IAccessControlDefaultAdminRules {
-    // Admin functions
-    function setTreasury(address newTreasury) external;
-    function updatePool(uint256 newPoolSize, uint256 newWithdrawalAllowance, uint256 newDailyLinearYieldRatePpm)
-        external;
-    function setMaxDepositPerBlock(uint256 newMax) external;
-    function rescueTokens(address token, address receiver, uint256 amount) external;
+    function updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external;
 
-    // Core functions
-    function createRedeemOrder(uint256 shares) external returns (uint256, uint256);
-    function fillRedeemOrder(uint256 orderId) external;
-
-    // View functions
-    function getRedeemOrder(uint256 orderId) external view returns (Order memory);
-    function treasury() external view returns (address);
+    function totalAssets() external view returns (uint256);
     function poolSize() external view returns (uint256);
-    function withdrawAllowance() external view returns (uint256);
     function dailyLinearYieldRatePpm() external view returns (uint256);
     function lastPoolUpdateTimestamp() external view returns (uint256);
-    function maxDepositPerBlock() external view returns (uint256);
-    function depositedPerBlock(uint256 blockNumber) external view returns (uint256);
-    function redeemOrderCount() external view returns (uint256);
 }

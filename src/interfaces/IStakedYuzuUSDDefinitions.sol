@@ -14,9 +14,9 @@ interface IStakedYuzuUSDDefinitions {
     event RedeemFinalized(
         address indexed caller, uint256 indexed orderId, address indexed owner, uint256 assets, uint256 shares
     );
-    event MaxDepositPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
-    event MaxWithdrawPerBlockUpdated(uint256 oldLimit, uint256 newLimit);
-    event RedeemDelayUpdated(uint256 oldDelay, uint256 newDelay);
+    event UpdatedMaxDepositPerBlock(uint256 oldLimit, uint256 newLimit);
+    event UpdatedMaxWithdrawPerBlock(uint256 oldLimit, uint256 newLimit);
+    event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
 
     error InvalidZeroShares();
     error InvalidZeroAmount();

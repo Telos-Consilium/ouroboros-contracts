@@ -2,13 +2,15 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {Order} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
+
+import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 
 contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     // ERC-4626 events for testing
@@ -81,7 +83,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newMaxDepositPerBlock = 2_000e18;
 
         vm.expectEmit();
-        emit MaxDepositPerBlockUpdated(MAX_DEPOSIT_PER_BLOCK, newMaxDepositPerBlock);
+        emit UpdatedMaxDepositPerBlock(MAX_DEPOSIT_PER_BLOCK, newMaxDepositPerBlock);
         vm.prank(owner);
         stakedYzusd.setMaxDepositPerBlock(newMaxDepositPerBlock);
 
@@ -98,7 +100,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newMaxDepositPerBlock = 0;
 
         vm.expectEmit();
-        emit MaxDepositPerBlockUpdated(MAX_DEPOSIT_PER_BLOCK, newMaxDepositPerBlock);
+        emit UpdatedMaxDepositPerBlock(MAX_DEPOSIT_PER_BLOCK, newMaxDepositPerBlock);
         vm.prank(owner);
         stakedYzusd.setMaxDepositPerBlock(newMaxDepositPerBlock);
 
@@ -110,7 +112,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newMaxWithdrawPerBlock = 1_000e18;
 
         vm.expectEmit();
-        emit MaxWithdrawPerBlockUpdated(MAX_WITHDRAW_PER_BLOCK, newMaxWithdrawPerBlock);
+        emit UpdatedMaxWithdrawPerBlock(MAX_WITHDRAW_PER_BLOCK, newMaxWithdrawPerBlock);
         vm.prank(owner);
         stakedYzusd.setMaxWithdrawPerBlock(newMaxWithdrawPerBlock);
 
@@ -127,7 +129,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newMaxWithdrawPerBlock = 0;
 
         vm.expectEmit();
-        emit MaxWithdrawPerBlockUpdated(MAX_WITHDRAW_PER_BLOCK, newMaxWithdrawPerBlock);
+        emit UpdatedMaxWithdrawPerBlock(MAX_WITHDRAW_PER_BLOCK, newMaxWithdrawPerBlock);
         vm.prank(owner);
         stakedYzusd.setMaxWithdrawPerBlock(newMaxWithdrawPerBlock);
 
@@ -144,7 +146,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newRedeemDelay = 2 days;
 
         vm.expectEmit();
-        emit RedeemDelayUpdated(REDEEM_DELAY, newRedeemDelay);
+        emit UpdatedRedeemDelay(REDEEM_DELAY, newRedeemDelay);
         vm.prank(owner);
         stakedYzusd.setRedeemDelay(newRedeemDelay);
 
@@ -161,7 +163,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 newRedeemDelay = 0;
 
         vm.expectEmit();
-        emit RedeemDelayUpdated(REDEEM_DELAY, newRedeemDelay);
+        emit UpdatedRedeemDelay(REDEEM_DELAY, newRedeemDelay);
         vm.prank(owner);
         stakedYzusd.setRedeemDelay(newRedeemDelay);
 
