@@ -5,6 +5,7 @@ interface IYuzuProtoDefinitions {
     error InvalidZeroAddress();
     error InvalidRedeemFee(uint256 provided);
     error InvalidRedeemOrderFee(int256 provided);
+    error InvalidAssetRescueRescue(address token);
     error ExceededOutstandingBalance(uint256 requested, uint256 outstandingBalance);
 
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
