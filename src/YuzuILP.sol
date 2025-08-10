@@ -151,7 +151,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return Math.mulDiv(poolSize, shares, totalSupply(), Math.Rounding.Floor);
     }
 
-     /// @dev Returns the yield accrued since the last pool update.
+    /// @dev Returns the yield accrued since the last pool update.
     function _yieldSinceUpdate(Math.Rounding rounding) internal view returns (uint256) {
         uint256 elapsedTime = _timeSinceUpdate();
         if (poolSize == 0 || dailyLinearYieldRatePpm == 0 || elapsedTime == 0) {

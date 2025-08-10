@@ -19,6 +19,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     event Withdraw(
         address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
     );
+
     error ERC4626ExceededMaxDeposit(address owner, uint256 assets, uint256 max);
     error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max);
     error ERC4626ExceededMaxWithdraw(address owner, uint256 assets, uint256 max);
@@ -257,9 +258,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         ERC20Mock otherAsset = new ERC20Mock();
         otherAsset.mint(address(styz), 100e18);
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
         styz.rescueTokens(address(otherAsset), user1, 50e18);
     }
 
@@ -279,9 +278,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_setRedeemOrderFee_Revert_NotOwner() public {
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
         styz.setRedeemOrderFee(100_000);
     }
 
@@ -295,9 +292,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_SetMaxDepositPerBlock_Revert_NotOwner() public {
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
         styz.setMaxDepositPerBlock(200e18);
     }
 
@@ -311,9 +306,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_SetMaxWithdrawPerBlock_Revert_NotOwner() public {
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
         styz.setMaxWithdrawPerBlock(200e18);
     }
 
@@ -327,9 +320,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_SetRedeemDelay_Revert_NotOwner() public {
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
         styz.setRedeemDelay(2 days);
     }
 
