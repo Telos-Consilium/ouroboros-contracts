@@ -106,16 +106,12 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         return proto.createRedeemOrder(amount, from, from);
     }
 
-    function _setMaxDepositPerBlock(
-        uint256 maxDepositPerBlock
-    ) internal {
+    function _setMaxDepositPerBlock(uint256 maxDepositPerBlock) internal {
         vm.prank(limitManager);
         proto.setMaxDepositPerBlock(maxDepositPerBlock);
     }
 
-    function _setMaxWithdrawPerBlock(
-        uint256 maxWithdrawPerBlock
-    ) internal {
+    function _setMaxWithdrawPerBlock(uint256 maxWithdrawPerBlock) internal {
         vm.prank(limitManager);
         proto.setMaxWithdrawPerBlock(maxWithdrawPerBlock);
     }
@@ -747,9 +743,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.createRedeemOrder(50e18, user1, user1);
 
         vm.prank(admin);
-        vm.expectRevert(
-            abi.encodeWithSelector(ExceededOutstandingBalance.selector, 50e18 + 1, 50e18)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ExceededOutstandingBalance.selector, 50e18 + 1, 50e18));
         proto.rescueTokens(address(proto), admin, 50e18 + 1);
     }
 
