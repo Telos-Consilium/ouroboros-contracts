@@ -145,12 +145,12 @@ abstract contract YuzuProto is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
-    function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyRole(LIMIT_MANAGER_ROLE) {
-        _setMaxDepositPerBlock(newMaxDepositPerBlock);
+    function setMaxDepositPerBlock(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
+        _setMaxDepositPerBlock(newMax);
     }
 
-    function setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) external onlyRole(LIMIT_MANAGER_ROLE) {
-        _setMaxWithdrawPerBlock(newMaxWithdrawPerBlock);
+    function setMaxWithdrawPerBlock(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
+        _setMaxWithdrawPerBlock(newMax);
     }
 
     function setFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {

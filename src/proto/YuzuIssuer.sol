@@ -217,17 +217,17 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         }
     }
 
-    function _setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) internal {
+    function _setMaxDepositPerBlock(uint256 newMax) internal {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        uint256 oldMaxDepositPerBlock = $._maxDepositPerBlock;
-        $._maxDepositPerBlock = newMaxDepositPerBlock;
-        emit UpdatedMaxDepositPerBlock(oldMaxDepositPerBlock, newMaxDepositPerBlock);
+        uint256 oldMax = $._maxDepositPerBlock;
+        $._maxDepositPerBlock = newMax;
+        emit UpdatedMaxDepositPerBlock(oldMax, newMax);
     }
 
-    function _setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) internal {
+    function _setMaxWithdrawPerBlock(uint256 newMax) internal {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        uint256 oldMaxWithdrawPerBlock = $._maxWithdrawPerBlock;
-        $._maxWithdrawPerBlock = newMaxWithdrawPerBlock;
-        emit UpdatedMaxWithdrawPerBlock(oldMaxWithdrawPerBlock, newMaxWithdrawPerBlock);
+        uint256 oldMax = $._maxWithdrawPerBlock;
+        $._maxWithdrawPerBlock = newMax;
+        emit UpdatedMaxWithdrawPerBlock(oldMax, newMax);
     }
 }

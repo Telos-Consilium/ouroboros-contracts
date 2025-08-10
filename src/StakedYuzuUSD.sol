@@ -223,46 +223,46 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     }
 
     /**
-     * @notice Sets the maximum deposit per block to {newMaxDepositPerBlock}.
+     * @notice Sets the maximum deposit per block to {newMax}.
      *
      * Emits a `UpdatedMaxDepositPerBlock` event with the old and new limits.
      * Reverts if called by anyone but the contract owner.
      */
-    function setMaxDepositPerBlock(uint256 newMaxDepositPerBlock) external onlyOwner {
-        uint256 oldMaxDepositPerBlock = maxDepositPerBlock;
-        maxDepositPerBlock = newMaxDepositPerBlock;
-        emit UpdatedMaxDepositPerBlock(oldMaxDepositPerBlock, newMaxDepositPerBlock);
+    function setMaxDepositPerBlock(uint256 newMax) external onlyOwner {
+        uint256 oldMax = maxDepositPerBlock;
+        maxDepositPerBlock = newMax;
+        emit UpdatedMaxDepositPerBlock(oldMax, newMax);
     }
 
     /**
-     * @notice Sets the maximum withdrawal per block to {newMaxWithdrawPerBlock}.
+     * @notice Sets the maximum withdrawal per block to {newMax}.
      *
      * Emits a `UpdatedMaxWithdrawPerBlock` event with the old and new limits.
      * Reverts if called by anyone but the contract owner.
      */
-    function setMaxWithdrawPerBlock(uint256 newMaxWithdrawPerBlock) external onlyOwner {
-        uint256 oldMaxWithdrawPerBlock = maxWithdrawPerBlock;
-        maxWithdrawPerBlock = newMaxWithdrawPerBlock;
-        emit UpdatedMaxWithdrawPerBlock(oldMaxWithdrawPerBlock, newMaxWithdrawPerBlock);
+    function setMaxWithdrawPerBlock(uint256 newMax) external onlyOwner {
+        uint256 oldMax = maxWithdrawPerBlock;
+        maxWithdrawPerBlock = newMax;
+        emit UpdatedMaxWithdrawPerBlock(oldMax, newMax);
     }
 
     /**
-     * @notice Sets the redemption delay to {newRedeemDelay}.
+     * @notice Sets the redemption delay to {newDelay}.
      *
      * Emits a `UpdatedRedeemDelay` event with the old and new delay durations.
      * Reverts if called by anyone but the contract owner.
      */
-    function setRedeemDelay(uint256 newRedeemDelay) external onlyOwner {
-        uint256 oldRedeemDelay = redeemDelay;
-        redeemDelay = newRedeemDelay;
-        emit UpdatedRedeemDelay(oldRedeemDelay, newRedeemDelay);
+    function setRedeemDelay(uint256 newDelay) external onlyOwner {
+        uint256 oldDelay = redeemDelay;
+        redeemDelay = newDelay;
+        emit UpdatedRedeemDelay(oldDelay, newDelay);
     }
 
-    function setRedeemOrderFee(uint256 newRedeemFeePpm) external onlyOwner {
-        if (newRedeemFeePpm > 1e6) revert InvalidRedeemOrderFee(newRedeemFeePpm);
-        uint256 oldRedeemFeePpm = redeemOrderFeePpm;
-        redeemOrderFeePpm = newRedeemFeePpm;
-        emit UpdatedRedeemOrderFee(oldRedeemFeePpm, newRedeemFeePpm);
+    function setRedeemOrderFee(uint256 newFeePpm) external onlyOwner {
+        if (newFeePpm > 1e6) revert InvalidRedeemOrderFee(newFeePpm);
+        uint256 oldFeePpm = redeemOrderFeePpm;
+        redeemOrderFeePpm = newFeePpm;
+        emit UpdatedRedeemOrderFee(oldFeePpm, newFeePpm);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
