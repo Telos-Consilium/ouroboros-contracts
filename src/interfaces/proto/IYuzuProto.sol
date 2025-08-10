@@ -15,8 +15,8 @@ interface IYuzuProto is IERC20Metadata, IAccessControl, IYuzuProtoDefinitions, I
     function redeemOrderFeePpm() external view returns (int256);
 
     function setTreasury(address newTreasury) external;
-    function setRedeemFeePpm(uint256 newFeePpm) external;
-    function setRedeemOrderFeePpm(int256 newFeePpm) external;
+    function setRedeemFee(uint256 newFeePpm) external;
+    function setRedeemOrderFee(int256 newFeePpm) external;
     function setMaxDepositPerBlock(uint256 newMax) external;
     function setMaxWithdrawPerBlock(uint256 newMax) external;
     function setFillWindow(uint256 newWindow) external;

@@ -129,14 +129,14 @@ abstract contract YuzuProto is
         emit UpdatedTreasury(oldTreasury, newTreasury);
     }
 
-    function setRedeemFeePpm(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) revert InvalidRedeemFee(newFeePpm);
         uint256 oldFee = redeemFeePpm;
         redeemFeePpm = newFeePpm;
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    function setRedeemOrderFeePpm(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemOrderFee(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6 || newFeePpm < -1e6) revert InvalidRedeemOrderFee(newFeePpm);
         int256 oldFee = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;

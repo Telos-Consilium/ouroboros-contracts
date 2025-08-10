@@ -118,8 +118,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function _setFees(uint256 redeemFeePpm, int256 orderFeePpm) internal {
         vm.startPrank(redeemManager);
-        if (redeemFeePpm > 0) proto.setRedeemFeePpm(redeemFeePpm);
-        if (orderFeePpm != 0) proto.setRedeemOrderFeePpm(orderFeePpm);
+        if (redeemFeePpm > 0) proto.setRedeemFee(redeemFeePpm);
+        if (orderFeePpm != 0) proto.setRedeemOrderFee(orderFeePpm);
         vm.stopPrank();
     }
 
@@ -162,7 +162,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_MaxWithdraw_MaxRedeem() public {
         vm.prank(redeemManager);
-        proto.setRedeemFeePpm(100_000); // 10%
+        proto.setRedeemFee(100_000); // 10%
 
         _setMaxWithdrawPerBlock(0);
 
@@ -348,7 +348,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_Withdraw_WithFee() public {
         vm.prank(redeemManager);
-        proto.setRedeemFeePpm(100_000); // 10%
+        proto.setRedeemFee(100_000); // 10%
         _setBalances(110e6, 100e6);
         _withdrawAndAssert(100e6, 110e18);
     }
@@ -406,7 +406,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_Redeem_WithFee() public {
         vm.prank(redeemManager);
-        proto.setRedeemFeePpm(100_000); // 10%
+        proto.setRedeemFee(100_000); // 10%
         _setBalances(100e6, 100e6);
         _redeemAndAssert(100e18, 90_909090);
     }
@@ -477,14 +477,14 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_CreateRedeemOrder_WithFee() public {
         vm.prank(redeemManager);
-        proto.setRedeemOrderFeePpm(100_000); // 10%
+        proto.setRedeemOrderFee(100_000); // 10%
         _deposit(user1, 100e6);
         _createRedeemOrderAndAssert(100e18, 90_909090);
     }
 
     function test_CreateRedeemOrder_WithIncentive() public {
         vm.prank(redeemManager);
-        proto.setRedeemOrderFeePpm(-100_000); // -10%
+        proto.setRedeemOrderFee(-100_000); // -10%
         _deposit(user1, 100e6);
         _createRedeemOrderAndAssert(100e18, 110e6);
     }
@@ -555,7 +555,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_FillRedeemOrder_WithFee() public {
         vm.prank(redeemManager);
-        proto.setRedeemOrderFeePpm(100_000); // 10%
+        proto.setRedeemOrderFee(100_000); // 10%
         _deposit(user1, 200e6);
         (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
         _fillRedeemOrderAndAssert(orderId);
@@ -563,7 +563,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_FillRedeemOrder_WithIncentive() public {
         vm.prank(redeemManager);
-        proto.setRedeemOrderFeePpm(-100_000); // -10%
+        proto.setRedeemOrderFee(-100_000); // -10%
         _deposit(user1, 200e6);
         (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
         _fillRedeemOrderAndAssert(orderId);
@@ -775,60 +775,60 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setTreasury(user1);
     }
 
-    function test_setRedeemFeePpm() public {
+    function test_setRedeemFee() public {
         vm.prank(redeemManager);
         vm.expectEmit();
         emit UpdatedRedeemFee(0, 1_000_000);
-        proto.setRedeemFeePpm(1_000_000);
+        proto.setRedeemFee(1_000_000);
         assertEq(proto.redeemFeePpm(), 1_000_000);
     }
 
-    function test_setRedeemFeePpm_Revert_ExceedsMax() public {
+    function test_setRedeemFee_Revert_ExceedsMax() public {
         vm.prank(redeemManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidRedeemFee.selector, 1_000_001));
-        proto.setRedeemFeePpm(1_000_001);
+        proto.setRedeemFee(1_000_001);
     }
 
-    function test_setRedeemFeePpm_Revert_NotRedeemManager() public {
+    function test_setRedeemFee_Revert_NotRedeemManager() public {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, REDEEM_MANAGER_ROLE)
         );
-        proto.setRedeemFeePpm(100_000);
+        proto.setRedeemFee(100_000);
     }
 
-    function test_setRedeemOrderFeePpm() public {
+    function test_setRedeemOrderFee() public {
         vm.prank(redeemManager);
         vm.expectEmit();
         emit UpdatedRedeemOrderFee(0, 1_000_000);
-        proto.setRedeemOrderFeePpm(1_000_000);
+        proto.setRedeemOrderFee(1_000_000);
         assertEq(proto.redeemOrderFeePpm(), 1_000_000);
 
         vm.prank(redeemManager);
         vm.expectEmit();
         emit UpdatedRedeemOrderFee(1_000_000, -1_000_000);
-        proto.setRedeemOrderFeePpm(-1_000_000);
+        proto.setRedeemOrderFee(-1_000_000);
         assertEq(proto.redeemOrderFeePpm(), -1_000_000);
     }
 
-    function test_setRedeemOrderFeePpm_Revert_ExceedsMax() public {
+    function test_setRedeemOrderFee_Revert_ExceedsMax() public {
         vm.prank(redeemManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidRedeemOrderFee.selector, 1_000_001));
-        proto.setRedeemOrderFeePpm(1_000_001);
+        proto.setRedeemOrderFee(1_000_001);
     }
 
-    function test_setRedeemOrderFeePpm_Revert_ExceedsMin() public {
+    function test_setRedeemOrderFee_Revert_ExceedsMin() public {
         vm.prank(redeemManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidRedeemOrderFee.selector, -1_000_001));
-        proto.setRedeemOrderFeePpm(-1_000_001);
+        proto.setRedeemOrderFee(-1_000_001);
     }
 
-    function test_setRedeemOrderFeePpm_Revert_NotRedeemManager() public {
+    function test_setRedeemOrderFee_Revert_NotRedeemManager() public {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, REDEEM_MANAGER_ROLE)
         );
-        proto.setRedeemOrderFeePpm(100_000);
+        proto.setRedeemOrderFee(100_000);
     }
 
     function test_SetMaxDepositPerBlock() public {
