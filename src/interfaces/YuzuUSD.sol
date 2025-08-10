@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {IYuzuProto} from "./proto/IYuzuProto.sol";
 
-interface IYuzuMinter is IYuzuProto {
+interface IYuzuUSD is IYuzuProto {
     function initialize(
         address __asset,
         string memory __name,

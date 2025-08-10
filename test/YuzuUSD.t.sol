@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {YuzuMinter} from "../src/YuzuMinter.sol";
+import {YuzuUSD} from "../src/YuzuUSD.sol";
 
 import {YuzuProtoTest} from "./YuzuProto.t.sol";
 
-contract YuzuMinterTest is YuzuProtoTest {
+contract YuzuUSDTest is YuzuProtoTest {
     function _deploy() internal override returns (address) {
-        YuzuMinter minter = new YuzuMinter();
+        YuzuUSD minter = new YuzuUSD();
         return address(minter);
     }
 

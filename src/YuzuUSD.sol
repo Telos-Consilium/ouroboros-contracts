@@ -5,7 +5,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {YuzuProto} from "./proto/YuzuProto.sol";
 
-contract YuzuMinter is YuzuProto {
+contract YuzuUSD is YuzuProto {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
