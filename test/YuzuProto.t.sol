@@ -818,13 +818,13 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.redeemOrderFeePpm(), -1_000_000);
     }
 
-    function test_setRedeemOrderFee_Revert_ExceedsMax() public {
+    function test_setRedeemOrderFee_Revert_ExceedsMaxFee() public {
         vm.prank(redeemManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidRedeemOrderFee.selector, 1_000_001));
         proto.setRedeemOrderFee(1_000_001);
     }
 
-    function test_setRedeemOrderFee_Revert_ExceedsMin() public {
+    function test_setRedeemOrderFee_Revert_ExceedsMinFee() public {
         vm.prank(redeemManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidRedeemOrderFee.selector, -1_000_001));
         proto.setRedeemOrderFee(-1_000_001);

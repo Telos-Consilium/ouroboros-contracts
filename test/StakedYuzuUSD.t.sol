@@ -277,7 +277,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.redeemOrderFeePpm(), 1_000_000);
     }
 
-    function test_setRedeemOrderFee_Revert_ExceedsMax() public {
+    function test_setRedeemOrderFee_Revert_ExceedsMaxFee() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(InvalidRedeemOrderFee.selector, 1_000_001));
         styz.setRedeemOrderFee(1_000_001);
@@ -379,7 +379,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     //     styz.initiateRedeem(MAX_WITHDRAW_PER_BLOCK + 1, user1, user1);
     // }
 
-    function test_InitiateRedeem_RevertInsufficientShares() public {
+    function test_InitiateRedeem_Revert_InsufficientShares() public {
         // Deposit
         uint256 depositAmount = 200e18;
         vm.prank(user1);
@@ -426,12 +426,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(uint256(order.status), uint256(OrderStatus.Executed));
     }
 
-    function test_FinalizeRedeem_RevertInvalidOrder() public {
+    function test_FinalizeRedeem_Revert_InvalidOrder() public {
         vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, 999));
         styz.finalizeRedeem(999);
     }
 
-    function test_FinalizeRedeem_RevertNotDue() public {
+    function test_FinalizeRedeem_Revert_NotDue() public {
         // Deposit and initiate redeem
         uint256 depositAmount = 200e18;
         vm.startPrank(user1);
@@ -444,7 +444,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.finalizeRedeem(orderId);
     }
 
-    function test_FinalizeRedeem_RevertAlreadyExecuted() public {
+    function test_FinalizeRedeem_Revert_AlreadyExecuted() public {
         // Deposit and initiate redeem
         uint256 depositAmount = 100e18;
         vm.startPrank(user1);
@@ -462,12 +462,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     // ERC-4626 Override
-    function test_Withdraw_RevertNotSupported() public {
+    function test_Withdraw_Revert() public {
         vm.expectRevert(WithdrawNotSupported.selector);
         styz.withdraw(100e18, user1, user1);
     }
 
-    function test_Redeem_RevertNotSupported() public {
+    function test_Redeem_Revert() public {
         vm.expectRevert(RedeemNotSupported.selector);
         styz.redeem(100e18, user1, user1);
     }
