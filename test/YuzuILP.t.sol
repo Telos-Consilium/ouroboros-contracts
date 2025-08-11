@@ -118,7 +118,7 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 
     function test_CreateRedeemOrder_DoesNotUpdatePool() public {
         _deposit(user1, 100e6);
-        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
+        _createRedeemOrder(user1, 100e18);
         assertEq(ilp.poolSize(), 100e6);
         assertEq(ilp.totalAssets(), 100e6);
     }
