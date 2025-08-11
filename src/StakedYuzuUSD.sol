@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -131,6 +132,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     }
 
     /// @notice Initiates a 2-step redemption of `shares`
+    // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256) {
         uint256 maxShares = maxRedeem(owner);
         if (shares > maxShares) {
@@ -208,6 +210,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         super._deposit(caller, receiver, assets, shares);
     }
 
+    // slither-disable-next-line pess-unprotected-initialize
     function _initiateRedeem(address caller, address receiver, address owner, uint256 assets, uint256 shares)
         internal
         returns (uint256)
@@ -221,7 +224,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
             shares: shares,
             owner: owner,
             receiver: receiver,
-            dueTime: uint40(block.timestamp + redeemDelay),
+            dueTime: SafeCast.toUint40(block.timestamp + redeemDelay),
             status: OrderStatus.Pending
         });
         orderCount++;

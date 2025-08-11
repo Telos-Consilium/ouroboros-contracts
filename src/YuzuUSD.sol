@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import {YuzuProto} from "./proto/YuzuProto.sol";
 
@@ -76,11 +77,12 @@ contract YuzuUSD is YuzuProto {
 
         if (redeemOrderFeePpm >= 0) {
             // Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, uint256(redeemOrderFeePpm));
+            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(redeemOrderFeePpm));
             return assets - fee;
         } else {
             // Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, uint256(-redeemOrderFeePpm));
+            // slither-disable-next-line dubious_typecast
+            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-redeemOrderFeePpm));
             return assets + incentive;
         }
     }

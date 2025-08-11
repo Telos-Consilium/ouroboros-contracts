@@ -147,14 +147,17 @@ abstract contract YuzuProto is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
+    // slither-disable-next-line pess-strange-setter
     function setMaxDepositPerBlock(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
         _setMaxDepositPerBlock(newMax);
     }
 
+    // slither-disable-next-line pess-strange-setter
     function setMaxWithdrawPerBlock(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
         _setMaxWithdrawPerBlock(newMax);
     }
 
+    // slither-disable-next-line pess-strange-setter
     function setFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {
         _setFillWindow(newWindow);
     }

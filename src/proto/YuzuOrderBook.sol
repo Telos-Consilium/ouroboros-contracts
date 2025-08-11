@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -127,7 +128,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
             tokens: tokens,
             owner: owner,
             receiver: receiver,
-            dueTime: uint40(block.timestamp + $._fillWindow),
+            dueTime: SafeCast.toUint40(block.timestamp + $._fillWindow),
             status: OrderStatus.Pending
         });
         $._orderCount++;
