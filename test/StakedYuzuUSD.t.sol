@@ -226,6 +226,135 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.mint(100e18 + 1, user2);
     }
 
+    // Redeem Initiation
+    function test_InitiateRedeem() public {
+        // Deposit
+        uint256 depositAmount = 200e18;
+        vm.prank(user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+
+        // Initiate redeem
+        vm.expectEmit();
+        emit InitiatedRedeem(user1, user1, user1, 0, depositAmount, mintedShares);
+        vm.prank(user1);
+        (uint256 orderId, uint256 _assets) = styz.initiateRedeem(mintedShares, user1, user1);
+
+        assertEq(orderId, 0);
+        assertEq(_assets, depositAmount);
+        assertEq(styz.balanceOf(user1), 0);
+        assertEq(styz.currentPendingOrderValue(), depositAmount);
+
+        Order memory order = styz.getRedeemOrder(orderId);
+        assertEq(order.assets, depositAmount);
+        assertEq(order.shares, mintedShares);
+        assertEq(order.owner, user1);
+        assertEq(order.dueTime, block.timestamp + styz.redeemDelay());
+        assertEq(uint256(order.status), uint256(OrderStatus.Pending));
+    }
+
+    // function test_InitiateRedeem_RevertZeroShares() public {
+    //     vm.expectRevert(InvalidZeroShares.selector);
+    //     vm.prank(user1);
+    //     styz.initiateRedeem(0, user1, user1);
+    // }
+
+    // function test_InitiateRedeem_RevertLimitExceeded() public {
+    //     // Deposit
+    //     uint256 depositAmount = MAX_DEPOSIT_PER_BLOCK;
+    //     vm.prank(user1);
+    //     styz.deposit(depositAmount, user1);
+
+    //     // Try to initiate redeem
+    //     vm.expectRevert(
+    //         abi.encodeWithSelector(
+    //             ERC4626ExceededMaxRedeem.selector, user1, MAX_WITHDRAW_PER_BLOCK + 1, MAX_WITHDRAW_PER_BLOCK
+    //         )
+    //     );
+    //     vm.prank(user1);
+    //     styz.initiateRedeem(MAX_WITHDRAW_PER_BLOCK + 1, user1, user1);
+    // }
+
+    function test_InitiateRedeem_Revert_InsufficientShares() public {
+        // Deposit
+        uint256 depositAmount = 200e18;
+        vm.prank(user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+
+        // Try to initiate redeem
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626ExceededMaxRedeem.selector, user1, mintedShares + 1, mintedShares)
+        );
+        vm.prank(user1);
+        styz.initiateRedeem(mintedShares + 1, user1, user1);
+    }
+
+    // Redeem Finalization
+    function test_FinalizeRedeem() public {
+        // Deposit and initiate redeem
+        uint256 depositAmount = 200e18;
+        vm.startPrank(user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
+        vm.stopPrank();
+
+        // Fast forward past redeem delay
+        vm.warp(block.timestamp + styz.redeemDelay());
+
+        uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
+
+        // Finalize redeem
+        vm.expectEmit();
+        emit FinalizedRedeem(user2, user1, user1, orderId, depositAmount, mintedShares);
+        vm.expectEmit();
+        emit Withdraw(user2, user1, user1, depositAmount, mintedShares);
+        vm.prank(user2);
+        styz.finalizeRedeem(orderId);
+
+        assertEq(yzusd.balanceOf(user1), yzusdBalanceBefore + depositAmount);
+        assertEq(styz.currentPendingOrderValue(), 0);
+        assertEq(styz.totalSupply(), 0);
+        assertEq(styz.totalAssets(), 0);
+        assertEq(yzusd.balanceOf(address(styz)), 0);
+
+        Order memory order = styz.getRedeemOrder(orderId);
+        assertEq(uint256(order.status), uint256(OrderStatus.Executed));
+    }
+
+    function test_FinalizeRedeem_Revert_InvalidOrder() public {
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, 999));
+        styz.finalizeRedeem(999);
+    }
+
+    function test_FinalizeRedeem_Revert_NotDue() public {
+        // Deposit and initiate redeem
+        uint256 depositAmount = 200e18;
+        vm.startPrank(user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
+        vm.stopPrank();
+
+        // Try to finalize redeem
+        vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
+        styz.finalizeRedeem(orderId);
+    }
+
+    function test_FinalizeRedeem_Revert_AlreadyExecuted() public {
+        // Deposit and initiate redeem
+        uint256 depositAmount = 100e18;
+        vm.startPrank(user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
+        vm.stopPrank();
+
+        // Fast forward and finalize redeem
+        vm.warp(block.timestamp + styz.redeemDelay());
+        styz.finalizeRedeem(orderId);
+
+        // Try to finalize again
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        styz.finalizeRedeem(orderId);
+    }
+
     // Admin Functions
     function test_RescueTokens() public {
         ERC20Mock otherAsset = new ERC20Mock();
@@ -329,136 +458,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
         styz.setRedeemDelay(2 days);
-    }
-
-    // Redeem Initiation
-    function test_InitiateRedeem() public {
-        // Deposit
-        uint256 depositAmount = 200e18;
-        vm.prank(user1);
-        uint256 mintedShares = styz.deposit(depositAmount, user1);
-
-        // Initiate redeem
-        vm.expectEmit();
-        emit InitiatedRedeem(user1, user1, user1, 0, depositAmount, mintedShares);
-        vm.prank(user1);
-        (uint256 orderId, uint256 _assets) = styz.initiateRedeem(mintedShares, user1, user1);
-
-        assertEq(orderId, 0);
-        assertEq(_assets, depositAmount);
-        assertEq(styz.balanceOf(user1), 0);
-        assertEq(styz.currentPendingOrderValue(), depositAmount);
-
-        Order memory order = styz.getRedeemOrder(orderId);
-        assertEq(order.assets, depositAmount);
-        assertEq(order.shares, mintedShares);
-        assertEq(order.owner, user1);
-        assertEq(order.dueTime, block.timestamp + styz.redeemDelay());
-        assertEq(uint256(order.status), uint256(OrderStatus.Pending));
-    }
-
-    // function test_InitiateRedeem_RevertZeroShares() public {
-    //     vm.expectRevert(InvalidZeroShares.selector);
-    //     vm.prank(user1);
-    //     styz.initiateRedeem(0, user1, user1);
-    // }
-
-    // function test_InitiateRedeem_RevertLimitExceeded() public {
-    //     // Deposit
-    //     uint256 depositAmount = MAX_DEPOSIT_PER_BLOCK;
-    //     vm.prank(user1);
-    //     styz.deposit(depositAmount, user1);
-
-    //     // Try to initiate redeem
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(
-    //             ERC4626ExceededMaxRedeem.selector, user1, MAX_WITHDRAW_PER_BLOCK + 1, MAX_WITHDRAW_PER_BLOCK
-    //         )
-    //     );
-    //     vm.prank(user1);
-    //     styz.initiateRedeem(MAX_WITHDRAW_PER_BLOCK + 1, user1, user1);
-    // }
-
-    function test_InitiateRedeem_Revert_InsufficientShares() public {
-        // Deposit
-        uint256 depositAmount = 200e18;
-        vm.prank(user1);
-        uint256 mintedShares = styz.deposit(depositAmount, user1);
-
-        // Try to initiate redeem
-        vm.expectRevert(
-            abi.encodeWithSelector(ERC4626ExceededMaxRedeem.selector, user1, mintedShares + 1, mintedShares)
-        );
-        vm.prank(user1);
-        styz.initiateRedeem(mintedShares + 1, user1, user1);
-    }
-
-    // Redeem Finalization
-    function test_FinalizeRedeem() public {
-        // Deposit and initiate redeem
-        uint256 depositAmount = 200e18;
-        vm.startPrank(user1);
-        uint256 mintedShares = styz.deposit(depositAmount, user1);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
-        vm.stopPrank();
-
-        // Fast forward past redeem delay
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + styz.redeemDelay());
-
-        uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
-
-        // Finalize redeem
-        vm.expectEmit();
-        emit FinalizedRedeem(user2, user1, user1, orderId, depositAmount, mintedShares);
-        vm.expectEmit();
-        emit Withdraw(user2, user1, user1, depositAmount, mintedShares);
-        vm.prank(user2);
-        styz.finalizeRedeem(orderId);
-
-        assertEq(yzusd.balanceOf(user1), yzusdBalanceBefore + depositAmount);
-        assertEq(styz.currentPendingOrderValue(), 0);
-        assertEq(styz.totalSupply(), 0);
-        assertEq(styz.totalAssets(), 0);
-        assertEq(yzusd.balanceOf(address(styz)), 0);
-
-        Order memory order = styz.getRedeemOrder(orderId);
-        assertEq(uint256(order.status), uint256(OrderStatus.Executed));
-    }
-
-    function test_FinalizeRedeem_Revert_InvalidOrder() public {
-        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, 999));
-        styz.finalizeRedeem(999);
-    }
-
-    function test_FinalizeRedeem_Revert_NotDue() public {
-        // Deposit and initiate redeem
-        uint256 depositAmount = 200e18;
-        vm.startPrank(user1);
-        uint256 mintedShares = styz.deposit(depositAmount, user1);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
-        vm.stopPrank();
-
-        // Try to finalize redeem
-        vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
-        styz.finalizeRedeem(orderId);
-    }
-
-    function test_FinalizeRedeem_Revert_AlreadyExecuted() public {
-        // Deposit and initiate redeem
-        uint256 depositAmount = 100e18;
-        vm.startPrank(user1);
-        uint256 mintedShares = styz.deposit(depositAmount, user1);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
-        vm.stopPrank();
-
-        // Fast forward and finalize redeem
-        vm.warp(block.timestamp + styz.redeemDelay());
-        styz.finalizeRedeem(orderId);
-
-        // Try to finalize again
-        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
-        styz.finalizeRedeem(orderId);
     }
 
     // ERC-4626 Override
