@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {console2} from "forge-std/Test.sol";
 
-import {IYuzuILP} from "../src/interfaces/IYuzuILP.sol";
 import {IYuzuILPDefinitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 
 import {YuzuILP} from "../src/YuzuILP.sol";

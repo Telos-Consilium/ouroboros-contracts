@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -7,7 +7,6 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {IStakedYuzuUSD} from "./interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDDefinitions, Order, OrderStatus} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
 /**
@@ -119,7 +118,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
      * @notice Withdraw function is disabled - instant withdrawals are not supported
      * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
-    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address owner) public pure override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
@@ -127,7 +126,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
      * @notice Redeem function is disabled - instant redemptions are not supported
      * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
-    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address owner) public pure override returns (uint256) {
         revert RedeemNotSupported();
     }
 
@@ -159,7 +158,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         }
 
         address caller = _msgSender();
-        _finalizeRedeem(caller, order);
+        _finalizeRedeem(order);
 
         emit FinalizedRedeem(caller, order.receiver, order.owner, orderId, order.assets, order.shares);
         emit Withdraw(caller, order.owner, order.owner, order.assets, order.shares);
@@ -237,7 +236,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         return orderId;
     }
 
-    function _finalizeRedeem(address caller, Order storage order) internal {
+    function _finalizeRedeem(Order storage order) internal {
         order.status = OrderStatus.Executed;
         currentPendingOrderValue -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.owner, order.assets);

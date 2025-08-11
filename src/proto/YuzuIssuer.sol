@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -20,10 +20,12 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     bytes32 private constant YuzuIssuerStorageLocation =
         0x542408f99cbd5a3e32919127cd9d8984eb4635c3ab0f9f17273c636c42e08d00;
 
+    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuIssuer_init(uint256 _maxDepositPerBlock, uint256 _withdrawnPerBlock) internal onlyInitializing {
         __YuzuIssuer_init_unchained(_maxDepositPerBlock, _withdrawnPerBlock);
     }
 
+    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuIssuer_init_unchained(uint256 _maxDepositPerBlock, uint256 _withdrawnPerBlock)
         internal
         onlyInitializing
@@ -44,7 +46,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     function __yuzu_balanceOf(address account) public view virtual returns (uint256);
     function __yuzu_mint(address account, uint256 amount) internal virtual;
     function __yuzu_burn(address account, uint256 amount) internal virtual;
-    
+
     function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
 
     function treasury() public view virtual returns (address) {
@@ -52,12 +54,12 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     /// @notice See {IERC4626-convertToShares}
-    function convertToShares(uint256 assets) external view returns (uint256 shares) {
+    function convertToShares(uint256 assets) public view returns (uint256 shares) {
         return previewDeposit(assets);
     }
 
     /// @notice See {IERC4626-convertToAssets}
-    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+    function convertToAssets(uint256 shares) public view returns (uint256 assets) {
         return previewMint(shares);
     }
 

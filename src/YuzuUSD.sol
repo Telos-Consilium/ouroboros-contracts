@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -43,7 +43,7 @@ contract YuzuUSD is YuzuProto {
     }
 
     /// @notice See {IERC4626-totalAssets}
-    function totalAssets() public override view returns (uint256) {
+    function totalAssets() public view override returns (uint256) {
         return totalSupply() / 10 ** _decimalsOffset();
     }
 

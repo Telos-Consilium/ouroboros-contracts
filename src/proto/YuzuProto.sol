@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from
@@ -30,6 +30,7 @@ abstract contract YuzuProto is
     uint256 public redeemFeePpm;
     int256 public redeemOrderFeePpm;
 
+    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuProto_init(
         address __asset,
         string memory __name,
@@ -45,6 +46,7 @@ abstract contract YuzuProto is
         );
     }
 
+    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuProto_init_unchained(
         address __asset,
         string memory __name,
@@ -73,7 +75,7 @@ abstract contract YuzuProto is
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
     }
 
-    function totalAssets() external view virtual returns (uint256);
+    function totalAssets() public view virtual returns (uint256);
 
     function __yuzu_balanceOf(address account) public view override(YuzuIssuer, YuzuOrderBook) returns (uint256) {
         return balanceOf(account);

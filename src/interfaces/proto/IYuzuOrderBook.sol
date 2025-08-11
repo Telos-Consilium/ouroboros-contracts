@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {Order} from "./IYuzuOrderBookDefinitions.sol";
 import {IYuzu} from "./IYuzu.sol";

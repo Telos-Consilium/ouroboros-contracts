@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {Test, console2} from "forge-std/Test.sol";
 
@@ -8,7 +8,6 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-import {IYuzuDefinitions} from "../src/interfaces/proto/IYuzuDefinitions.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuOrderBookDefinitions, Order, OrderStatus} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
@@ -17,8 +16,6 @@ import {YuzuProto} from "../src/proto/YuzuProto.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 
 contract USDCMock is ERC20Mock {
-    constructor() ERC20Mock() {}
-
     function decimals() public view virtual override returns (uint8) {
         return 6;
     }

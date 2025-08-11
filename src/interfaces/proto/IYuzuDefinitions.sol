@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 interface IYuzuDefinitions {
     error ExceededMaxDeposit(address receiver, uint256 assets, uint256 max);

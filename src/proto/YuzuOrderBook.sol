@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
@@ -20,10 +20,12 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     bytes32 private constant YuzuOrderBookStorageLocation =
         0x747f75a735bbbfd5f9552c4d2a106ffbc4ca977c3f429389a57413d9a643a500;
 
+    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuOrderBook_init(uint256 _fillWindow) internal onlyInitializing {
         __YuzuOrderBook_init_unchained(_fillWindow);
     }
 
+    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuOrderBook_init_unchained(uint256 _fillWindow) internal onlyInitializing {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._fillWindow = _fillWindow;
