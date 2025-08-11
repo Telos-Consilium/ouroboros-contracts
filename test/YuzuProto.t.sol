@@ -733,6 +733,13 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.balanceOf(address(proto)), 50e18);
     }
 
+    function test_RescueToken_Revert_UnderlyingAsset() public {
+        asset.mint(address(proto), 100e6);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(InvalidAssetRescue.selector, address(asset)));
+        proto.rescueTokens(address(asset), admin, 100e6);
+    }
+
     function test_RescueTokens_UnderlyingToken_Revert_ExceededOutstandingBalance() public {
         _deposit(user1, 100e6);
 
@@ -956,5 +963,16 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.prank(user2);
         vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, user2, 0, 100e18));
         proto.redeem(100e18, user2, user1);
+    }
+
+    function test_MintRedeem_AsTreasury() public {
+        vm.prank(admin);
+        proto.setTreasury(address(proto));
+        
+        _deposit(user1, 100e6);
+        assertEq(asset.balanceOf(address(proto)), 100e6);
+
+        _withdraw(user1, 100e6);
+        assertEq(asset.balanceOf(address(proto)), 0);
     }
 }
