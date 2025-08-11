@@ -21,18 +21,18 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         0x542408f99cbd5a3e32919127cd9d8984eb4635c3ab0f9f17273c636c42e08d00;
 
     // slither-disable-next-line pess-unprotected-initialize
-    function __YuzuIssuer_init(uint256 _maxDepositPerBlock, uint256 _withdrawnPerBlock) internal onlyInitializing {
-        __YuzuIssuer_init_unchained(_maxDepositPerBlock, _withdrawnPerBlock);
+    function __YuzuIssuer_init(uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock) internal onlyInitializing {
+        __YuzuIssuer_init_unchained(_maxDepositPerBlock, _maxWithdrawPerBlock);
     }
 
     // slither-disable-next-line pess-unprotected-initialize
-    function __YuzuIssuer_init_unchained(uint256 _maxDepositPerBlock, uint256 _withdrawnPerBlock)
+    function __YuzuIssuer_init_unchained(uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock)
         internal
         onlyInitializing
     {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
         $._maxDepositPerBlock = _maxDepositPerBlock;
-        $._maxWithdrawPerBlock = _withdrawnPerBlock;
+        $._maxWithdrawPerBlock = _maxWithdrawPerBlock;
     }
 
     /// @dev See {IERC4626}
