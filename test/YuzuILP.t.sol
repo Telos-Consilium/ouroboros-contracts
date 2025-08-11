@@ -48,13 +48,19 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
     }
 
     function test_Preview_NonEmptyPool() public {
-        _deposit(user1, 100e6);
+        _deposit(user1, 99e6); // Supply: 99e18
+        _updatePool(100e6, 0); // Pool size: 100e6
 
-        assertEq(ilp.previewDeposit(100e6), 100e18);
-        assertEq(ilp.previewMint(100e18), 100e6);
-        assertEq(ilp.previewWithdraw(100e6), 100e18);
-        assertEq(ilp.previewRedeem(100e18), 100e6);
-        assertEq(ilp.previewRedeemOrder(100e18), 100e6);
+        assertEq(ilp.previewMint(100e18), uint256(100e6) * 100 / 99 + 1);
+        assertEq(ilp.previewRedeem(100e18), uint256(100e6) * 100 / 99);
+        assertEq(ilp.previewRedeemOrder(100e18), uint256(100e6) * 100 / 99);
+
+        _updatePool(99e6, 0); // Pool size: 99e6
+        _deposit(user1, 1e6); // Supply: 100e18
+        _updatePool(99e6, 0); // Pool size: 99e6
+
+        assertEq(ilp.previewDeposit(100e6), uint256(100e18) * 100 / 99);
+        assertEq(ilp.previewWithdraw(100e6), uint256(100e18) * 100 / 99 + 1);
     }
 
     function test_Preview_NonEmptyPool_WithYield() public {
