@@ -119,7 +119,7 @@ abstract contract YuzuProto is
                 revert ExceededOutstandingBalance(amount, outstandingBalance);
             }
         } else if (token == _asset) {
-            revert InvalidAssetRescueRescue(token);
+            revert InvalidAssetRescue(token);
         }
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }
