@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IYuzuIssuerDefinitions} from "./IYuzuIssuerDefinitions.sol";
 import {IYuzu} from "./IYuzu.sol";
 
-interface IYuzuIssuer is IYuzu, IYuzuIssuerDefinitions {
+interface IYuzuIssuer is IYuzu {
     function previewDeposit(uint256 assets) external view returns (uint256 tokens);
     function previewMint(uint256 tokens) external view returns (uint256 assets);
     function previewWithdraw(uint256 assets) external view returns (uint256 tokens);

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IYuzuILPDefinitions} from "./IYuzuILPDefinitions.sol";
 import {IYuzuProto} from "./proto/IYuzuProto.sol";
 
-interface IYuzuILP is IYuzuProto, IYuzuILPDefinitions {
+interface IYuzuILP is IYuzuProto {
     function initialize(
         address __asset,
         string memory __name,

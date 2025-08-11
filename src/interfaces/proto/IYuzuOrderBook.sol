@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IYuzuOrderBookDefinitions, Order} from "./IYuzuOrderBookDefinitions.sol";
+import {Order} from "./IYuzuOrderBookDefinitions.sol";
 import {IYuzu} from "./IYuzu.sol";
 
-interface IYuzuOrderBook is IYuzu, IYuzuOrderBookDefinitions {
+interface IYuzuOrderBook is IYuzu {
     function previewRedeemOrder(uint256 tokens) external view returns (uint256 assets);
 
     function maxRedeemOrder(address owner) external view returns (uint256);
