@@ -118,7 +118,7 @@ abstract contract YuzuProto is
 
     function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
         if (token == address(this)) {
-            uint256 outstandingBalance = balanceOf(address(this)) - currentPendingOrderValue() * 10 ** _decimalsOffset();
+            uint256 outstandingBalance = balanceOf(address(this)) - totalPendingOrderSize();
             if (amount > outstandingBalance) {
                 revert ExceededOutstandingBalance(amount, outstandingBalance);
             }

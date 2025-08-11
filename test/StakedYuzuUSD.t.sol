@@ -241,7 +241,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(orderId, 0);
         assertEq(_assets, depositAmount);
         assertEq(styz.balanceOf(user1), 0);
-        assertEq(styz.currentPendingOrderValue(), depositAmount);
+        assertEq(styz.totalPendingOrderValue(), depositAmount);
 
         Order memory order = styz.getRedeemOrder(orderId);
         assertEq(order.assets, depositAmount);
@@ -250,28 +250,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(order.dueTime, block.timestamp + styz.redeemDelay());
         assertEq(uint256(order.status), uint256(OrderStatus.Pending));
     }
-
-    // function test_InitiateRedeem_RevertZeroShares() public {
-    //     vm.expectRevert(InvalidZeroShares.selector);
-    //     vm.prank(user1);
-    //     styz.initiateRedeem(0, user1, user1);
-    // }
-
-    // function test_InitiateRedeem_RevertLimitExceeded() public {
-    //     // Deposit
-    //     uint256 depositAmount = MAX_DEPOSIT_PER_BLOCK;
-    //     vm.prank(user1);
-    //     styz.deposit(depositAmount, user1);
-
-    //     // Try to initiate redeem
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(
-    //             ERC4626ExceededMaxRedeem.selector, user1, MAX_WITHDRAW_PER_BLOCK + 1, MAX_WITHDRAW_PER_BLOCK
-    //         )
-    //     );
-    //     vm.prank(user1);
-    //     styz.initiateRedeem(MAX_WITHDRAW_PER_BLOCK + 1, user1, user1);
-    // }
 
     function test_InitiateRedeem_Revert_InsufficientShares() public {
         // Deposit
@@ -310,7 +288,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.finalizeRedeem(orderId);
 
         assertEq(yzusd.balanceOf(user1), yzusdBalanceBefore + depositAmount);
-        assertEq(styz.currentPendingOrderValue(), 0);
+        assertEq(styz.totalPendingOrderValue(), 0);
         assertEq(styz.totalSupply(), 0);
         assertEq(styz.totalAssets(), 0);
         assertEq(yzusd.balanceOf(address(styz)), 0);
@@ -499,44 +477,41 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.previewRedeem(1e18), 2e18 - 1);
     }
 
-    // function test_Deposit_LimitResetsAcrossBlocks() public {
-    //     // Fill block limit in first block
-    //     vm.prank(user1);
-    //     styz.deposit(MAX_DEPOSIT_PER_BLOCK, user1);
+    function test_MaxDeposit_MaxMint_AcrossBlocks() public {
+        _setMaxDepositPerBlock(100e18);
+        _deposit(user1, 50e18);
 
-    //     // Should fail to deposit more in same block
-    //     vm.expectRevert();
-    //     vm.prank(user2);
-    //     styz.deposit(1e18, user2);
+        assertEq(styz.maxDeposit(user1), 50e18);
+        assertEq(styz.maxMint(user1), 50e18);
 
-    //     // Move to next block
-    //     vm.roll(block.number + 1);
+        vm.roll(block.number + 1);
 
-    //     // Should work in new block
-    //     vm.prank(user2);
-    //     styz.deposit(1e18, user2);
-    // }
+        assertEq(styz.maxDeposit(user1), 100e18);
+        assertEq(styz.maxMint(user1), 100e18);
+    }
 
-    // function test_Redeem_LimitResetsAcrossBlocks() public {
-    //     // Fill block limit in first block
-    //     vm.startPrank(user1);
-    //     styz.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-    //     styz.initiateRedeem(MAX_WITHDRAW_PER_BLOCK, user1, user1);
-    //     vm.stopPrank();
+    function test_MaxWithdraw_MaxRedeem_AcrossBlocks() public {
+        _setMaxWithdrawPerBlock(100e18);
+        _deposit(user1, 100e18);
+        _deposit(user2, 100e18);
 
-    //     vm.prank(user2);
-    //     styz.deposit(1e18, user2);
+        vm.prank(user1);
+        styz.initiateRedeem(50e18, user2, user1);
 
-    //     // Should fail to redeem more in same block
-    //     vm.expectRevert();
-    //     vm.prank(user2);
-    //     styz.initiateRedeem(1e18, user2, user2);
+        // Limited by balance
+        assertEq(styz.maxWithdraw(user1), 50e18);
+        assertEq(styz.maxRedeem(user1), 50e18);
+        // Limited by max
+        assertEq(styz.maxWithdraw(user2), 50e18);
+        assertEq(styz.maxRedeem(user2), 50e18);
 
-    //     // Move to next block
-    //     vm.roll(block.number + 1);
+        vm.roll(block.number + 1);
 
-    //     // Should work in new block
-    //     vm.prank(user2);
-    //     styz.initiateRedeem(1e18, user2, user2);
-    // }
+        // Limited by balance
+        assertEq(styz.maxWithdraw(user1), 50e18);
+        assertEq(styz.maxRedeem(user1), 50e18);
+        // Limited by max
+        assertEq(styz.maxWithdraw(user2), 100e18);
+        assertEq(styz.maxRedeem(user2), 100e18);
+    }
 }

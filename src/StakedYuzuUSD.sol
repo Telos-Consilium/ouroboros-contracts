@@ -22,7 +22,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     uint256 public redeemDelay;
     uint256 public redeemOrderFeePpm;
 
-    uint256 public currentPendingOrderValue;
+    uint256 public totalPendingOrderValue;
 
     mapping(uint256 => Order) internal orders;
     uint256 public orderCount;
@@ -66,7 +66,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     /// @notice See {IERC4626-totalAssets}
     function totalAssets() public view override returns (uint256) {
-        return super.totalAssets() - currentPendingOrderValue;
+        return super.totalAssets() - totalPendingOrderValue;
     }
 
     /// @notice See {IERC4626-maxDeposit}
@@ -215,7 +215,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         returns (uint256)
     {
         withdrawnPerBlock[block.number] += assets;
-        currentPendingOrderValue += assets;
+        totalPendingOrderValue += assets;
 
         uint256 orderId = orderCount;
         orders[orderId] = Order({
@@ -238,7 +238,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     function _finalizeRedeem(Order storage order) internal {
         order.status = OrderStatus.Executed;
-        currentPendingOrderValue -= order.assets;
+        totalPendingOrderValue -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.owner, order.assets);
     }
 

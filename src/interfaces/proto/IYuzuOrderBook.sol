@@ -18,6 +18,6 @@ interface IYuzuOrderBook is IYuzu {
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
 
     function fillWindow() external view returns (uint256);
-    function currentPendingOrderValue() external view returns (uint256);
+    function totalPendingOrderSize() external view returns (uint256);
     function orderCount() external view returns (uint256);
 }

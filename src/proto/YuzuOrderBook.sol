@@ -11,7 +11,7 @@ import {IYuzuOrderBookDefinitions, Order, OrderStatus} from "../interfaces/proto
 abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions {
     struct YuzuOrderBookStorage {
         uint256 _fillWindow;
-        uint256 _currentPendingOrderValue;
+        uint256 _totalPendingOrderSize;
         uint256 _orderCount;
         mapping(uint256 => Order) _orders;
     }
@@ -102,9 +102,9 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return $._fillWindow;
     }
 
-    function currentPendingOrderValue() public view returns (uint256) {
+    function totalPendingOrderSize() public view returns (uint256) {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
-        return $._currentPendingOrderValue;
+        return $._totalPendingOrderSize;
     }
 
     function orderCount() public view returns (uint256) {
@@ -122,7 +122,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         returns (uint256)
     {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
-        $._currentPendingOrderValue += assets;
+        $._totalPendingOrderSize += tokens;
 
         uint256 orderId = $._orderCount;
         $._orders[orderId] = Order({
@@ -146,7 +146,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     function _fillRedeemOrder(address caller, Order storage order) internal virtual {
         order.status = OrderStatus.Filled;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
-        $._currentPendingOrderValue -= order.assets;
+        $._totalPendingOrderSize -= order.tokens;
 
         __yuzu_burn(address(this), order.tokens);
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, order.receiver, order.assets);
@@ -155,7 +155,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     function _cancelRedeemOrder(Order storage order) internal virtual {
         order.status = OrderStatus.Cancelled;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
-        $._currentPendingOrderValue -= order.assets;
+        $._totalPendingOrderSize -= order.tokens;
         __yuzu_transfer(address(this), order.owner, order.tokens);
     }
 
