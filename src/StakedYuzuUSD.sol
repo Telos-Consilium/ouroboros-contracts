@@ -161,7 +161,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         _finalizeRedeem(order);
 
         emit FinalizedRedeem(caller, order.receiver, order.owner, orderId, order.assets, order.shares);
-        emit Withdraw(caller, order.owner, order.owner, order.assets, order.shares);
+        emit Withdraw(caller, order.receiver, order.owner, order.assets, order.shares);
     }
 
     /// @notice Transfers `amount` of `token` held by the vault to `receiver`
@@ -239,7 +239,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     function _finalizeRedeem(Order storage order) internal {
         order.status = OrderStatus.Executed;
         totalPendingOrderValue -= order.assets;
-        SafeERC20.safeTransfer(IERC20(asset()), order.owner, order.assets);
+        SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
     }
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
