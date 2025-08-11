@@ -216,7 +216,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     // Deposit
     function _depositAndAssert(uint256 depositAmount, uint256 expectedTokens) public {
         assertEq(proto.previewDeposit(depositAmount), expectedTokens);
-        
+
         address sender = user1;
         address receiver = user2;
 
@@ -267,7 +267,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     // Mint
     function _mintAndAssert(uint256 mintAmount, uint256 expectedAssets) public {
         assertEq(proto.previewMint(mintAmount), expectedAssets);
-        
+
         address sender = user1;
         address receiver = user2;
 
@@ -302,7 +302,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_Mint() public {
         _mintAndAssert(100e18, 100e6);
     }
-    
+
     function test_Mint_Zero() public {
         _mintAndAssert(0, 0);
     }
@@ -492,7 +492,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         _deposit(user1, 100e6);
         _createRedeemOrderAndAssert(100e18, 100e6);
     }
-    
+
     function test_CreateRedeemOrder_Zero() public {
         _createRedeemOrderAndAssert(0, 0);
     }
@@ -990,7 +990,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_MintRedeem_AsTreasury() public {
         vm.prank(admin);
         proto.setTreasury(address(proto));
-        
+
         _deposit(user1, 100e6);
         assertEq(asset.balanceOf(address(proto)), 100e6);
 

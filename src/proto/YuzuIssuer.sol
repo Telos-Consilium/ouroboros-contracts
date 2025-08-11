@@ -48,6 +48,14 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return address(this);
     }
 
+    function convertToShares(uint256 assets) external view returns (uint256 shares) {
+        return previewDeposit(assets);
+    }
+
+    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+        return previewMint(shares);
+    }
+
     function maxDeposit(address) public view virtual returns (uint256) {
         return _getRemainingDepositAllowance();
     }

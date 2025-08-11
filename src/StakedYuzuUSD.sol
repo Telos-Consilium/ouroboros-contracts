@@ -11,7 +11,7 @@ import {IStakedYuzuUSDDefinitions, Order, OrderStatus} from "./interfaces/IStake
 
 /**
  * @title StakedYuzuUSD
- * @notice ERC-4626 tokenized vault for staking yzUsd with 2-step delayed redemptions
+ * @notice ERC-4626 tokenized vault for staking yzUSD with 2-step delayed redemptions
  */
 contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYuzuUSDDefinitions {
     mapping(uint256 => uint256) public depositedPerBlock;
@@ -64,31 +64,19 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         redeemDelay = _redeemDelay;
     }
 
-    /// @notice Returns the total amount of underlying asset deposits in the vault
+    /// @notice See {IERC4626-totalAssets}
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() - currentPendingOrderValue;
     }
 
-    /// @notice Preview the amount of shares needed to withdraw `assets` including fees
-    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redeemOrderFeePpm);
-        return super.previewWithdraw(assets + fee);
-    }
-
-    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
-    function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
-        uint256 assets = super.previewRedeem(shares);
-        return assets - _feeOnTotal(assets, redeemOrderFeePpm);
-    }
-
-    /// @notice Returns the maximum deposit amount
+    /// @notice See {IERC4626-maxDeposit}
     function maxDeposit(address) public view override returns (uint256) {
         uint256 deposited = depositedPerBlock[block.number];
         if (deposited >= maxDepositPerBlock) return 0;
         return maxDepositPerBlock - deposited;
     }
 
-    /// @notice Returns the maximum mint amount
+    /// @notice See {IERC4626-maxMint}
     function maxMint(address receiver) public view override returns (uint256) {
         uint256 _maxDeposit = maxDeposit(receiver);
         // if (_maxDeposit >= type(uint256).max / (totalSupply() + 10 ** _decimalsOffset())) {
@@ -100,23 +88,30 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         return convertToShares(_maxDeposit);
     }
 
-    /// @notice Returns the maximum withdrawal for `owner`
+    /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
         return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - withdrawn);
     }
 
-    /// @notice Returns the maximum redemption for `owner`
+    /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
         return Math.min(super.maxRedeem(owner), previewWithdraw(maxWithdrawPerBlock - withdrawn));
     }
 
-    /// @notice Returns the maximum redemption order amount for `owner`
-    function maxRedeemOrder(address owner) public view returns (uint256) {
-        return maxRedeem(owner);
+    /// @notice See {IERC4626-previewWithdraw}
+    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
+        uint256 fee = _feeOnRaw(assets, redeemOrderFeePpm);
+        return super.previewWithdraw(assets + fee);
+    }
+
+    /// @notice See {IERC4626-previewRedeem}
+    function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
+        uint256 assets = super.previewRedeem(shares);
+        return assets - _feeOnTotal(assets, redeemOrderFeePpm);
     }
 
     /**
@@ -200,8 +195,8 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         emit UpdatedRedeemDelay(oldDelay, newDelay);
     }
 
-    /// @notice Sets the redeem order fee to `newFeePpm`
-    function setRedeemOrderFee(uint256 newFeePpm) external onlyOwner {
+    /// @notice Sets the redeem fee to `newFeePpm`
+    function setRedeemFee(uint256 newFeePpm) external onlyOwner {
         if (newFeePpm > 1e6) revert InvalidRedeemOrderFee(newFeePpm);
         uint256 oldFeePpm = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;

@@ -41,31 +41,31 @@ contract YuzuUSD is YuzuProto {
         );
     }
 
-    /// @notice Preview the amount of shares to receive when depositing `assets`
+    /// @notice See {IERC4626-previewDeposit}
     function previewDeposit(uint256 assets) public view override returns (uint256) {
         return assets * 10 ** _decimalsOffset();
     }
 
-    /// @notice Preview the amount of assets needed to mint `shares`
+    /// @notice See {IERC4626-previewMint}
     function previewMint(uint256 tokens) public view override returns (uint256) {
         return Math.ceilDiv(tokens, 10 ** _decimalsOffset());
     }
 
-    /// @notice Preview the amount of shares needed to withdraw `assets` including fees
+    /// @notice See {IERC4626-previewWithdraw}
     function previewWithdraw(uint256 assets) public view override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 tokens = previewDeposit(assets + fee);
         return tokens;
     }
 
-    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
+    /// @notice See {IERC4626-previewRedeem}
     function previewRedeem(uint256 tokens) public view override returns (uint256) {
         uint256 assets = previewMint(tokens);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return assets - fee;
     }
 
-    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
+    /// @notice Preview the amount of assets to receive when redeeming `tokens` through an order after fees
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         uint256 assets = previewMint(tokens);
 

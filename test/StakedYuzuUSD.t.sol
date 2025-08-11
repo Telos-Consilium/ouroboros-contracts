@@ -113,7 +113,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_MaxWithdraw_MaxRedeem() public {
         vm.prank(owner);
-        styz.setRedeemOrderFee(100_000); // 10%
+        styz.setRedeemFee(100_000); // 10%
 
         _setMaxWithdrawPerBlock(0);
 
@@ -398,24 +398,24 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.rescueTokens(address(otherAsset), user1, 50e18);
     }
 
-    function test_setRedeemOrderFee() public {
+    function test_setRedeemFee() public {
         vm.prank(owner);
         vm.expectEmit();
         emit UpdatedRedeemOrderFee(0, 1_000_000);
-        styz.setRedeemOrderFee(1_000_000);
+        styz.setRedeemFee(1_000_000);
         assertEq(styz.redeemOrderFeePpm(), 1_000_000);
     }
 
-    function test_setRedeemOrderFee_Revert_ExceedsMaxFee() public {
+    function test_setRedeemFee_Revert_ExceedsMaxFee() public {
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(InvalidRedeemOrderFee.selector, 1_000_001));
-        styz.setRedeemOrderFee(1_000_001);
+        styz.setRedeemFee(1_000_001);
     }
 
-    function test_setRedeemOrderFee_Revert_NotOwner() public {
+    function test_setRedeemFee_Revert_NotOwner() public {
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
-        styz.setRedeemOrderFee(100_000);
+        styz.setRedeemFee(100_000);
     }
 
     function test_SetMaxDepositPerBlock() public {

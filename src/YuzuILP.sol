@@ -64,38 +64,37 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         emit UpdatedPool(newPoolSize, newDailyLinearYieldRatePpm);
     }
 
-    /// @notice Returns the total amount of underlying asset deposits in the pool
-    /// @return assets total amount of assets including accrued yield
+    /// @notice See {IERC4626-totalAssets}
     function totalAssets() public view returns (uint256) {
         uint256 yieldSinceUpdate = _yieldSinceUpdate(Math.Rounding.Floor);
         return poolSize + yieldSinceUpdate;
     }
 
-    /// @notice Preview the amount of shares to receive when depositing `assets`
+    /// @notice See {IERC4626-previewDeposit}
     function previewDeposit(uint256 assets) public view override returns (uint256) {
         return _convertToSharesMinted(assets);
     }
 
-    /// @notice Preview the amount of assets needed to mint `shares`
+    /// @notice See {IERC4626-previewMint}
     function previewMint(uint256 shares) public view override returns (uint256) {
         return _convertToAssetsDeposited(shares);
     }
 
-    /// @notice Preview the amount of shares needed to withdraw `assets` including fees
+    /// @notice See {IERC4626-previewWithdraw}
     function previewWithdraw(uint256 assets) public view override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 shares = _convertToSharesRedeemed(assets + fee);
         return shares;
     }
 
-    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
+    /// @notice See {IERC4626-previewRedeem}
     function previewRedeem(uint256 shares) public view override returns (uint256) {
         uint256 assets = _convertToAssetsWithdrawn(shares);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return assets - fee;
     }
 
-    /// @notice Preview the amount of assets to receive when redeeming `shares` after fees
+    /// @notice Preview the amount of assets to receive when redeeming `shares` through an order after fees
     function previewRedeemOrder(uint256 shares) public view override returns (uint256) {
         if (totalSupply() == 0) return 0;
         uint256 assets = Math.mulDiv(poolSize, shares, totalSupply(), Math.Rounding.Floor);

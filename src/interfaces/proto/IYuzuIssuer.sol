@@ -10,6 +10,9 @@ interface IYuzuIssuer is IYuzu, IYuzuIssuerDefinitions {
     function previewWithdraw(uint256 assets) external view returns (uint256 tokens);
     function previewRedeem(uint256 tokens) external view returns (uint256 assets);
 
+    function convertToShares(uint256 assets) external view returns (uint256 shares);
+    function convertToAssets(uint256 shares) external view returns (uint256 assets);
+
     function maxDeposit(address) external view returns (uint256);
     function maxMint(address receiver) external view returns (uint256);
     function maxWithdraw(address owner) external view returns (uint256);
