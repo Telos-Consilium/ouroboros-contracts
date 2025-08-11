@@ -41,6 +41,11 @@ contract YuzuUSD is YuzuProto {
         );
     }
 
+    /// @notice See {IERC4626-totalAssets}
+    function totalAssets() public override view returns (uint256) {
+        return totalSupply() / 10 ** _decimalsOffset();
+    }
+
     /// @notice See {IERC4626-previewDeposit}
     function previewDeposit(uint256 assets) public view override returns (uint256) {
         return assets * 10 ** _decimalsOffset();

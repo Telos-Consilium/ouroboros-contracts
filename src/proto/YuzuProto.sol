@@ -73,6 +73,8 @@ abstract contract YuzuProto is
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
     }
 
+    function totalAssets() external view virtual returns (uint256);
+
     function __yuzu_balanceOf(address account) public view override(YuzuIssuer, YuzuOrderBook) returns (uint256) {
         return balanceOf(account);
     }

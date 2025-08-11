@@ -33,33 +33,40 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         $._maxWithdrawPerBlock = _withdrawnPerBlock;
     }
 
+    /// @dev See {IERC4626}
     function asset() public view virtual returns (address);
     function previewDeposit(uint256 assets) public view virtual returns (uint256 tokens);
     function previewMint(uint256 tokens) public view virtual returns (uint256 assets);
     function previewWithdraw(uint256 assets) public view virtual returns (uint256 tokens);
     function previewRedeem(uint256 tokens) public view virtual returns (uint256 assets);
 
+    /// @dev See {IERC20}
     function __yuzu_balanceOf(address account) public view virtual returns (uint256);
     function __yuzu_mint(address account, uint256 amount) internal virtual;
     function __yuzu_burn(address account, uint256 amount) internal virtual;
+    
     function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
 
     function treasury() public view virtual returns (address) {
         return address(this);
     }
 
+    /// @notice See {IERC4626-convertToShares}
     function convertToShares(uint256 assets) external view returns (uint256 shares) {
         return previewDeposit(assets);
     }
 
+    /// @notice See {IERC4626-convertToAssets}
     function convertToAssets(uint256 shares) external view returns (uint256 assets) {
         return previewMint(shares);
     }
 
+    /// @notice See {IERC4626-maxDeposit}
     function maxDeposit(address) public view virtual returns (uint256) {
         return _getRemainingDepositAllowance();
     }
 
+    /// @notice See {IERC4626-maxMint}
     function maxMint(address receiver) public view virtual returns (uint256) {
         uint256 _maxDeposit = maxDeposit(receiver);
         if (_maxDeposit == type(uint256).max) {
@@ -68,6 +75,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return previewDeposit(_maxDeposit);
     }
 
+    /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address owner) public view virtual returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
@@ -75,6 +83,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return Math.min(ownerAssets, Math.min(liquidityBuffer, remainingAllowance));
     }
 
+    /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address owner) public view virtual returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
@@ -82,6 +91,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return Math.min(ownerTokens, previewWithdraw(Math.min(liquidityBuffer, remainingAllowance)));
     }
 
+    /// @notice See {IERC4626-deposit}
     function deposit(uint256 assets, address receiver) public virtual returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
@@ -94,6 +104,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return tokens;
     }
 
+    /// @notice See {IERC4626-mint}
     function mint(uint256 tokens, address receiver) public virtual returns (uint256) {
         uint256 maxTokens = maxMint(receiver);
         if (tokens > maxTokens) {
@@ -106,6 +117,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return assets;
     }
 
+    /// @notice See {IERC4626-withdraw}
     function withdraw(uint256 assets, address receiver, address owner) public virtual returns (uint256) {
         uint256 maxAssets = maxWithdraw(owner);
         if (assets > maxAssets) {
@@ -118,6 +130,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return tokens;
     }
 
+    /// @notice See {IERC4626-redeem}
     function redeem(uint256 tokens, address receiver, address owner) public virtual returns (uint256) {
         uint256 maxTokens = maxRedeem(owner);
         if (tokens > maxTokens) {

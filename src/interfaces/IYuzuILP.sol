@@ -18,7 +18,6 @@ interface IYuzuILP is IYuzuProto, IYuzuILPDefinitions {
 
     function updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external;
 
-    function totalAssets() external view returns (uint256);
     function poolSize() external view returns (uint256);
     function dailyLinearYieldRatePpm() external view returns (uint256);
     function lastPoolUpdateTimestamp() external view returns (uint256);

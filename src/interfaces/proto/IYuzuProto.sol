@@ -9,6 +9,8 @@ import {IYuzuIssuer} from "./IYuzuIssuer.sol";
 import {IYuzuOrderBook} from "./IYuzuOrderBook.sol";
 
 interface IYuzuProto is IERC20Metadata, IAccessControl, IYuzuProtoDefinitions, IYuzuIssuer, IYuzuOrderBook {
+    function totalAssets() external view returns (uint256);
+
     function rescueTokens(address token, address to, uint256 amount) external;
 
     function redeemFeePpm() external view returns (uint256);

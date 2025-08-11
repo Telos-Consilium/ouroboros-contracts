@@ -65,7 +65,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     /// @notice See {IERC4626-totalAssets}
-    function totalAssets() public view returns (uint256) {
+    function totalAssets() public view override returns (uint256) {
         uint256 yieldSinceUpdate = _yieldSinceUpdate(Math.Rounding.Floor);
         return poolSize + yieldSinceUpdate;
     }

@@ -28,13 +28,17 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         $._fillWindow = _fillWindow;
     }
 
+    /// @dev See {IERC4626}
     function asset() public view virtual returns (address);
+
     function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256 assets);
 
+    /// @dev See {IERC20}
     function __yuzu_balanceOf(address account) public view virtual returns (uint256);
     function __yuzu_burn(address account, uint256 amount) internal virtual;
-    function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
     function __yuzu_transfer(address from, address to, uint256 value) internal virtual;
+
+    function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
 
     function maxRedeemOrder(address owner) public view virtual returns (uint256) {
         return __yuzu_balanceOf(owner);
