@@ -214,14 +214,11 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Deposit
-    function test_Deposit() public {
+    function _depositAndAssert(uint256 depositAmount, uint256 expectedTokens) public {
+        assertEq(proto.previewDeposit(depositAmount), expectedTokens);
+        
         address sender = user1;
         address receiver = user2;
-
-        uint256 depositAmount = 100e6;
-        uint256 expectedTokens = 100e18;
-
-        assertEq(proto.previewDeposit(depositAmount), expectedTokens);
 
         uint256 senderAssetsBefore = asset.balanceOf(sender);
         uint256 receiverAssetsBefore = asset.balanceOf(receiver);
@@ -251,6 +248,14 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.depositedPerBlock(block.number), depositedPerBlockBefore + depositAmount);
     }
 
+    function test_Deposit() public {
+        _depositAndAssert(100e6, 100e18);
+    }
+
+    function test_Deposit_Zero() public {
+        _depositAndAssert(0, 0);
+    }
+
     function test_Deposit_Revert_ExceedsMaxDeposit() public {
         _setMaxDepositPerBlock(100e6);
 
@@ -260,14 +265,11 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Mint
-    function test_Mint() public {
+    function _mintAndAssert(uint256 mintAmount, uint256 expectedAssets) public {
+        assertEq(proto.previewMint(mintAmount), expectedAssets);
+        
         address sender = user1;
         address receiver = user2;
-
-        uint256 mintAmount = 100e18;
-        uint256 expectedAssets = 100e6;
-
-        assertEq(proto.previewMint(mintAmount), expectedAssets);
 
         uint256 senderAssetsBefore = asset.balanceOf(sender);
         uint256 receiverAssetsBefore = asset.balanceOf(receiver);
@@ -295,6 +297,14 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         assertEq(proto.totalSupply(), supplyBefore + mintAmount);
         assertEq(proto.depositedPerBlock(block.number), depositedPerBlockBefore + expectedAssets);
+    }
+
+    function test_Mint() public {
+        _mintAndAssert(100e18, 100e6);
+    }
+    
+    function test_Mint_Zero() public {
+        _mintAndAssert(0, 0);
     }
 
     function test_Mint_Revert_ExceedsMaxMint() public {
@@ -344,6 +354,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_Withdraw() public {
         _setBalances(100e6, 100e6);
         _withdrawAndAssert(100e6, 100e18);
+    }
+
+    function test_Withdraw_Zero() public {
+        _withdrawAndAssert(0, 0);
     }
 
     function test_Withdraw_WithFee() public {
@@ -402,6 +416,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_Redeem() public {
         _setBalances(100e6, 100e6);
         _redeemAndAssert(100e18, 100e6);
+    }
+
+    function test_Redeem_Zero() public {
+        _redeemAndAssert(0, 0);
     }
 
     function test_Redeem_WithFee() public {
@@ -473,6 +491,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_CreateRedeemOrder() public {
         _deposit(user1, 100e6);
         _createRedeemOrderAndAssert(100e18, 100e6);
+    }
+    
+    function test_CreateRedeemOrder_Zero() public {
+        _createRedeemOrderAndAssert(0, 0);
     }
 
     function test_CreateRedeemOrder_WithFee() public {
