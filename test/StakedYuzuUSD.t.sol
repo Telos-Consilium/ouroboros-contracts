@@ -143,7 +143,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         uint256 ownerSharesBefore = styz.balanceOf(_owner);
         uint256 shareSupplyBefore = styz.totalSupply();
-        uint256 withdrawnPerBlockBefore = styz.withdrawnPerBlock(block.number);
+        uint256 withdrawnInBlockBefore = styz.withdrawnInBlock();
         uint256 pendingOrderValueBefore = styz.totalPendingOrderValue();
 
         uint256 callerAllowanceBefore = styz.allowance(_owner, caller);
@@ -159,7 +159,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.balanceOf(_owner), ownerSharesBefore - shares);
         assertEq(styz.totalSupply(), shareSupplyBefore - shares);
-        assertEq(styz.withdrawnPerBlock(block.number), withdrawnPerBlockBefore + expectedAssets);
+        assertEq(styz.withdrawnInBlock(), withdrawnInBlockBefore + expectedAssets);
         assertEq(styz.totalPendingOrderValue(), pendingOrderValueBefore + expectedAssets);
 
         if (caller != _owner) {
@@ -237,7 +237,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         uint256 receiverAssetsBefore = yzusd.balanceOf(order.receiver);
         uint256 contractAssetsBefore = yzusd.balanceOf(address(styz));
-        uint256 withdrawnPerBlockBefore = styz.withdrawnPerBlock(block.number);
+        uint256 withdrawnInBlockBefore = styz.withdrawnInBlock();
         uint256 pendingOrderValueBefore = styz.totalPendingOrderValue();
 
         vm.prank(caller);
@@ -252,7 +252,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(yzusd.balanceOf(order.receiver), receiverAssetsBefore + order.assets);
         assertEq(yzusd.balanceOf(address(styz)), contractAssetsBefore - order.assets);
-        assertEq(styz.withdrawnPerBlock(block.number), withdrawnPerBlockBefore);
+        assertEq(styz.withdrawnInBlock(), withdrawnInBlockBefore);
         assertEq(styz.totalPendingOrderValue(), pendingOrderValueBefore - order.assets);
     }
 
@@ -598,29 +598,29 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.maxRedeem(user2), 100e18);
     }
 
-    function test_DepositedPerBlock() public {
+    function test_DepositedInBlock() public {
         _deposit(user1, 100e18);
-        assertEq(styz.depositedPerBlock(block.number), 100e18);
+        assertEq(styz.depositedInBlock(), 100e18);
         _deposit(user2, 200e18);
-        assertEq(styz.depositedPerBlock(block.number), 300e18);
+        assertEq(styz.depositedInBlock(), 300e18);
 
         vm.roll(block.number + 1);
-        assertEq(styz.depositedPerBlock(block.number), 0);
+        assertEq(styz.depositedInBlock(), 0);
     }
 
-    function test_WithdrawnPerBlock() public {
+    function test_WithdrawnInBlock() public {
         _deposit(user1, 300e18);
 
         vm.prank(user1);
         (, uint256 assetsWithdrawn1) = styz.initiateRedeem(100e18, user1, user1);
-        assertEq(styz.withdrawnPerBlock(block.number), assetsWithdrawn1);
+        assertEq(styz.withdrawnInBlock(), assetsWithdrawn1);
 
         vm.prank(user1);
         (, uint256 assetsWithdrawn2) = styz.initiateRedeem(200e18, user1, user1);
-        assertEq(styz.withdrawnPerBlock(block.number), assetsWithdrawn1 + assetsWithdrawn2);
+        assertEq(styz.withdrawnInBlock(), assetsWithdrawn1 + assetsWithdrawn2);
 
         vm.roll(block.number + 1);
-        assertEq(styz.withdrawnPerBlock(block.number), 0);
+        assertEq(styz.withdrawnInBlock(), 0);
     }
 
     // Permit

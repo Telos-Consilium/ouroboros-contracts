@@ -7,12 +7,16 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 
 import {IYuzuIssuerDefinitions} from "../interfaces/proto/IYuzuIssuerDefinitions.sol";
 
+import {InBlockUsage, LibInBlockUsage} from "../common/LibInBlockUsage.sol";
+
 abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
+    using LibInBlockUsage for InBlockUsage;
+
     struct YuzuIssuerStorage {
+        InBlockUsage _depositedInBlock;
+        InBlockUsage _withdrawnInBlock;
         uint256 _maxDepositPerBlock;
         uint256 _maxWithdrawPerBlock;
-        mapping(uint256 => uint256) _depositedPerBlock;
-        mapping(uint256 => uint256) _withdrawnPerBlock;
     }
 
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.issuer")) - 1)) & ~bytes32(uint256(0xff))
@@ -159,19 +163,19 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return $._maxWithdrawPerBlock;
     }
 
-    function depositedPerBlock(uint256 blockNumber) public view returns (uint256) {
+    function depositedInBlock() public view returns (uint256) {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        return $._depositedPerBlock[blockNumber];
+        return $._depositedInBlock.usage();
     }
 
-    function withdrawnPerBlock(uint256 blockNumber) public view returns (uint256) {
+    function withdrawnInBlock() public view returns (uint256) {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        return $._withdrawnPerBlock[blockNumber];
+        return $._withdrawnInBlock.usage();
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 tokens) internal virtual {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        $._depositedPerBlock[block.number] += assets;
+        $._depositedInBlock.use(assets);
 
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury(), assets);
         __yuzu_mint(receiver, tokens);
@@ -184,7 +188,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         virtual
     {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        $._withdrawnPerBlock[block.number] += assets;
+        $._withdrawnInBlock.use(assets);
 
         if (caller != owner) {
             __yuzu_spendAllowance(owner, caller, tokens);
@@ -198,18 +202,20 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
 
     function _getRemainingDepositAllowance() internal view virtual returns (uint256) {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        if ($._depositedPerBlock[block.number] >= $._maxDepositPerBlock) {
+        uint256 _deposited = $._depositedInBlock.usage();
+        if (_deposited >= $._maxDepositPerBlock) {
             return 0;
         }
-        return $._maxDepositPerBlock - $._depositedPerBlock[block.number];
+        return $._maxDepositPerBlock - _deposited;
     }
 
     function _getRemainingWithdrawAllowance() internal view virtual returns (uint256) {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        if ($._withdrawnPerBlock[block.number] >= $._maxWithdrawPerBlock) {
+        uint256 _withdrawn = $._withdrawnInBlock.usage();
+        if (_withdrawn >= $._maxWithdrawPerBlock) {
             return 0;
         }
-        return $._maxWithdrawPerBlock - $._withdrawnPerBlock[block.number];
+        return $._maxWithdrawPerBlock - _withdrawn;
     }
 
     function _getLiquidityBufferSize() internal view virtual returns (uint256) {

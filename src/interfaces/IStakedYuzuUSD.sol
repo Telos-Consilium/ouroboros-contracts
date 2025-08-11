@@ -35,8 +35,8 @@ interface IStakedYuzuUSD is IERC4626 {
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
     function orderCount() external view returns (uint256);
     function totalPendingOrderValue() external view returns (uint256);
-    function depositedPerBlock(uint256 blockNumber) external view returns (uint256);
-    function withdrawnPerBlock(uint256 blockNumber) external view returns (uint256);
+    function depositedInBlock() external view returns (uint256);
+    function withdrawnInBlock() external view returns (uint256);
     function maxDepositPerBlock() external view returns (uint256);
     function maxWithdrawPerBlock() external view returns (uint256);
     function redeemFeePpm() external view returns (uint256);

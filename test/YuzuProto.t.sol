@@ -1195,25 +1195,25 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Misc
-    function test_DepositedPerBlock() public {
+    function test_DepositedInBlock() public {
         _deposit(user1, 100e6);
-        assertEq(proto.depositedPerBlock(block.number), 100e6);
+        assertEq(proto.depositedInBlock(), 100e6);
 
         _deposit(user2, 200e6);
-        assertEq(proto.depositedPerBlock(block.number), 300e6);
+        assertEq(proto.depositedInBlock(), 300e6);
     }
 
-    function test_WithdrawnPerBlock() public {
+    function test_WithdrawnInBlock() public {
         _deposit(user1, 300e6);
         asset.mint(address(proto), 300e6);
 
         vm.prank(user1);
         proto.withdraw(100e6, user2, user1);
-        assertEq(proto.withdrawnPerBlock(block.number), 100e6);
+        assertEq(proto.withdrawnInBlock(), 100e6);
 
         vm.prank(user1);
         proto.withdraw(200e6, user2, user1);
-        assertEq(proto.withdrawnPerBlock(block.number), 300e6);
+        assertEq(proto.withdrawnInBlock(), 300e6);
     }
 
     function test_MaxDeposit_MaxMint_AcrossBlocks() public {

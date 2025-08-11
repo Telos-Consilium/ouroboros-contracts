@@ -13,6 +13,8 @@ import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Nonce
 
 import {IStakedYuzuUSDDefinitions, Order, OrderStatus} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
+import {InBlockUsage, LibInBlockUsage} from "./common/LibInBlockUsage.sol";
+
 /**
  * @title StakedYuzuUSD
  * @notice ERC-4626 tokenized vault for staking yzUSD with 2-step delayed redemptions
@@ -25,14 +27,16 @@ contract StakedYuzuUSD is
     IStakedYuzuUSDDefinitions,
     IERC20Permit
 {
+    using LibInBlockUsage for InBlockUsage;
+
     bytes32 private constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     error ERC2612ExpiredSignature(uint256 deadline);
     error ERC2612InvalidSigner(address signer, address owner);
 
-    mapping(uint256 => uint256) public depositedPerBlock;
-    mapping(uint256 => uint256) public withdrawnPerBlock;
+    InBlockUsage internal _depositedInBlock;
+    InBlockUsage internal _withdrawnInBlock;
     uint256 public maxDepositPerBlock;
     uint256 public maxWithdrawPerBlock;
 
@@ -88,9 +92,19 @@ contract StakedYuzuUSD is
         return super.totalAssets() - totalPendingOrderValue;
     }
 
+    /// @notice Returns the amount of assets deposited in the current block
+    function depositedInBlock() public view returns (uint256) {
+        return _depositedInBlock.usage();
+    }
+
+    /// @notice Returns the amount of assets withdrawn in the current block
+    function withdrawnInBlock() public view returns (uint256) {
+        return _withdrawnInBlock.usage();
+    }
+
     /// @notice See {IERC4626-maxDeposit}
     function maxDeposit(address) public view override returns (uint256) {
-        uint256 deposited = depositedPerBlock[block.number];
+        uint256 deposited = _depositedInBlock.usage();
         if (deposited >= maxDepositPerBlock) return 0;
         return maxDepositPerBlock - deposited;
     }
@@ -103,14 +117,14 @@ contract StakedYuzuUSD is
 
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address owner) public view override returns (uint256) {
-        uint256 withdrawn = withdrawnPerBlock[block.number];
+        uint256 withdrawn = _withdrawnInBlock.usage();
         if (withdrawn >= maxWithdrawPerBlock) return 0;
         return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - withdrawn);
     }
 
     /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address owner) public view override returns (uint256) {
-        uint256 withdrawn = withdrawnPerBlock[block.number];
+        uint256 withdrawn = _withdrawnInBlock.usage();
         if (withdrawn >= maxWithdrawPerBlock) return 0;
 
         uint256 inheritedMaxRedeem = super.maxRedeem(owner);
@@ -276,7 +290,7 @@ contract StakedYuzuUSD is
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        depositedPerBlock[block.number] += assets;
+        _depositedInBlock.use(assets);
         super._deposit(caller, receiver, assets, shares);
     }
 
@@ -285,7 +299,7 @@ contract StakedYuzuUSD is
         internal
         returns (uint256)
     {
-        withdrawnPerBlock[block.number] += assets;
+        _withdrawnInBlock.use(assets);
         totalPendingOrderValue += assets;
 
         uint256 orderId = orderCount;
