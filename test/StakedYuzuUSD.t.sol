@@ -51,8 +51,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
             "Staked Yuzu USD",
             "st-yzUSD",
             owner,
-            1_000_000e18,
-            1_000_000e18,
+            type(uint256).max,
+            type(uint256).max,
             1 days
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -92,8 +92,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.name(), "Staked Yuzu USD");
         assertEq(styz.symbol(), "st-yzUSD");
         assertEq(styz.owner(), owner);
-        assertEq(styz.maxDepositPerBlock(), 1_000_000e18);
-        assertEq(styz.maxWithdrawPerBlock(), 1_000_000e18);
+        assertEq(styz.maxDepositPerBlock(), type(uint256).max);
+        assertEq(styz.maxWithdrawPerBlock(), type(uint256).max);
         assertEq(styz.redeemDelay(), 1 days);
     }
 
@@ -398,7 +398,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_SetMaxDepositPerBlock() public {
         vm.prank(owner);
         vm.expectEmit();
-        emit UpdatedMaxDepositPerBlock(1_000_000e18, 200e18);
+        emit UpdatedMaxDepositPerBlock(type(uint256).max, 200e18);
         styz.setMaxDepositPerBlock(200e18);
         assertEq(styz.maxDepositPerBlock(), 200e18);
     }
@@ -412,7 +412,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_SetMaxWithdrawPerBlock() public {
         vm.prank(owner);
         vm.expectEmit();
-        emit UpdatedMaxWithdrawPerBlock(1_000_000e18, 200e18);
+        emit UpdatedMaxWithdrawPerBlock(type(uint256).max, 200e18);
         styz.setMaxWithdrawPerBlock(200e18);
         assertEq(styz.maxWithdrawPerBlock(), 200e18);
     }

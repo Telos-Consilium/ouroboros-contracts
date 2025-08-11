@@ -70,11 +70,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
 
     /// @notice See {IERC4626-maxMint}
     function maxMint(address receiver) public view virtual returns (uint256) {
-        uint256 _maxDeposit = maxDeposit(receiver);
-        if (_maxDeposit == type(uint256).max) {
-            return type(uint256).max;
-        }
-        return previewDeposit(_maxDeposit);
+        return previewDeposit(maxDeposit(receiver));
     }
 
     /// @notice See {IERC4626-maxWithdraw}

@@ -64,8 +64,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
             "PROTO",
             admin,
             treasury,
-            1_000_000e6, // maxDepositPerBlock
-            1_000_000e6, // maxWithdrawPerBlock
+            type(uint256).max, // maxDepositPerBlock
+            type(uint256).max, // maxWithdrawPerBlock
             1 days // fillWindow
         );
         ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
@@ -131,8 +131,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.name(), "Proto Token");
         assertEq(proto.symbol(), "PROTO");
         assertEq(proto.treasury(), treasury);
-        assertEq(proto.maxDepositPerBlock(), 1_000_000e6);
-        assertEq(proto.maxWithdrawPerBlock(), 1_000_000e6);
+        assertEq(proto.maxDepositPerBlock(), type(uint256).max);
+        assertEq(proto.maxWithdrawPerBlock(), type(uint256).max);
         assertEq(proto.fillWindow(), 1 days);
 
         assertEq(proto.getRoleAdmin(ADMIN_ROLE), proto.DEFAULT_ADMIN_ROLE());
@@ -860,7 +860,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_SetMaxDepositPerBlock() public {
         vm.prank(limitManager);
         vm.expectEmit();
-        emit UpdatedMaxDepositPerBlock(1_000_000e6, 200e6);
+        emit UpdatedMaxDepositPerBlock(type(uint256).max, 200e6);
         proto.setMaxDepositPerBlock(200e6);
         assertEq(proto.maxDepositPerBlock(), 200e6);
     }
@@ -876,7 +876,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_SetMaxWithdrawPerBlock() public {
         vm.prank(limitManager);
         vm.expectEmit();
-        emit UpdatedMaxWithdrawPerBlock(1_000_000e6, 200e6);
+        emit UpdatedMaxWithdrawPerBlock(type(uint256).max, 200e6);
         proto.setMaxWithdrawPerBlock(200e6);
         assertEq(proto.maxWithdrawPerBlock(), 200e6);
     }

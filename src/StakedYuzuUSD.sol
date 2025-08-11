@@ -78,13 +78,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     /// @notice See {IERC4626-maxMint}
     function maxMint(address receiver) public view override returns (uint256) {
-        uint256 _maxDeposit = maxDeposit(receiver);
-        // if (_maxDeposit >= type(uint256).max / (totalSupply() + 10 ** _decimalsOffset())) {
-        //     return type(uint256).max;
-        // }
-        if (_maxDeposit == type(uint256).max) {
-            return type(uint256).max;
-        }
+        uint256 _maxDeposit = Math.min(maxDeposit(receiver), type(uint256).max - 10 ** _decimalsOffset());
         return convertToShares(_maxDeposit);
     }
 
