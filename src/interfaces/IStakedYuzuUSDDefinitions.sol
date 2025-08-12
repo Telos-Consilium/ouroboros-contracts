@@ -17,6 +17,17 @@ struct Order {
 }
 
 interface IStakedYuzuUSDDefinitions {
+    // error InvalidZeroShares();
+    // error InvalidZeroAmount();
+    error RedeemDelayTooHigh(uint256 provided, uint256 max);
+    error InvalidZeroAddress();
+    error InvalidRedeemOrderFee(uint256 provided);
+    error OrderNotPending(uint256 orderId);
+    error OrderNotDue(uint256 orderId);
+    error InvalidAssetRescue(address token);
+    error WithdrawNotSupported();
+    error RedeemNotSupported();
+
     event InitiatedRedeem(
         address indexed sender,
         address indexed receiver,
@@ -37,15 +48,4 @@ interface IStakedYuzuUSDDefinitions {
     event UpdatedMaxWithdrawPerBlock(uint256 oldLimit, uint256 newLimit);
     event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
     event UpdatedRedeemOrderFee(uint256 oldFee, uint256 newFee);
-
-    // error InvalidZeroShares();
-    // error InvalidZeroAmount();
-    error RedeemDelayTooHigh(uint256 provided, uint256 max);
-    error InvalidZeroAddress();
-    error InvalidRedeemOrderFee(uint256 provided);
-    error OrderNotPending(uint256 orderId);
-    error OrderNotDue(uint256 orderId);
-    error InvalidAssetRescue(address token);
-    error WithdrawNotSupported();
-    error RedeemNotSupported();
 }
