@@ -40,6 +40,7 @@ interface IStakedYuzuUSDDefinitions {
 
     // error InvalidZeroShares();
     // error InvalidZeroAmount();
+    error RedeemDelayTooHigh(uint256 provided, uint256 max);
     error InvalidZeroAddress();
     error InvalidRedeemOrderFee(uint256 provided);
     error OrderNotPending(uint256 orderId);

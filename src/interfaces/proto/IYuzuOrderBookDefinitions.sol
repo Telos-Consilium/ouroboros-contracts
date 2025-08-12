@@ -21,6 +21,7 @@ struct Order {
 
 interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error InvalidZeroAddress();
+    error FillWindowTooHigh(uint256 provided, uint256 max);
     error Unauthorized(address account, address owner);
     error OrderNotPending(uint256 orderId);
     error OrderNotDue(uint256 orderId);
