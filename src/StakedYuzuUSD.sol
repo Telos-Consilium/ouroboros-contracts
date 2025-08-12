@@ -127,6 +127,9 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     /// @notice Initiates a 2-step redemption of `shares`
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256) {
+        if (receiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
         uint256 maxShares = maxRedeem(owner);
         if (shares > maxShares) {
             revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
@@ -160,7 +163,9 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     /// @notice Transfers `amount` of `token` held by the vault to `receiver`
     function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
-        if (token == asset()) revert InvalidAssetRescue(token);
+        if (token == asset()) {
+            revert InvalidAssetRescue(token);
+        }
         SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
 

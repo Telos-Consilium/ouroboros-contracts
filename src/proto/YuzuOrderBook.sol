@@ -52,6 +52,9 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         virtual
         returns (uint256, uint256)
     {
+        if (receiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
         uint256 maxTokens = maxRedeemOrder(owner);
         if (tokens > maxTokens) {
             revert ExceededMaxRedeemOrder(owner, tokens, maxTokens);
@@ -73,7 +76,6 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         }
 
         address caller = _msgSender();
-
         _fillRedeemOrder(caller, order);
 
         emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);

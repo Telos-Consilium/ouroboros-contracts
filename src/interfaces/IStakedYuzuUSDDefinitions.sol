@@ -42,9 +42,9 @@ interface IStakedYuzuUSDDefinitions {
     // error InvalidZeroAmount();
     error InvalidZeroAddress();
     error InvalidRedeemOrderFee(uint256 provided);
+    error OrderNotPending(uint256 orderId);
+    error OrderNotDue(uint256 orderId);
     error InvalidAssetRescue(address token);
     error WithdrawNotSupported();
     error RedeemNotSupported();
-    error OrderNotPending(uint256 orderId);
-    error OrderNotDue(uint256 orderId);
 }

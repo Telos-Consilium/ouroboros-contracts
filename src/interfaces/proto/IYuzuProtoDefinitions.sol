@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 interface IYuzuProtoDefinitions {
-    error InvalidZeroAddress();
     error InvalidRedeemFee(uint256 provided);
     error InvalidRedeemOrderFee(int256 provided);
     error InvalidAssetRescue(address token);
