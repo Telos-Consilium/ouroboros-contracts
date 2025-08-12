@@ -85,7 +85,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     function cancelRedeemOrder(uint256 orderId) public virtual {
         Order storage order = _getOrder(orderId);
         if (_msgSender() != order.owner) {
-            revert Unauthorized(_msgSender(), order.owner);
+            revert NotOrderOwner(_msgSender(), order.owner);
         }
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);

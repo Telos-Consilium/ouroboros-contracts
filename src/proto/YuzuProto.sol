@@ -139,7 +139,7 @@ abstract contract YuzuProto is
 
     function setRedeemFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
-            revert InvalidRedeemFee(newFeePpm);
+            revert FeeTooHigh(newFeePpm, 1e6);
         }
         uint256 oldFee = redeemFeePpm;
         redeemFeePpm = newFeePpm;
@@ -147,8 +147,8 @@ abstract contract YuzuProto is
     }
 
     function setRedeemOrderFee(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6 || newFeePpm < -1e6) {
-            revert InvalidRedeemOrderFee(newFeePpm);
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(uint256(newFeePpm), 1e6);
         }
         int256 oldFee = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;

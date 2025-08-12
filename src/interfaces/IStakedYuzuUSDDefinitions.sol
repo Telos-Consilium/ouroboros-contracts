@@ -19,9 +19,9 @@ struct Order {
 interface IStakedYuzuUSDDefinitions {
     // error InvalidZeroShares();
     // error InvalidZeroAmount();
-    error RedeemDelayTooHigh(uint256 provided, uint256 max);
     error InvalidZeroAddress();
-    error InvalidRedeemOrderFee(uint256 provided);
+    error RedeemDelayTooHigh(uint256 provided, uint256 max);
+    error FeeTooHigh(uint256 provided, uint256 max);
     error OrderNotPending(uint256 orderId);
     error OrderNotDue(uint256 orderId);
     error InvalidAssetRescue(address token);

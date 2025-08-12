@@ -202,7 +202,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     /// @notice Sets the redeem fee to `newFeePpm`
     function setRedeemFee(uint256 newFeePpm) external onlyOwner {
         if (newFeePpm > 1e6) {
-            revert InvalidRedeemOrderFee(newFeePpm);
+            revert FeeTooHigh(newFeePpm, 1e6);
         }
         uint256 oldFeePpm = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;
