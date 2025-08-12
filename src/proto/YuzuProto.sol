@@ -62,9 +62,9 @@ abstract contract YuzuProto is
         __YuzuOrderBook_init(_fillWindow);
         __AccessControlDefaultAdminRules_init(0, _admin);
 
-        if (_admin == address(0)) revert InvalidZeroAddress();
-        if (__asset == address(0)) revert InvalidZeroAddress();
-        if (__treasury == address(0)) revert InvalidZeroAddress();
+        if (_admin == address(0) || __asset == address(0) || __treasury == address(0)) {
+            revert InvalidZeroAddress();
+        }
 
         _asset = __asset;
         _treasury = __treasury;
@@ -129,21 +129,27 @@ abstract contract YuzuProto is
     }
 
     function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
-        if (newTreasury == address(0)) revert InvalidZeroAddress();
+        if (newTreasury == address(0)) {
+            revert InvalidZeroAddress();
+        }
         address oldTreasury = _treasury;
         _treasury = newTreasury;
         emit UpdatedTreasury(oldTreasury, newTreasury);
     }
 
     function setRedeemFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) revert InvalidRedeemFee(newFeePpm);
+        if (newFeePpm > 1e6) {
+            revert InvalidRedeemFee(newFeePpm);
+        }
         uint256 oldFee = redeemFeePpm;
         redeemFeePpm = newFeePpm;
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
     function setRedeemOrderFee(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newFeePpm > 1e6 || newFeePpm < -1e6) revert InvalidRedeemOrderFee(newFeePpm);
+        if (newFeePpm > 1e6 || newFeePpm < -1e6) {
+            revert InvalidRedeemOrderFee(newFeePpm);
+        }
         int256 oldFee = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);

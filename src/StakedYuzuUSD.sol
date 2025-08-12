@@ -51,8 +51,9 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         uint256 _maxWithdrawPerBlock,
         uint256 _redeemDelay
     ) external initializer {
-        if (address(_asset) == address(0)) revert InvalidZeroAddress();
-        if (_owner == address(0)) revert InvalidZeroAddress();
+        if (address(_asset) == address(0) || _owner == address(0)) {
+            revert InvalidZeroAddress();
+        }
 
         __ERC4626_init(_asset);
         __ERC20_init(name_, symbol_);
@@ -200,7 +201,9 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     /// @notice Sets the redeem fee to `newFeePpm`
     function setRedeemFee(uint256 newFeePpm) external onlyOwner {
-        if (newFeePpm > 1e6) revert InvalidRedeemOrderFee(newFeePpm);
+        if (newFeePpm > 1e6) {
+            revert InvalidRedeemOrderFee(newFeePpm);
+        }
         uint256 oldFeePpm = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;
         emit UpdatedRedeemOrderFee(oldFeePpm, newFeePpm);
