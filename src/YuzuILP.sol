@@ -140,7 +140,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     function _convertToAssetsDeposited(uint256 shares) internal view returns (uint256) {
-        if (poolSize == 0 || totalSupply() == 0) return Math.ceilDiv(shares, 10 ** _decimalsOffset());
+        if (totalSupply() == 0) return Math.ceilDiv(shares, 10 ** _decimalsOffset());
         uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding.Ceil);
         return Math.mulDiv(_totalAssets, shares, totalSupply(), Math.Rounding.Ceil);
     }
