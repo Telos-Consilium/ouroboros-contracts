@@ -4,8 +4,8 @@ pragma solidity ^0.8.30;
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 struct InBlockUsage {
-    uint64 _blockNumber;
-    uint192 _usage;
+    uint256 _blockNumber;
+    uint256 _usage;
 }
 
 library LibInBlockUsage {
@@ -17,12 +17,11 @@ library LibInBlockUsage {
         }
     }
 
-    function use(InBlockUsage storage u, uint256 _amount) internal {
-        uint192 amount = SafeCast.toUint192(_amount);
+    function use(InBlockUsage storage u, uint256 amount) internal {
         if (block.number == u._blockNumber) {
             u._usage += amount;
         } else {
-            u._blockNumber = uint64(block.number);
+            u._blockNumber = block.number;
             u._usage = amount;
         }
     }
