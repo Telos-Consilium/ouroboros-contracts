@@ -30,10 +30,6 @@ interface IStakedYuzuUSD is IERC4626 {
     function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256);
     function finalizeRedeem(uint256 orderId) external;
 
-    function setMaxDepositPerBlock(uint256 newMax) external;
-    function setMaxWithdrawPerBlock(uint256 newMax) external;
-    function setRedeemDelay(uint256 newDelay) external;
-    function setRedeemFee(uint256 newFee) external;
     function rescueTokens(address token, address receiver, uint256 amount) external;
 
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
@@ -43,5 +39,11 @@ interface IStakedYuzuUSD is IERC4626 {
     function withdrawnPerBlock(uint256 blockNumber) external view returns (uint256);
     function maxDepositPerBlock() external view returns (uint256);
     function maxWithdrawPerBlock() external view returns (uint256);
+    function redeemOrderFeePpm() external view returns (uint256);
     function redeemDelay() external view returns (uint256);
+
+    function setMaxDepositPerBlock(uint256 newMax) external;
+    function setMaxWithdrawPerBlock(uint256 newMax) external;
+    function setRedeemDelay(uint256 newDelay) external;
+    function setRedeemFee(uint256 newFee) external;
 }
