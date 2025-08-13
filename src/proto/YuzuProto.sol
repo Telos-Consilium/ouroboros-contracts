@@ -108,6 +108,14 @@ abstract contract YuzuProto is
         return _treasury;
     }
 
+    function maxMint(address receiver) public view override returns (uint256) {
+        uint256 _maxDeposit = maxDeposit(receiver);
+        if (_maxDeposit > type(uint256).max / 10 ** _decimalsOffset()) {
+            return type(uint256).max;
+        }
+        return previewDeposit(_maxDeposit);
+    }
+
     function fillRedeemOrder(uint256 orderId) public override onlyRole(ORDER_FILLER_ROLE) {
         super.fillRedeemOrder(orderId);
     }

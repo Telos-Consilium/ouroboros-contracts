@@ -71,15 +71,6 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return poolSize + yieldSinceUpdate;
     }
 
-    /// @notice See {IERC4626-maxMint}
-    function maxMint(address receiver) public view override returns (uint256) {
-        uint256 _maxDeposit = maxDeposit(receiver);
-        if (_maxDeposit > type(uint256).max / 10 ** _decimalsOffset()) {
-            return type(uint256).max;
-        }
-        return previewDeposit(_maxDeposit);
-    }
-
     /// @notice See {IERC4626-previewDeposit}
     function previewDeposit(uint256 assets) public view override returns (uint256) {
         return _convertToSharesMinted(assets);
