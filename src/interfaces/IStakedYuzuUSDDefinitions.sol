@@ -47,5 +47,5 @@ interface IStakedYuzuUSDDefinitions {
     event UpdatedMaxDepositPerBlock(uint256 oldLimit, uint256 newLimit);
     event UpdatedMaxWithdrawPerBlock(uint256 oldLimit, uint256 newLimit);
     event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
-    event UpdatedRedeemOrderFee(uint256 oldFee, uint256 newFee);
+    event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
 }

@@ -20,7 +20,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     uint256 public maxWithdrawPerBlock;
 
     uint256 public redeemDelay;
-    uint256 public redeemOrderFeePpm;
+    uint256 public redeemFeePpm;
 
     uint256 public totalPendingOrderValue;
 
@@ -99,14 +99,14 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     /// @notice See {IERC4626-previewWithdraw}
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redeemOrderFeePpm);
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         return super.previewWithdraw(assets + fee);
     }
 
     /// @notice See {IERC4626-previewRedeem}
     function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
-        return assets - _feeOnTotal(assets, redeemOrderFeePpm);
+        return assets - _feeOnTotal(assets, redeemFeePpm);
     }
 
     /**
@@ -204,9 +204,9 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
-        uint256 oldFeePpm = redeemOrderFeePpm;
-        redeemOrderFeePpm = newFeePpm;
-        emit UpdatedRedeemOrderFee(oldFeePpm, newFeePpm);
+        uint256 oldFeePpm = redeemFeePpm;
+        redeemFeePpm = newFeePpm;
+        emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {

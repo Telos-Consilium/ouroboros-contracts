@@ -39,7 +39,7 @@ interface IStakedYuzuUSD is IERC4626 {
     function withdrawnPerBlock(uint256 blockNumber) external view returns (uint256);
     function maxDepositPerBlock() external view returns (uint256);
     function maxWithdrawPerBlock() external view returns (uint256);
-    function redeemOrderFeePpm() external view returns (uint256);
+    function redeemFeePpm() external view returns (uint256);
     function redeemDelay() external view returns (uint256);
 
     function setMaxDepositPerBlock(uint256 newMax) external;

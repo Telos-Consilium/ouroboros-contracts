@@ -387,9 +387,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_setRedeemFee() public {
         vm.prank(owner);
         vm.expectEmit();
-        emit UpdatedRedeemOrderFee(0, 1_000_000);
+        emit UpdatedRedeemFee(0, 1_000_000);
         styz.setRedeemFee(1_000_000);
-        assertEq(styz.redeemOrderFeePpm(), 1_000_000);
+        assertEq(styz.redeemFeePpm(), 1_000_000);
     }
 
     function test_setRedeemFee_Revert_ExceedsMaxFee() public {
