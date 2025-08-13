@@ -97,8 +97,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
     /// @notice Preview the amount of assets to receive when redeeming `shares` through an order after fees
     function previewRedeemOrder(uint256 shares) public view override returns (uint256) {
-        if (totalSupply() == 0) return 0;
-        uint256 assets = Math.mulDiv(poolSize, shares, totalSupply(), Math.Rounding.Floor);
+        uint256 assets = _convertToAssetsWithdrawn(shares);
 
         if (redeemOrderFeePpm >= 0) {
             // Positive fee - reduce assets returned
