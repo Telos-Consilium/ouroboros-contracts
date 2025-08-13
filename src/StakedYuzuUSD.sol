@@ -4,9 +4,12 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 
 import {IStakedYuzuUSDDefinitions, Order, OrderStatus} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
@@ -14,7 +17,20 @@ import {IStakedYuzuUSDDefinitions, Order, OrderStatus} from "./interfaces/IStake
  * @title StakedYuzuUSD
  * @notice ERC-4626 tokenized vault for staking yzUSD with 2-step delayed redemptions
  */
-contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYuzuUSDDefinitions {
+contract StakedYuzuUSD is
+    ERC4626Upgradeable,
+    Ownable2StepUpgradeable,
+    EIP712Upgradeable,
+    NoncesUpgradeable,
+    IStakedYuzuUSDDefinitions,
+    IERC20Permit
+{
+    bytes32 private constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+
+    error ERC2612ExpiredSignature(uint256 deadline);
+    error ERC2612InvalidSigner(address signer, address owner);
+
     mapping(uint256 => uint256) public depositedPerBlock;
     mapping(uint256 => uint256) public withdrawnPerBlock;
     uint256 public maxDepositPerBlock;
@@ -56,6 +72,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         __ERC20_init(name_, symbol_);
         __Ownable_init(_owner);
         __Ownable2Step_init();
+        __EIP712_init(name_, "1");
 
         if (address(_asset) == address(0)) {
             revert InvalidZeroAddress();
@@ -221,6 +238,38 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         uint256 oldFeePpm = redeemFeePpm;
         redeemFeePpm = newFeePpm;
         emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
+    }
+
+    /// @notice See {IERC20Permit-permit}.
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        public
+        virtual
+    {
+        if (block.timestamp > deadline) {
+            revert ERC2612ExpiredSignature(deadline);
+        }
+
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, _useNonce(owner), deadline));
+
+        bytes32 hash = _hashTypedDataV4(structHash);
+
+        address signer = ECDSA.recover(hash, v, r, s);
+        if (signer != owner) {
+            revert ERC2612InvalidSigner(signer, owner);
+        }
+
+        _approve(owner, spender, value);
+    }
+
+    /// @notice See {IERC20Permit-nonces}
+    function nonces(address owner) public view virtual override(IERC20Permit, NoncesUpgradeable) returns (uint256) {
+        return super.nonces(owner);
+    }
+
+    /// @notice See {IERC20Permit-DOMAIN_SEPARATOR}
+    // solhint-disable-next-line func-name-mixedcase
+    function DOMAIN_SEPARATOR() external view virtual returns (bytes32) {
+        return _domainSeparatorV4();
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
