@@ -174,13 +174,6 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
         $._depositedPerBlock[block.number] += assets;
 
-        // If asset() is ERC-777, `transferFrom` can trigger a reentrancy BEFORE the transfer happens through the
-        // `tokensToSend` hook. On the other hand, the `tokenReceived` hook, that is triggered after the transfer,
-        // calls the vault, which is assumed not malicious.
-        //
-        // Conclusion: we need to do the transfer before we mint so that any reentrancy would happen before the
-        // assets are transferred and before the tokens are minted, which is a valid state.
-        // slither-disable-next-line reentrancy-no-eth
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury(), assets);
         __yuzu_mint(receiver, tokens);
 
@@ -197,14 +190,8 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         if (caller != owner) {
             __yuzu_spendAllowance(owner, caller, tokens);
         }
-
-        // If asset() is ERC-777, `transfer` can trigger a reentrancy AFTER the transfer happens through the
-        // `tokensReceived` hook. On the other hand, the `tokensToSend` hook, that is triggered before the transfer,
-        // calls the vault, which is assumed not malicious.
-        //
-        // Conclusion: we need to do the transfer after the burn so that any reentrancy would happen after the
-        // tokens are burned and after the assets are transferred, which is a valid state.
         __yuzu_burn(owner, tokens);
+
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
 
         emit Withdraw(caller, receiver, owner, assets, tokens);
