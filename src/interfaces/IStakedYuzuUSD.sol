@@ -2,10 +2,21 @@
 pragma solidity ^0.8.30;
 
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {Order} from "./IStakedYuzuUSDDefinitions.sol";
 
 interface IStakedYuzuUSD is IERC4626 {
+    function initialize(
+        IERC20 _asset,
+        string memory name_,
+        string memory symbol_,
+        address _owner,
+        uint256 _maxDepositPerBlock,
+        uint256 _maxWithdrawPerBlock,
+        uint256 _redeemDelay
+    ) external;
+
     function previewDeposit(uint256 assets) external view returns (uint256 tokens);
     function previewMint(uint256 tokens) external view returns (uint256 assets);
     function previewWithdraw(uint256 assets) external view returns (uint256 tokens);
