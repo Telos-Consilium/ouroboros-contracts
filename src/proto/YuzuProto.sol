@@ -61,6 +61,7 @@ abstract contract YuzuProto is
         uint256 _fillWindow
     ) internal onlyInitializing {
         __ERC20_init(__name, __symbol);
+        __ERC20Permit_init(__name);
         __YuzuIssuer_init(_maxDepositPerBlock, _maxWithdrawPerBlock);
         __YuzuOrderBook_init(_fillWindow);
         __AccessControlDefaultAdminRules_init(0, _admin);
