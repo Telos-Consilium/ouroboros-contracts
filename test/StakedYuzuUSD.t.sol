@@ -265,6 +265,15 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.initiateRedeem(mintedShares + 1, user1, user1);
     }
 
+    function test_InitiateRedeem_Revert_InvalidReceiver() public {
+        uint256 depositAmount = 100e18;
+        vm.startPrank(user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        vm.expectRevert(InvalidZeroAddress.selector);
+        styz.initiateRedeem(mintedShares, address(0), user1);
+        vm.stopPrank();
+    }
+
     // Redeem Finalization
     function test_FinalizeRedeem() public {
         // Deposit and initiate redeem
