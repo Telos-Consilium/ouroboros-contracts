@@ -2,10 +2,16 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {ERC20PermitUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -15,20 +21,8 @@ import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinit
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 
 contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
-    // ERC-4626
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
-    event Withdraw(
-        address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
-    );
-
-    error ERC4626ExceededMaxDeposit(address owner, uint256 assets, uint256 max);
-    error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max);
-    error ERC4626ExceededMaxWithdraw(address owner, uint256 assets, uint256 max);
-    error ERC4626ExceededMaxMint(address owner, uint256 shares, uint256 max);
-
-    // Ownable
-    error OwnableUnauthorizedAccount(address account);
-    error OwnableInvalidOwner(address owner);
+    bytes32 private constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     StakedYuzuUSD public styz;
     ERC20Mock public yzusd;
@@ -36,10 +30,19 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     address public user1;
     address public user2;
 
+    uint256 public user1key;
+    uint256 public user2key;
+
     function setUp() public {
         owner = makeAddr("owner");
-        user1 = makeAddr("user1");
-        user2 = makeAddr("user2");
+
+        Vm.Wallet memory user1Wallet = vm.createWallet("user1");
+        user1 = user1Wallet.addr;
+        user1key = user1Wallet.privateKey;
+
+        Vm.Wallet memory user2Wallet = vm.createWallet("user2");
+        user2 = user2Wallet.addr;
+        user2key = user2Wallet.privateKey;
 
         // Deploy mock asset and mint balances
         yzusd = new ERC20Mock();
@@ -121,7 +124,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         new ERC1967Proxy(address(implementation), initData_ZeroAsset);
 
         bytes memory initData_ZeroOwner = _packInitData(address(yzusd), address(0));
-        vm.expectRevert(abi.encodeWithSelector(OwnableInvalidOwner.selector, address(0)));
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0)));
         new ERC1967Proxy(address(implementation), initData_ZeroOwner);
     }
 
@@ -205,7 +208,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 mintedShares = _deposit(user1, 100e18);
         vm.prank(user1);
         vm.expectRevert(
-            abi.encodeWithSelector(ERC4626ExceededMaxRedeem.selector, user1, mintedShares + 1, mintedShares)
+            abi.encodeWithSelector(
+                ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, mintedShares + 1, mintedShares
+            )
         );
         styz.initiateRedeem(mintedShares + 1, user1, user1);
     }
@@ -239,7 +244,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.expectEmit();
         emit FinalizedRedeem(caller, order.receiver, order.owner, orderId, order.assets, order.shares);
         vm.expectEmit();
-        emit Withdraw(caller, order.receiver, order.owner, order.assets, order.shares);
+        emit IERC4626.Withdraw(caller, order.receiver, order.owner, order.assets, order.shares);
         styz.finalizeRedeem(orderId);
 
         Order memory orderAfter = styz.getRedeemOrder(orderId);
@@ -357,7 +362,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         ERC20Mock otherAsset = new ERC20Mock();
         otherAsset.mint(address(styz), 100e18);
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
         styz.rescueTokens(address(otherAsset), user1, 50e18);
     }
 
@@ -389,16 +394,16 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_Setters_Revert_NotOwner() public {
         vm.startPrank(user1);
         // Set Max Deposit
-        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
         styz.setMaxDepositPerBlock(200e18);
         // Set Max Withdraw
-        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
         styz.setMaxWithdrawPerBlock(200e18);
         // Set Redeem Fee
-        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
         styz.setRedeemFee(100_000);
         // Set Redeem Delay
-        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
         styz.setRedeemDelay(2 days);
         vm.stopPrank();
     }
@@ -564,5 +569,61 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         vm.roll(block.number + 1);
         assertEq(styz.withdrawnPerBlock(block.number), 0);
+    }
+
+    // Permit
+    function test_Permit() public {
+        address _owner = user1;
+        uint256 ownerPrivateKey = user1key;
+        address spender = user2;
+        uint256 value = 123e18;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = styz.nonces(owner);
+
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", styz.DOMAIN_SEPARATOR(), structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+
+        assertEq(styz.allowance(_owner, spender), 0);
+
+        styz.permit(_owner, spender, value, deadline, v, r, s);
+
+        assertEq(styz.allowance(_owner, spender), value);
+        assertEq(styz.nonces(_owner), nonce + 1);
+    }
+
+    function test_Permit_Revert_InvalidSigner() public {
+        address _owner = user1;
+        uint256 invalidPrivateKey = user2key;
+        address spender = user2;
+        uint256 value = 123e18;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = styz.nonces(_owner);
+
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", styz.DOMAIN_SEPARATOR(), structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalidPrivateKey, digest);
+
+        vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612InvalidSigner.selector, user2, user1));
+        styz.permit(_owner, spender, value, deadline, v, r, s);
+    }
+
+    function test_Permit_Revert_ExpiredSignature() public {
+        address _owner = user1;
+        uint256 ownerPrivateKey = user2key;
+        address spender = user2;
+        uint256 value = 123e18;
+        uint256 deadline = block.timestamp - 1;
+        uint256 nonce = styz.nonces(owner);
+
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", styz.DOMAIN_SEPARATOR(), structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+
+        vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612ExpiredSignature.selector, deadline));
+        styz.permit(_owner, spender, value, deadline, v, r, s);
     }
 }
