@@ -486,6 +486,24 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.previewRedeem(1e18), 2e18 - 1);
     }
 
+    function test_PreviewWithdraw_WithFee() public {
+        _deposit(user1, 200e18);
+
+        vm.prank(owner);
+        styz.setRedeemFee(100_000); // 10%
+
+        assertEq(styz.previewWithdraw(100e18), 110e18);
+    }
+
+    function test_PreviewRedeem_WithFee() public {
+        uint256 mintedShares = _deposit(user1, 100e18);
+
+        vm.prank(owner);
+        styz.setRedeemFee(100_000); // 10%
+
+        assertEq(styz.previewRedeem(mintedShares), uint256(100e18) * 10 / 11);
+    }
+
     function test_MaxDeposit_MaxMint_AcrossBlocks() public {
         _setMaxDepositPerBlock(100e18);
         _deposit(user1, 50e18);
