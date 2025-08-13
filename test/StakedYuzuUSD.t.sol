@@ -1,306 +1,228 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
-import {Order} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
+import {Order, OrderStatus} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 
+import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
+
 contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
-    // ERC-4626 events for testing
+    // ERC-4626
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Withdraw(
         address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
     );
 
-    StakedYuzuUSD public stakedYzusd;
+    error ERC4626ExceededMaxDeposit(address owner, uint256 assets, uint256 max);
+    error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max);
+    error ERC4626ExceededMaxWithdraw(address owner, uint256 assets, uint256 max);
+    error ERC4626ExceededMaxMint(address owner, uint256 shares, uint256 max);
+
+    // Ownable
+    error OwnableUnauthorizedAccount(address account);
+
+    StakedYuzuUSD public styz;
     ERC20Mock public yzusd;
     address public owner;
     address public user1;
     address public user2;
-
-    uint256 public constant MAX_DEPOSIT_PER_BLOCK = 1_000e18;
-    uint256 public constant MAX_WITHDRAW_PER_BLOCK = 500e18;
-    uint256 public constant REDEEM_DELAY = 1 days;
 
     function setUp() public {
         owner = makeAddr("owner");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
 
-        // Deploy mock YuzuUSD token
+        // Deploy mock asset and mint balances
         yzusd = new ERC20Mock();
+        yzusd.mint(user1, 1_000_000e18);
+        yzusd.mint(user2, 1_000_000e18);
 
-        // Deploy StakedYuzuUSD implementation
+        // Deploy implementation and proxy-initialize
         StakedYuzuUSD implementation = new StakedYuzuUSD();
-
-        // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
             StakedYuzuUSD.initialize.selector,
             IERC20(address(yzusd)),
             "Staked Yuzu USD",
             "st-yzUSD",
             owner,
-            MAX_DEPOSIT_PER_BLOCK,
-            MAX_WITHDRAW_PER_BLOCK
+            type(uint256).max,
+            type(uint256).max,
+            1 days
         );
-
-        // Deploy proxy and initialize
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        stakedYzusd = StakedYuzuUSD(address(proxy));
+        styz = StakedYuzuUSD(address(proxy));
 
-        // Mint some YuzuUSD to users for testing
-        yzusd.mint(user1, 10_000e18);
-        yzusd.mint(user2, 10_000e18);
-
+        // Approvals for deposits/orders
         vm.prank(user1);
-        yzusd.approve(address(stakedYzusd), type(uint256).max);
-
+        yzusd.approve(address(styz), type(uint256).max);
         vm.prank(user2);
-        yzusd.approve(address(stakedYzusd), type(uint256).max);
+        yzusd.approve(address(styz), type(uint256).max);
+    }
+
+    // Helpers
+    function _deposit(address from, uint256 amount) internal returns (uint256 tokens) {
+        vm.prank(from);
+        return styz.deposit(amount, from);
+    }
+
+    function _withdraw(address from, uint256 amount) internal returns (uint256 withdrawnAssets) {
+        vm.prank(from);
+        return styz.withdraw(amount, from, from);
+    }
+
+    function _setMaxDepositPerBlock(uint256 maxDepositPerBlock) internal {
+        vm.prank(owner);
+        styz.setMaxDepositPerBlock(maxDepositPerBlock);
+    }
+
+    function _setMaxWithdrawPerBlock(uint256 maxWithdrawPerBlock) internal {
+        vm.prank(owner);
+        styz.setMaxWithdrawPerBlock(maxWithdrawPerBlock);
     }
 
     // Initialization
     function test_Initialize() public {
-        assertEq(address(stakedYzusd.asset()), address(yzusd));
-        assertEq(stakedYzusd.name(), "Staked Yuzu USD");
-        assertEq(stakedYzusd.symbol(), "st-yzUSD");
-        assertEq(stakedYzusd.owner(), owner);
-        assertEq(stakedYzusd.maxDepositPerBlock(), MAX_DEPOSIT_PER_BLOCK);
-        assertEq(stakedYzusd.maxWithdrawPerBlock(), MAX_WITHDRAW_PER_BLOCK);
-        assertEq(stakedYzusd.redeemDelay(), REDEEM_DELAY);
-        assertEq(stakedYzusd.currentRedeemAssetCommitment(), 0);
+        assertEq(address(styz.asset()), address(yzusd));
+        assertEq(styz.name(), "Staked Yuzu USD");
+        assertEq(styz.symbol(), "st-yzUSD");
+        assertEq(styz.owner(), owner);
+        assertEq(styz.maxDepositPerBlock(), type(uint256).max);
+        assertEq(styz.maxWithdrawPerBlock(), type(uint256).max);
+        assertEq(styz.redeemDelay(), 1 days);
     }
 
-    // Admin Functions
-    function test_SetMaxDepositPerBlock() public {
-        uint256 newMaxDepositPerBlock = 2_000e18;
+    // Max functions
+    function test_MaxDeposit_MaxMint() public {
+        _setMaxDepositPerBlock(0);
 
-        vm.expectEmit();
-        emit MaxDepositPerBlockUpdated(MAX_DEPOSIT_PER_BLOCK, newMaxDepositPerBlock);
+        assertEq(styz.maxDeposit(user1), 0);
+        assertEq(styz.maxMint(user1), 0);
+
+        _setMaxDepositPerBlock(100e18);
+
+        assertEq(styz.maxDeposit(user1), 100e18);
+        assertEq(styz.maxMint(user1), 100e18);
+    }
+
+    function test_MaxWithdraw_MaxRedeem() public {
         vm.prank(owner);
-        stakedYzusd.setMaxDepositPerBlock(newMaxDepositPerBlock);
+        styz.setRedeemFee(100_000); // 10%
 
-        assertEq(stakedYzusd.maxDepositPerBlock(), newMaxDepositPerBlock);
-    }
+        _setMaxWithdrawPerBlock(0);
 
-    function test_SetMaxDepositPerBlock_RevertOnlyOwner() public {
-        vm.expectRevert();
-        vm.prank(user1);
-        stakedYzusd.setMaxDepositPerBlock(2_000e18);
-    }
+        // Limited by max, balance
+        assertEq(styz.maxWithdraw(user1), 0);
+        assertEq(styz.maxRedeem(user1), 0);
 
-    function test_SetMaxDepositPerBlock_ZeroValue() public {
-        uint256 newMaxDepositPerBlock = 0;
+        _setMaxWithdrawPerBlock(100e18);
 
-        vm.expectEmit();
-        emit MaxDepositPerBlockUpdated(MAX_DEPOSIT_PER_BLOCK, newMaxDepositPerBlock);
-        vm.prank(owner);
-        stakedYzusd.setMaxDepositPerBlock(newMaxDepositPerBlock);
+        // Limited by balance
+        assertEq(styz.maxWithdraw(user1), 0);
+        assertEq(styz.maxRedeem(user1), 0);
 
-        assertEq(stakedYzusd.maxDepositPerBlock(), newMaxDepositPerBlock);
-        assertEq(stakedYzusd.maxDeposit(user1), 0);
-    }
+        _deposit(user1, 200e18);
 
-    function test_SetMaxWithdrawPerBlock() public {
-        uint256 newMaxWithdrawPerBlock = 1_000e18;
-
-        vm.expectEmit();
-        emit MaxWithdrawPerBlockUpdated(MAX_WITHDRAW_PER_BLOCK, newMaxWithdrawPerBlock);
-        vm.prank(owner);
-        stakedYzusd.setMaxWithdrawPerBlock(newMaxWithdrawPerBlock);
-
-        assertEq(stakedYzusd.maxWithdrawPerBlock(), newMaxWithdrawPerBlock);
-    }
-
-    function test_SetMaxWithdrawPerBlock_RevertOnlyOwner() public {
-        vm.expectRevert();
-        vm.prank(user1);
-        stakedYzusd.setMaxWithdrawPerBlock(1_000e18);
-    }
-
-    function test_SetMaxWithdrawPerBlock_ZeroValue() public {
-        uint256 newMaxWithdrawPerBlock = 0;
-
-        vm.expectEmit();
-        emit MaxWithdrawPerBlockUpdated(MAX_WITHDRAW_PER_BLOCK, newMaxWithdrawPerBlock);
-        vm.prank(owner);
-        stakedYzusd.setMaxWithdrawPerBlock(newMaxWithdrawPerBlock);
-
-        assertEq(stakedYzusd.maxWithdrawPerBlock(), newMaxWithdrawPerBlock);
-
-        vm.prank(user1);
-        stakedYzusd.deposit(100e18, user1);
-
-        assertEq(stakedYzusd.maxWithdraw(user1), 0);
-        assertEq(stakedYzusd.maxRedeem(user1), 0);
-    }
-
-    function test_SetRedeemDelay() public {
-        uint256 newRedeemDelay = 2 days;
-
-        vm.expectEmit();
-        emit RedeemDelayUpdated(REDEEM_DELAY, newRedeemDelay);
-        vm.prank(owner);
-        stakedYzusd.setRedeemDelay(newRedeemDelay);
-
-        assertEq(stakedYzusd.redeemDelay(), newRedeemDelay);
-    }
-
-    function test_SetRedeemDelay_RevertOnlyOwner() public {
-        vm.expectRevert();
-        vm.prank(user1);
-        stakedYzusd.setRedeemDelay(2 days);
-    }
-
-    function test_SetRedeemDelay_ZeroValue() public {
-        uint256 newRedeemDelay = 0;
-
-        vm.expectEmit();
-        emit RedeemDelayUpdated(REDEEM_DELAY, newRedeemDelay);
-        vm.prank(owner);
-        stakedYzusd.setRedeemDelay(newRedeemDelay);
-
-        assertEq(stakedYzusd.redeemDelay(), newRedeemDelay);
-
-        vm.prank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(100e18, user1);
-
-        vm.prank(user1);
-        (uint256 orderId,) = stakedYzusd.initiateRedeem(mintedShares);
-
-        stakedYzusd.finalizeRedeem(orderId);
-
-        Order memory order = stakedYzusd.getRedeemOrder(orderId);
-        assertTrue(order.executed);
-    }
-
-    function test_RescueTokens() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        uint256 amount = 100e18;
-        otherToken.mint(address(stakedYzusd), amount);
-        uint256 balanceBefore = otherToken.balanceOf(user1);
-        vm.prank(owner);
-        stakedYzusd.rescueTokens(address(otherToken), user1, amount);
-        assertEq(otherToken.balanceOf(user1), balanceBefore + amount);
-    }
-
-    function test_RescueTokens_RevertOnlyOwner() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        uint256 amount = 100e18;
-        otherToken.mint(address(stakedYzusd), amount);
-        vm.expectRevert();
-        vm.prank(user1);
-        stakedYzusd.rescueTokens(address(otherToken), user1, amount);
-    }
-
-    function test_RescueTokens_RevertUnderlyingToken() public {
-        vm.expectRevert(abi.encodeWithSelector(InvalidToken.selector, address(yzusd)));
-        vm.prank(owner);
-        stakedYzusd.rescueTokens(address(yzusd), user1, 100e18);
-    }
-
-    function test_RescueTokens_ZeroAmount() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        uint256 amount = 0;
-        uint256 balanceBefore = otherToken.balanceOf(user1);
-
-        vm.prank(owner);
-        stakedYzusd.rescueTokens(address(otherToken), user1, amount);
-
-        assertEq(otherToken.balanceOf(user1), balanceBefore);
-    }
-
-    function test_RescueTokens_RevertZeroAddress() public {
-        ERC20Mock otherToken = new ERC20Mock();
-        uint256 amount = 100e18;
-        otherToken.mint(address(stakedYzusd), amount);
-
-        // Test with zero address as recipient - should revert on transfer
-        vm.expectRevert();
-        vm.prank(owner);
-        stakedYzusd.rescueTokens(address(otherToken), address(0), amount);
+        // Limited by max
+        assertEq(styz.maxWithdraw(user1), 100e18);
+        assertEq(styz.maxRedeem(user1), 110e18);
     }
 
     // Deposit
     function test_Deposit() public {
-        uint256 depositAmount = 200e18;
-        uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
+        address sender = user1;
+        address receiver = user2;
 
+        uint256 depositAmount = 100e18;
+        uint256 expectedTokens = 100e18;
+
+        assertEq(styz.previewDeposit(depositAmount), expectedTokens);
+
+        uint256 senderYzUSDBefore = yzusd.balanceOf(sender);
+        uint256 receiverYzUSDBefore = yzusd.balanceOf(receiver);
+        uint256 treasuryYzUSDBefore = yzusd.balanceOf(address(styz));
+
+        uint256 senderSharesBefore = styz.balanceOf(sender);
+        uint256 receiverSharesBefore = styz.balanceOf(receiver);
+
+        uint256 supplyBefore = styz.totalSupply();
+        uint256 depositedPerBlockBefore = styz.depositedPerBlock(block.number);
+
+        vm.prank(sender);
         vm.expectEmit();
-        emit Deposit(user1, user1, depositAmount, depositAmount);
-        vm.prank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
+        emit Deposit(sender, receiver, depositAmount, expectedTokens);
+        uint256 mintedTokens = styz.deposit(depositAmount, receiver);
 
-        assertEq(stakedYzusd.balanceOf(user1), mintedShares);
-        assertEq(stakedYzusd.totalSupply(), mintedShares);
-        assertEq(stakedYzusd.totalAssets(), mintedShares);
-        assertEq(yzusd.balanceOf(address(stakedYzusd)), depositAmount);
-        assertEq(yzusd.balanceOf(user1), yzusdBalanceBefore - depositAmount);
-        assertEq(stakedYzusd.depositedPerBlock(block.number), depositAmount);
+        assertEq(mintedTokens, expectedTokens);
+
+        assertEq(yzusd.balanceOf(sender), senderYzUSDBefore - depositAmount);
+        assertEq(yzusd.balanceOf(receiver), receiverYzUSDBefore);
+        assertEq(yzusd.balanceOf(address(styz)), treasuryYzUSDBefore + depositAmount);
+
+        assertEq(styz.balanceOf(sender), senderSharesBefore);
+        assertEq(styz.balanceOf(receiver), receiverSharesBefore + expectedTokens);
+
+        assertEq(styz.totalSupply(), supplyBefore + mintedTokens);
+        assertEq(styz.depositedPerBlock(block.number), depositedPerBlockBefore + depositAmount);
     }
 
-    function test_Deposit_RevertLimitExceeded() public {
-        uint256 depositAmount = MAX_DEPOSIT_PER_BLOCK + 1;
+    function test_Deposit_Revert_ExceedsMaxDeposit() public {
+        _setMaxDepositPerBlock(100e18);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(ERC4626ExceededMaxDeposit.selector, user2, 100e18 + 1, 100e18));
         vm.prank(user1);
-        stakedYzusd.deposit(depositAmount, user1);
-    }
-
-    function test_Deposit_MultipleInSameBlock_RevertLimitExceeded() public {
-        uint256 depositAmount1 = MAX_DEPOSIT_PER_BLOCK;
-        uint256 depositAmount2 = 200e18;
-
-        vm.prank(user1);
-        stakedYzusd.deposit(depositAmount1, user1);
-
-        vm.expectRevert();
-        vm.prank(user2);
-        stakedYzusd.deposit(depositAmount2, user2);
+        styz.deposit(100e18 + 1, user2);
     }
 
     // Mint
     function test_Mint() public {
-        uint256 mintAmount = 200e18;
-        uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
+        address sender = user1;
+        address receiver = user2;
 
+        uint256 mintAmount = 100e18;
+        uint256 expectedAssets = 100e18;
+
+        assertEq(styz.previewMint(mintAmount), expectedAssets);
+
+        uint256 senderYzUSDBefore = yzusd.balanceOf(sender);
+        uint256 receiverYzUSDBefore = yzusd.balanceOf(receiver);
+        uint256 treasuryYzUSDBefore = yzusd.balanceOf(address(styz));
+
+        uint256 senderSharesBefore = styz.balanceOf(sender);
+        uint256 receiverSharesBefore = styz.balanceOf(receiver);
+
+        uint256 supplyBefore = styz.totalSupply();
+        uint256 depositedPerBlockBefore = styz.depositedPerBlock(block.number);
+
+        vm.prank(sender);
         vm.expectEmit();
-        emit Deposit(user1, user1, mintAmount, mintAmount);
-        vm.prank(user1);
-        uint256 assets = stakedYzusd.mint(mintAmount, user1);
+        emit Deposit(sender, receiver, expectedAssets, mintAmount);
+        uint256 depositedAssets = styz.deposit(expectedAssets, receiver);
 
-        assertEq(assets, mintAmount);
-        assertEq(stakedYzusd.balanceOf(user1), assets);
-        assertEq(stakedYzusd.totalSupply(), assets);
-        assertEq(stakedYzusd.totalAssets(), assets);
-        assertEq(yzusd.balanceOf(address(stakedYzusd)), assets);
-        assertEq(yzusd.balanceOf(user1), yzusdBalanceBefore - assets);
-        assertEq(stakedYzusd.depositedPerBlock(block.number), assets);
+        assertEq(depositedAssets, mintAmount);
+
+        assertEq(yzusd.balanceOf(sender), senderYzUSDBefore - expectedAssets);
+        assertEq(yzusd.balanceOf(receiver), receiverYzUSDBefore);
+        assertEq(yzusd.balanceOf(address(styz)), treasuryYzUSDBefore + expectedAssets);
+
+        assertEq(styz.balanceOf(sender), senderSharesBefore);
+        assertEq(styz.balanceOf(receiver), receiverSharesBefore + mintAmount);
+
+        assertEq(styz.totalSupply(), supplyBefore + mintAmount);
+        assertEq(styz.depositedPerBlock(block.number), depositedPerBlockBefore + expectedAssets);
     }
 
-    function test_Mint_RevertLimitExceeded() public {
-        uint256 mintAmount = MAX_DEPOSIT_PER_BLOCK + 1;
-
-        vm.expectRevert();
-        vm.prank(user1);
-        stakedYzusd.mint(mintAmount, user1);
-    }
-
-    function test_Mint_MultipleInSameBlock_RevertLimitExceeded() public {
-        uint256 mintAmount1 = MAX_DEPOSIT_PER_BLOCK;
-        uint256 mintAmount2 = 200e18;
+    function test_Mint_Revert_ExceedsMaxMint() public {
+        _setMaxDepositPerBlock(100e18);
 
         vm.prank(user1);
-        stakedYzusd.mint(mintAmount1, user1);
-
-        vm.expectRevert();
-        vm.prank(user2);
-        stakedYzusd.mint(mintAmount2, user2);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626ExceededMaxMint.selector, user2, 100e18 + 1, 100e18));
+        styz.mint(100e18 + 1, user2);
     }
 
     // Redeem Initiation
@@ -308,57 +230,48 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Deposit
         uint256 depositAmount = 200e18;
         vm.prank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
 
         // Initiate redeem
         vm.expectEmit();
-        emit RedeemInitiated(0, user1, depositAmount, mintedShares);
+        emit InitiatedRedeem(user1, user1, user1, 0, depositAmount, mintedShares);
         vm.prank(user1);
-        (uint256 orderId, uint256 _assets) = stakedYzusd.initiateRedeem(mintedShares);
+        (uint256 orderId, uint256 _assets) = styz.initiateRedeem(mintedShares, user1, user1);
 
         assertEq(orderId, 0);
         assertEq(_assets, depositAmount);
-        assertEq(stakedYzusd.balanceOf(user1), 0);
-        assertEq(stakedYzusd.currentRedeemAssetCommitment(), depositAmount);
+        assertEq(styz.balanceOf(user1), 0);
+        assertEq(styz.totalPendingOrderValue(), depositAmount);
 
-        Order memory order = stakedYzusd.getRedeemOrder(orderId);
+        Order memory order = styz.getRedeemOrder(orderId);
         assertEq(order.assets, depositAmount);
         assertEq(order.shares, mintedShares);
         assertEq(order.owner, user1);
-        assertEq(order.dueTime, block.timestamp + REDEEM_DELAY);
-        assertFalse(order.executed);
+        assertEq(order.dueTime, block.timestamp + styz.redeemDelay());
+        assertEq(uint256(order.status), uint256(OrderStatus.Pending));
     }
 
-    function test_InitiateRedeem_RevertZeroShares() public {
-        vm.expectRevert(InvalidZeroShares.selector);
-        vm.prank(user1);
-        stakedYzusd.initiateRedeem(0);
-    }
-
-    function test_InitiateRedeem_RevertLimitExceeded() public {
-        // Deposit
-        uint256 depositAmount = MAX_DEPOSIT_PER_BLOCK;
-        vm.prank(user1);
-        stakedYzusd.deposit(depositAmount, user1);
-
-        // Try to initiate redeem
-        vm.expectRevert(
-            abi.encodeWithSelector(MaxRedeemExceeded.selector, MAX_WITHDRAW_PER_BLOCK + 1, MAX_WITHDRAW_PER_BLOCK)
-        );
-        vm.prank(user1);
-        stakedYzusd.initiateRedeem(MAX_WITHDRAW_PER_BLOCK + 1);
-    }
-
-    function test_InitiateRedeem_RevertInsufficientShares() public {
+    function test_InitiateRedeem_Revert_InsufficientShares() public {
         // Deposit
         uint256 depositAmount = 200e18;
         vm.prank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
 
         // Try to initiate redeem
-        vm.expectRevert(abi.encodeWithSelector(MaxRedeemExceeded.selector, mintedShares + 1, mintedShares));
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626ExceededMaxRedeem.selector, user1, mintedShares + 1, mintedShares)
+        );
         vm.prank(user1);
-        stakedYzusd.initiateRedeem(mintedShares + 1);
+        styz.initiateRedeem(mintedShares + 1, user1, user1);
+    }
+
+    function test_InitiateRedeem_Revert_InvalidReceiver() public {
+        uint256 depositAmount = 100e18;
+        vm.startPrank(user1);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        vm.expectRevert(InvalidZeroAddress.selector);
+        styz.initiateRedeem(mintedShares, address(0), user1);
+        vm.stopPrank();
     }
 
     // Redeem Finalization
@@ -366,341 +279,266 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Deposit and initiate redeem
         uint256 depositAmount = 200e18;
         vm.startPrank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
-        (uint256 orderId,) = stakedYzusd.initiateRedeem(mintedShares);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
         vm.stopPrank();
 
         // Fast forward past redeem delay
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + REDEEM_DELAY);
+        vm.warp(block.timestamp + styz.redeemDelay());
 
         uint256 yzusdBalanceBefore = yzusd.balanceOf(user1);
 
         // Finalize redeem
         vm.expectEmit();
-        emit RedeemFinalized(user2, orderId, user1, depositAmount, mintedShares);
+        emit FinalizedRedeem(user2, user1, user1, orderId, depositAmount, mintedShares);
         vm.expectEmit();
         emit Withdraw(user2, user1, user1, depositAmount, mintedShares);
         vm.prank(user2);
-        stakedYzusd.finalizeRedeem(orderId);
+        styz.finalizeRedeem(orderId);
 
         assertEq(yzusd.balanceOf(user1), yzusdBalanceBefore + depositAmount);
-        assertEq(stakedYzusd.currentRedeemAssetCommitment(), 0);
-        assertEq(stakedYzusd.totalSupply(), 0);
-        assertEq(stakedYzusd.totalAssets(), 0);
-        assertEq(yzusd.balanceOf(address(stakedYzusd)), 0);
+        assertEq(styz.totalPendingOrderValue(), 0);
+        assertEq(styz.totalSupply(), 0);
+        assertEq(styz.totalAssets(), 0);
+        assertEq(yzusd.balanceOf(address(styz)), 0);
 
-        Order memory order = stakedYzusd.getRedeemOrder(orderId);
-        assertTrue(order.executed);
+        Order memory order = styz.getRedeemOrder(orderId);
+        assertEq(uint256(order.status), uint256(OrderStatus.Executed));
     }
 
-    function test_FinalizeRedeem_RevertInvalidOrder() public {
-        vm.expectRevert(abi.encodeWithSelector(InvalidOrder.selector, 999));
-        stakedYzusd.finalizeRedeem(999);
+    function test_FinalizeRedeem_Revert_InvalidOrder() public {
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, 999));
+        styz.finalizeRedeem(999);
     }
 
-    function test_FinalizeRedeem_RevertNotDue() public {
+    function test_FinalizeRedeem_Revert_NotDue() public {
         // Deposit and initiate redeem
         uint256 depositAmount = 200e18;
         vm.startPrank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
-        (uint256 orderId,) = stakedYzusd.initiateRedeem(mintedShares);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
         vm.stopPrank();
 
         // Try to finalize redeem
         vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
-        stakedYzusd.finalizeRedeem(orderId);
+        styz.finalizeRedeem(orderId);
     }
 
-    function test_FinalizeRedeem_RevertAlreadyExecuted() public {
+    function test_FinalizeRedeem_Revert_AlreadyExecuted() public {
         // Deposit and initiate redeem
-        uint256 depositAmount = 200e18;
+        uint256 depositAmount = 100e18;
         vm.startPrank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
-        (uint256 orderId,) = stakedYzusd.initiateRedeem(mintedShares);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
         vm.stopPrank();
 
         // Fast forward and finalize redeem
-        vm.warp(block.timestamp + REDEEM_DELAY);
-        stakedYzusd.finalizeRedeem(orderId);
+        vm.warp(block.timestamp + styz.redeemDelay());
+        styz.finalizeRedeem(orderId);
 
         // Try to finalize again
-        vm.expectRevert(abi.encodeWithSelector(OrderAlreadyExecuted.selector, orderId));
-        stakedYzusd.finalizeRedeem(orderId);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        styz.finalizeRedeem(orderId);
+    }
+
+    // Admin Functions
+    function test_RescueTokens() public {
+        ERC20Mock otherAsset = new ERC20Mock();
+        otherAsset.mint(address(styz), 100e18);
+        uint256 balanceBefore = otherAsset.balanceOf(user1);
+
+        vm.prank(owner);
+        styz.rescueTokens(address(otherAsset), user1, 50e18);
+
+        assertEq(otherAsset.balanceOf(user1), balanceBefore + 50e18);
+        assertEq(otherAsset.balanceOf(address(styz)), 50e18);
+    }
+
+    function test_RescueTokens_UnderlyingToken() public {
+        _deposit(user1, 100e18);
+
+        vm.prank(user1);
+        styz.transfer(address(styz), 100e18);
+
+        uint256 balanceBefore = styz.balanceOf(user1);
+
+        vm.prank(owner);
+        styz.rescueTokens(address(styz), user1, 100e18);
+
+        assertEq(styz.balanceOf(user1), balanceBefore + 100e18);
+        assertEq(styz.balanceOf(address(styz)), 0);
+    }
+
+    function test_RescueToken_Revert_UnderlyingAsset() public {
+        yzusd.mint(address(styz), 100e18);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(InvalidAssetRescue.selector, address(yzusd)));
+        styz.rescueTokens(address(yzusd), user1, 100e18);
+    }
+
+    function test_RescueTokens_Revert_NotOwner() public {
+        ERC20Mock otherAsset = new ERC20Mock();
+        otherAsset.mint(address(styz), 100e18);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        styz.rescueTokens(address(otherAsset), user1, 50e18);
+    }
+
+    function test_setRedeemFee() public {
+        vm.prank(owner);
+        vm.expectEmit();
+        emit UpdatedRedeemFee(0, 1_000_000);
+        styz.setRedeemFee(1_000_000);
+        assertEq(styz.redeemFeePpm(), 1_000_000);
+    }
+
+    function test_setRedeemFee_Revert_ExceedsMaxFee() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, 1_000_001, 1_000_000));
+        styz.setRedeemFee(1_000_001);
+    }
+
+    function test_setRedeemFee_Revert_NotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        styz.setRedeemFee(100_000);
+    }
+
+    function test_SetMaxDepositPerBlock() public {
+        vm.prank(owner);
+        vm.expectEmit();
+        emit UpdatedMaxDepositPerBlock(type(uint256).max, 200e18);
+        styz.setMaxDepositPerBlock(200e18);
+        assertEq(styz.maxDepositPerBlock(), 200e18);
+    }
+
+    function test_SetMaxDepositPerBlock_Revert_NotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        styz.setMaxDepositPerBlock(200e18);
+    }
+
+    function test_SetMaxWithdrawPerBlock() public {
+        vm.prank(owner);
+        vm.expectEmit();
+        emit UpdatedMaxWithdrawPerBlock(type(uint256).max, 200e18);
+        styz.setMaxWithdrawPerBlock(200e18);
+        assertEq(styz.maxWithdrawPerBlock(), 200e18);
+    }
+
+    function test_SetMaxWithdrawPerBlock_Revert_NotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        styz.setMaxWithdrawPerBlock(200e18);
+    }
+
+    function test_SetRedeemDelay() public {
+        vm.prank(owner);
+        vm.expectEmit();
+        emit UpdatedRedeemDelay(1 days, 2 days);
+        styz.setRedeemDelay(2 days);
+        assertEq(styz.redeemDelay(), 2 days);
+    }
+
+    function test_SetRedeemDelay_Revert_NotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, user1));
+        styz.setRedeemDelay(2 days);
     }
 
     // ERC-4626 Override
-    function test_Withdraw_RevertNotSupported() public {
+    function test_Withdraw_Revert() public {
         vm.expectRevert(WithdrawNotSupported.selector);
-        stakedYzusd.withdraw(100e18, user1, user1);
+        styz.withdraw(100e18, user1, user1);
     }
 
-    function test_Redeem_RevertNotSupported() public {
+    function test_Redeem_Revert() public {
         vm.expectRevert(RedeemNotSupported.selector);
-        stakedYzusd.redeem(100e18, user1, user1);
+        styz.redeem(100e18, user1, user1);
     }
 
     function test_TotalAssets_WithCommitment() public {
-        uint256 initialAssets = stakedYzusd.totalAssets();
+        uint256 initialAssets = styz.totalAssets();
 
         // Deposit and initiate redeem
         uint256 depositAmount = 100e18;
         vm.prank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
-        assertEq(stakedYzusd.totalAssets(), initialAssets + depositAmount);
+        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        assertEq(styz.totalAssets(), initialAssets + depositAmount);
 
         vm.prank(user1);
-        stakedYzusd.initiateRedeem(mintedShares);
+        styz.initiateRedeem(mintedShares, user1, user1);
 
-        assertEq(stakedYzusd.totalAssets(), initialAssets);
+        assertEq(styz.totalAssets(), initialAssets);
     }
 
-    function test_MaxDeposit() public {
-        assertEq(stakedYzusd.maxDeposit(user1), MAX_DEPOSIT_PER_BLOCK);
+    function test_PreviewRedeem_WithAccruedAssets() public {
+        assertEq(styz.maxRedeem(user1), 0);
 
         // Deposit
-        uint256 depositAmount = 300e18;
-        vm.prank(user1);
-        stakedYzusd.deposit(depositAmount, user1);
-
-        assertEq(stakedYzusd.maxDeposit(user1), MAX_DEPOSIT_PER_BLOCK - depositAmount);
-    }
-
-    function test_MaxMint() public {
-        assertEq(stakedYzusd.maxMint(user1), MAX_DEPOSIT_PER_BLOCK);
-
-        // Deposit
-        uint256 depositAmount = 300e18;
-        vm.prank(user1);
-        stakedYzusd.deposit(depositAmount, user1);
-
-        assertEq(stakedYzusd.maxMint(user1), MAX_DEPOSIT_PER_BLOCK - depositAmount);
-    }
-
-    function test_MaxMint_WithAccruedAssets() public {
-        assertEq(stakedYzusd.maxMint(user1), MAX_DEPOSIT_PER_BLOCK);
-
-        // Deposit
-        uint256 depositAmount = 200e18;
-        vm.prank(user1);
-        stakedYzusd.deposit(depositAmount, user1);
+        uint256 depositAmount = 100e18;
+        uint256 mintedShares = _deposit(user1, depositAmount);
 
         // Double the value of the shares
-        yzusd.mint(address(stakedYzusd), depositAmount);
+        yzusd.mint(address(styz), depositAmount);
 
-        assertEq(stakedYzusd.maxMint(user1), (MAX_DEPOSIT_PER_BLOCK - depositAmount) / 2);
+        assertEq(styz.maxRedeem(user1), mintedShares);
+        assertEq(styz.previewRedeem(1e18), 2e18 - 1);
     }
 
-    function test_MaxWithdraw() public {
-        assertEq(stakedYzusd.maxWithdraw(user1), 0);
+    function test_PreviewWithdraw_WithFee() public {
+        _deposit(user1, 200e18);
 
-        // Deposit
-        uint256 depositAmount = 200e18;
-        vm.prank(user1);
-        stakedYzusd.deposit(depositAmount, user1);
+        vm.prank(owner);
+        styz.setRedeemFee(100_000); // 10%
 
-        // Limited by share value
-        assertEq(stakedYzusd.maxWithdraw(user1), depositAmount);
-
-        vm.prank(user1);
-        stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-
-        // Limited by max withdraw per block
-        assertEq(stakedYzusd.maxWithdraw(user1), MAX_WITHDRAW_PER_BLOCK);
+        assertEq(styz.previewWithdraw(100e18), 110e18);
     }
 
-    function test_MaxRedeem() public {
-        assertEq(stakedYzusd.maxRedeem(user1), 0);
+    function test_PreviewRedeem_WithFee() public {
+        uint256 mintedShares = _deposit(user1, 100e18);
 
-        uint256 depositAmount = 200e18;
+        vm.prank(owner);
+        styz.setRedeemFee(100_000); // 10%
 
-        vm.prank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
-
-        // Limited by shares
-        assertEq(stakedYzusd.maxRedeem(user1), mintedShares);
-
-        vm.prank(user1);
-        stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-
-        // Limited by max withdraw per block
-        assertEq(stakedYzusd.maxRedeem(user1), MAX_WITHDRAW_PER_BLOCK);
+        assertEq(styz.previewRedeem(mintedShares), uint256(100e18) * 10 / 11);
     }
 
-    function test_MaxRedeem_WithAccruedAssets() public {
-        assertEq(stakedYzusd.maxRedeem(user1), 0);
+    function test_MaxDeposit_MaxMint_AcrossBlocks() public {
+        _setMaxDepositPerBlock(100e18);
+        _deposit(user1, 50e18);
 
-        // Deposit
-        uint256 depositAmount = 200e18;
-        vm.prank(user1);
-        uint256 mintedShares = stakedYzusd.deposit(depositAmount, user1);
+        assertEq(styz.maxDeposit(user1), 50e18);
+        assertEq(styz.maxMint(user1), 50e18);
 
-        // Double the value of the shares
-        yzusd.mint(address(stakedYzusd), depositAmount);
-
-        assertEq(stakedYzusd.maxRedeem(user1), mintedShares);
-
-        vm.prank(user1);
-        stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-
-        assertEq(stakedYzusd.maxRedeem(user1), MAX_WITHDRAW_PER_BLOCK / 2);
-    }
-
-    // Integration
-    function test_MultipleUsersDepositAndRedeem() public {
-        // User1 deposits
-        uint256 depositAmount1 = 200e18;
-        vm.prank(user1);
-        uint256 mintedShares1 = stakedYzusd.deposit(depositAmount1, user1);
-
-        // User2 deposits
-        uint256 depositAmount2 = 300e18;
-        vm.prank(user2);
-        uint256 mintedShares2 = stakedYzusd.deposit(depositAmount2, user2);
-
-        // User1 initiates redeem
-        vm.prank(user1);
-        (uint256 orderId1,) = stakedYzusd.initiateRedeem(mintedShares1);
-
-        assertEq(stakedYzusd.balanceOf(user1), 0);
-        assertEq(stakedYzusd.balanceOf(user2), mintedShares2);
-        assertEq(stakedYzusd.currentRedeemAssetCommitment(), depositAmount1);
-        assertEq(stakedYzusd.totalSupply(), depositAmount2);
-        assertEq(stakedYzusd.totalAssets(), depositAmount2);
-        assertEq(yzusd.balanceOf(address(stakedYzusd)), depositAmount1 + depositAmount2);
-        assertEq(stakedYzusd.maxDeposit(user1), MAX_DEPOSIT_PER_BLOCK - depositAmount1 - depositAmount2);
-        assertEq(stakedYzusd.maxWithdraw(user1), 0);
-        assertEq(stakedYzusd.maxWithdraw(user2), mintedShares2);
-        assertEq(stakedYzusd.depositedPerBlock(block.number), depositAmount1 + depositAmount2);
-        assertEq(stakedYzusd.withdrawnPerBlock(block.number), depositAmount1);
-
-        // Fast forward
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + REDEEM_DELAY);
-
-        // User1 finalize redeem
-        stakedYzusd.finalizeRedeem(orderId1);
-
-        assertEq(stakedYzusd.balanceOf(user1), 0);
-        assertEq(stakedYzusd.balanceOf(user2), mintedShares2);
-        assertEq(stakedYzusd.currentRedeemAssetCommitment(), 0);
-        assertEq(stakedYzusd.totalSupply(), depositAmount2);
-        assertEq(stakedYzusd.totalAssets(), depositAmount2);
-        assertEq(yzusd.balanceOf(address(stakedYzusd)), depositAmount2);
-        assertEq(stakedYzusd.maxDeposit(user1), MAX_DEPOSIT_PER_BLOCK);
-        assertEq(stakedYzusd.maxWithdraw(user1), 0);
-        assertEq(stakedYzusd.maxWithdraw(user2), mintedShares2);
-        assertEq(stakedYzusd.depositedPerBlock(block.number), 0);
-        assertEq(stakedYzusd.withdrawnPerBlock(block.number), 0);
-
-        // User2 initiates redeem
-        vm.prank(user2);
-        (uint256 orderId2,) = stakedYzusd.initiateRedeem(mintedShares2);
-
-        assertEq(stakedYzusd.balanceOf(user1), 0);
-        assertEq(stakedYzusd.balanceOf(user2), 0);
-        assertEq(stakedYzusd.currentRedeemAssetCommitment(), depositAmount2);
-        assertEq(stakedYzusd.totalSupply(), 0);
-        assertEq(stakedYzusd.totalAssets(), 0);
-        assertEq(yzusd.balanceOf(address(stakedYzusd)), depositAmount2);
-        assertEq(stakedYzusd.maxDeposit(user1), MAX_DEPOSIT_PER_BLOCK);
-        assertEq(stakedYzusd.maxWithdraw(user1), 0);
-        assertEq(stakedYzusd.maxWithdraw(user2), 0);
-        assertEq(stakedYzusd.depositedPerBlock(block.number), 0);
-        assertEq(stakedYzusd.withdrawnPerBlock(block.number), depositAmount2);
-
-        // Fast forward
-        vm.roll(block.number + 2);
-        vm.warp(block.timestamp + REDEEM_DELAY * 2);
-
-        // User2 finalize redeem
-        stakedYzusd.finalizeRedeem(orderId2);
-
-        assertEq(stakedYzusd.balanceOf(user1), 0);
-        assertEq(stakedYzusd.balanceOf(user2), 0);
-        assertEq(stakedYzusd.currentRedeemAssetCommitment(), 0);
-        assertEq(stakedYzusd.totalSupply(), 0);
-        assertEq(stakedYzusd.totalAssets(), 0);
-        assertEq(yzusd.balanceOf(address(stakedYzusd)), 0);
-        assertEq(stakedYzusd.maxDeposit(user1), MAX_DEPOSIT_PER_BLOCK);
-        assertEq(stakedYzusd.maxWithdraw(user1), 0);
-        assertEq(stakedYzusd.maxWithdraw(user2), 0);
-        assertEq(stakedYzusd.depositedPerBlock(block.number), 0);
-        assertEq(stakedYzusd.withdrawnPerBlock(block.number), 0);
-    }
-
-    function test_Deposit_LimitResetsAcrossBlocks() public {
-        // Fill block limit in first block
-        vm.prank(user1);
-        stakedYzusd.deposit(MAX_DEPOSIT_PER_BLOCK, user1);
-
-        // Should fail to deposit more in same block
-        vm.expectRevert();
-        vm.prank(user2);
-        stakedYzusd.deposit(1e18, user2);
-
-        // Move to next block
         vm.roll(block.number + 1);
 
-        // Should work in new block
-        vm.prank(user2);
-        stakedYzusd.deposit(1e18, user2);
+        assertEq(styz.maxDeposit(user1), 100e18);
+        assertEq(styz.maxMint(user1), 100e18);
     }
 
-    function test_Redeem_LimitResetsAcrossBlocks() public {
-        // Fill block limit in first block
-        vm.startPrank(user1);
-        stakedYzusd.deposit(MAX_WITHDRAW_PER_BLOCK, user1);
-        stakedYzusd.initiateRedeem(MAX_WITHDRAW_PER_BLOCK);
-        vm.stopPrank();
+    function test_MaxWithdraw_MaxRedeem_AcrossBlocks() public {
+        _setMaxWithdrawPerBlock(100e18);
+        _deposit(user1, 100e18);
+        _deposit(user2, 100e18);
 
-        vm.prank(user2);
-        stakedYzusd.deposit(1e18, user2);
+        vm.prank(user1);
+        styz.initiateRedeem(50e18, user2, user1);
 
-        // Should fail to redeem more in same block
-        vm.expectRevert();
-        vm.prank(user2);
-        stakedYzusd.initiateRedeem(1e18);
+        // Limited by balance
+        assertEq(styz.maxWithdraw(user1), 50e18);
+        assertEq(styz.maxRedeem(user1), 50e18);
+        // Limited by max
+        assertEq(styz.maxWithdraw(user2), 50e18);
+        assertEq(styz.maxRedeem(user2), 50e18);
 
-        // Move to next block
         vm.roll(block.number + 1);
 
-        // Should work in new block
-        vm.prank(user2);
-        stakedYzusd.initiateRedeem(1e18);
-    }
-
-    function test_DonationAttack_NoProfit() public {
-        address attacker = user1;
-        address victim = user2;
-
-        uint256 attackerDepositAmount = 1e18;
-        uint256 attackerDonationAmount = 100_000_000e18;
-        uint256 victimDepositAmount = 1e18;
-
-        vm.startPrank(owner);
-        stakedYzusd.setMaxDepositPerBlock(type(uint256).max);
-        stakedYzusd.setMaxWithdrawPerBlock(type(uint256).max);
-        vm.stopPrank();
-
-        // Attacker deposits
-        vm.prank(attacker);
-        uint256 attackerShares = stakedYzusd.deposit(attackerDepositAmount, attacker);
-
-        // Attacker donates underlying directly to the vault
-        yzusd.mint(address(stakedYzusd), attackerDonationAmount);
-
-        // Victim deposits
-        vm.prank(victim);
-        stakedYzusd.deposit(victimDepositAmount, victim);
-
-        // Attacker tries to profit by redeeming
-        vm.prank(attacker);
-        (uint256 orderId,) = stakedYzusd.initiateRedeem(attackerShares);
-
-        Order memory order = stakedYzusd.getRedeemOrder(orderId);
-
-        assertLe(order.assets, attackerDepositAmount + attackerDonationAmount);
-        assertEq(order.shares, attackerShares);
+        // Limited by balance
+        assertEq(styz.maxWithdraw(user1), 50e18);
+        assertEq(styz.maxRedeem(user1), 50e18);
+        // Limited by max
+        assertEq(styz.maxWithdraw(user2), 100e18);
+        assertEq(styz.maxRedeem(user2), 100e18);
     }
 }

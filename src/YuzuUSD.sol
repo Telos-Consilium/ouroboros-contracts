@@ -1,51 +1,96 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.30;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import "./interfaces/IYuzuUSDDefinitions.sol";
+import {YuzuProto} from "./proto/YuzuProto.sol";
 
 /**
  * @title YuzuUSD
- * @dev ERC-20 token mintable by a designated minter.
+ * @notice YuzuUSD token implementation with 1:1 peg to underlying asset
  */
-contract YuzuUSD is ERC20Burnable, ERC20Permit, Ownable2Step, IYuzuUSDDefinitions {
-    address public minter;
-
-    /**
-     * @notice Initializes the YuzuUSD contract with a name, symbol, and owner.
-     * @param name_ The name of the staked token, e.g. "Yuzu USD"
-     * @param symbol_ The symbol of the staked token, e.g. "yzUSD"
-     * @param owner The owner of the contract
-     */
-    constructor(string memory name_, string memory symbol_, address owner)
-        ERC20(name_, symbol_)
-        ERC20Permit(name_)
-        Ownable(owner)
-    {}
-
-    /**
-     * @dev Sets the minter to {newMinter}.
-     *
-     * Emits a `MinterUpdated` event with the old and new minter addresses.
-     * Reverts if called by anyone but the owner.
-     */
-    function setMinter(address newMinter) external onlyOwner {
-        address oldMinter = minter;
-        minter = newMinter;
-        emit MinterUpdated(oldMinter, newMinter);
+contract YuzuUSD is YuzuProto {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     /**
-     * @dev Mints `amount` tokens to `account`.
-     *
-     * Reverts if called by anyone but the minter.
+     * @notice Initializes the YuzuUSD contract
+     * @param __asset The address of the collateral token contract
+     * @param __name The name of the YuzuUSD token
+     * @param __symbol The symbol of the YuzuUSD token
+     * @param _admin The admin of the contract
+     * @param __treasury The address of the treasury where collateral is sent
+     * @param _maxDepositPerBlock Maximum collateral that can be deposited per block
+     * @param _maxWithdrawPerBlock Maximum collateral that can be withdrawn per block
+     * @param _fillWindow The fill window in seconds after which redeem order become cancellable
      */
-    function mint(address account, uint256 amount) external {
-        if (_msgSender() != minter) revert OnlyMinter();
-        _mint(account, amount);
+    function initialize(
+        address __asset,
+        string memory __name,
+        string memory __symbol,
+        address _admin,
+        address __treasury,
+        uint256 _maxDepositPerBlock,
+        uint256 _maxWithdrawPerBlock,
+        uint256 _fillWindow
+    ) external initializer {
+        __YuzuProto_init(
+            __asset, __name, __symbol, _admin, __treasury, _maxDepositPerBlock, _maxWithdrawPerBlock, _fillWindow
+        );
     }
+
+    /// @notice See {IERC4626-totalAssets}
+    function totalAssets() public view override returns (uint256) {
+        return totalSupply() / 10 ** _decimalsOffset();
+    }
+
+    /// @notice See {IERC4626-previewDeposit}
+    function previewDeposit(uint256 assets) public view override returns (uint256) {
+        return assets * 10 ** _decimalsOffset();
+    }
+
+    /// @notice See {IERC4626-previewMint}
+    function previewMint(uint256 tokens) public view override returns (uint256) {
+        return Math.ceilDiv(tokens, 10 ** _decimalsOffset());
+    }
+
+    /// @notice See {IERC4626-previewWithdraw}
+    function previewWithdraw(uint256 assets) public view override returns (uint256) {
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
+        uint256 tokens = previewDeposit(assets + fee);
+        return tokens;
+    }
+
+    /// @notice See {IERC4626-previewRedeem}
+    function previewRedeem(uint256 tokens) public view override returns (uint256) {
+        uint256 assets = previewMint(tokens);
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
+        return assets - fee;
+    }
+
+    /// @notice Preview the amount of assets to receive when redeeming `tokens` through an order after fees
+    function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
+        uint256 assets = previewMint(tokens);
+
+        if (redeemOrderFeePpm >= 0) {
+            // Positive fee - reduce assets returned
+            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(redeemOrderFeePpm));
+            return assets - fee;
+        } else {
+            // Negative fee (incentive) - increase assets returned
+            // slither-disable-next-line dubious_typecast
+            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-redeemOrderFeePpm));
+            return assets + incentive;
+        }
+    }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[50] private __gap;
 }

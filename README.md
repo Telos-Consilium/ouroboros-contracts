@@ -4,27 +4,15 @@
 
 ### YuzuUSD.sol
 
-YuzuUSD is a simple ERC‑20 token used throughout the Yuzu protocol and backed 1:1 by another asset.
-
-[YuzuUSD.sol docs](./docs/yzusd.md)
-
-### YuzuUSDMinter.sol
-
-The YuzuUSDMinter contract is a minting and redemption system that allows users to mint YuzuUSD tokens by depositing collateral and redeem collateral by burning YuzuUSD tokens.
-
-[YuzuUSDMinter.sol docs](./docs/minter.md)
+YuzuUSD is a ERC‑20 token used throughout the Yuzu protocol and backed 1:1 by USDC.
 
 ### StakedYuzuUSD.sol
 
-StakedYuzuUSD is an ERC‑4626 vault that allows users to stake their yzUSD tokens.
-
-[StakedYuzuUSD.sol docs](./docs/staked.md)
+StakedYuzuUSD is an ERC‑4626 vault that allows users to stake yzUSD.
 
 ### YuzuILP.sol
 
-YuzuILP is an ERC‑4626 vault representing deposits in the Yuzu Insurance Liquidity Pool.
-
-[YuzuILP.sol docs](./docs/ilp.md)
+YuzuILP is an ERC‑20 token representing deposits in the Yuzu Insurance Liquidity Pool.
 
 ---
 
