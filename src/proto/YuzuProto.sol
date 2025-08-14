@@ -182,6 +182,11 @@ abstract contract YuzuProto is
         _setFillWindow(newWindow);
     }
 
+    // @dev Returns the assets available for withdrawal.
+    function _getLiquidityBufferSize() internal view override returns (uint256) {
+        return super._getLiquidityBufferSize() - totalUnfinalizedOrderValue();
+    }
+
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
     function _feeOnRaw(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);

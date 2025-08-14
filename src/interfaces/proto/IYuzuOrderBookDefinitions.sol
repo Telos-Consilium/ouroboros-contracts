@@ -7,6 +7,7 @@ enum OrderStatus {
     Nil,
     Pending,
     Filled,
+    Finalized,
     Cancelled
 }
 
@@ -26,6 +27,7 @@ interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error UnauthorizedOrderManager(address account, address owner, address controller);
     error UnauthorizedOrderFinalizer(address account, address receiver, address controller);
     error OrderNotPending(uint256 orderId);
+    error OrderNotFilled(uint256 orderId);
     error OrderNotDue(uint256 orderId);
     error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
 
