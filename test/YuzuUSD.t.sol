@@ -64,6 +64,7 @@ contract YuzuUSDTest is YuzuProtoTest {
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
         tokens = bound(tokens, 1e12, 1_000_000e18);
         fee = bound(fee, -1_000_000, 1_000_000); // -100% to 100%
 
