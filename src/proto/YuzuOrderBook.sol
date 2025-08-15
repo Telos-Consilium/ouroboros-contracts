@@ -85,7 +85,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         address caller = _msgSender();
         Order storage order = _getOrder(orderId);
         if (caller != order.owner && caller != order.controller) {
-            revert UnauthorizedOrderManager(caller, order.owner, order.controller);
+            revert UnauthorizedOrderFinalizer(caller, order.owner, order.controller);
         }
         if (order.status != OrderStatus.Filled) {
             revert OrderNotFilled(orderId);
@@ -93,6 +93,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
 
         _finalizeRedeemOrder(caller, order);
 
+        emit FinalizedRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
     }
 
