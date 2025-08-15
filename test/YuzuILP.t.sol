@@ -37,7 +37,7 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         ilp.updatePool(newPoolSize, newDailyLinearYieldRatePpm);
     }
 
-    // Preview functions
+    // Preview Functions
     function test_Preview_EmptyPool() public {
         assertEq(ilp.previewDeposit(100e6), 100e18);
         assertEq(ilp.previewMint(100e18), 100e6);
@@ -102,24 +102,41 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         assertEq(ilp.previewRedeemOrder(100e18), 110000000); // 100e6 * (1 + 0.1) = 110e6
     }
 
+    // Deposit
     function test_Deposit_UpdatesPool() public {
         _deposit(user1, 100e6);
         assertEq(ilp.poolSize(), 100e6);
         assertEq(ilp.totalAssets(), 100e6);
     }
 
+    // Withdraw
     function test_Withdraw_UpdatesPool() public {
-        _setBalances(100e6, 100e6);
+        _setBalances(user1, 100e6, 100e6);
         _withdraw(user1, 100e6);
         assertEq(ilp.poolSize(), 0);
         assertEq(ilp.totalAssets(), 0);
     }
 
+    // Redeem Orders
     function test_CreateRedeemOrder_DoesNotUpdatePool() public {
         _deposit(user1, 100e6);
         _createRedeemOrder(user1, 100e18);
         assertEq(ilp.poolSize(), 100e6);
         assertEq(ilp.totalAssets(), 100e6);
+    }
+
+    function test_FillRedeemOrder_WithIncentive() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        int256 fee = -100_000; // -10%
+
+        vm.prank(redeemManager);
+        proto.setRedeemOrderFee(fee);
+
+        _deposit(user1, assets);
+        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
+        _updatePool(200e6, 0);
+        _fillRedeemOrderAndAssert(orderFiller, orderId);
     }
 
     function test_FillRedeemOrder_UpdatesPool() public {
@@ -131,6 +148,41 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         assertEq(ilp.totalAssets(), 0);
     }
 
+    function testFuzz_CreateRedeemOrder_FillRedeemOrder(
+        address caller, address receiver, address owner, uint256 tokens, int256 fee
+    ) public {
+        vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
+        vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        tokens = bound(tokens, 1e12, 1_000_000e18);
+        fee = bound(fee, -1_000_000, 1_000_000); // -100% to 100%
+
+        uint256 depositSize = proto.previewMint(tokens);
+
+        asset.mint(caller, depositSize);
+        _setMaxDepositPerBlock(depositSize);
+        _setMaxWithdrawPerBlock(depositSize);
+        _setFees(0, fee);
+
+        vm.prank(caller);
+        asset.approve(address(proto), depositSize);
+
+        vm.prank(caller);
+        proto.mint(tokens, owner);
+        _updatePool(depositSize, 0);
+
+        vm.prank(owner);
+        proto.approve(caller, tokens);
+
+        _createRedeemOrderAndAssert(caller, tokens, receiver, owner);
+
+        vm.warp(block.timestamp + proto.fillWindow());
+
+        _updatePool(depositSize * 2, 0);
+
+        _fillRedeemOrderAndAssert(orderFiller, proto.orderCount() - 1);
+    }
+
+    // Admin Functions
     function test_UpdatePool() public {
         vm.prank(poolManager);
         ilp.updatePool(100e6, 100_000);
@@ -148,6 +200,7 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         ilp.updatePool(100e6, 1e6 + 1);
     }
 
+    // Total Assets
     function test_TotalAssets() public {
         _updatePool(100e6, 100_000);
         assertEq(ilp.totalAssets(), 100e6);
