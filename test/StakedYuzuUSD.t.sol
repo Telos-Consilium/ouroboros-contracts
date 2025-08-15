@@ -251,18 +251,51 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.totalPendingOrderValue(), pendingOrderValueBefore - order.assets);
     }
 
-    function test_FinalizeRedeem() public {
-        address caller = user1;
+    function test_FinalizeRedeem_ByReceiver() public {
         address _owner = user1;
+        address receiver = user2;
         uint256 mintedShares = _deposit(_owner, 100e18);
         vm.prank(_owner);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, _owner, _owner);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, receiver, _owner);
         vm.warp(block.timestamp + styz.redeemDelay());
-        _finalizeRedeemAndAssert(caller, orderId);
+        _finalizeRedeemAndAssert(receiver, orderId);
+    }
+
+    function test_FinalizeRedeem_ByController() public {
+        address controller = user1;
+        address _owner = user2;
+        address receiver = makeAddr("receiver");
+        uint256 mintedShares = _deposit(_owner, 100e18);
+        vm.prank(_owner);
+        styz.approve(controller, mintedShares);
+        vm.prank(controller);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, receiver, _owner);
+        vm.warp(block.timestamp + styz.redeemDelay());
+        _finalizeRedeemAndAssert(controller, orderId);
+    }
+
+    function test_FinalizeRedeem_Revert_ByOwner() public {
+        address controller = user1;
+        address _owner = user2;
+        address receiver = makeAddr("receiver");
+        uint256 mintedShares = _deposit(_owner, 100e18);
+
+        vm.prank(_owner);
+        styz.approve(controller, mintedShares);
+
+        vm.prank(controller);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, receiver, _owner);
+
+        vm.warp(block.timestamp + styz.redeemDelay());
+
+        vm.prank(_owner);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderFinalizer.selector, _owner, receiver, controller));
+        styz.finalizeRedeem(orderId);
     }
 
     function test_FinalizeRedeem_Revert_InvalidOrder() public {
-        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, 999));
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderFinalizer.selector, user1, address(0), address(0)));
         styz.finalizeRedeem(999);
     }
 
@@ -270,9 +303,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.startPrank(user1);
         uint256 mintedShares = styz.deposit(200e18, user1);
         (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
-        vm.stopPrank();
         vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
         styz.finalizeRedeem(orderId);
+        vm.stopPrank();
     }
 
     function test_FinalizeRedeem_Revert_NotPending() public {
@@ -282,9 +315,28 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         vm.stopPrank();
 
         vm.warp(block.timestamp + styz.redeemDelay());
+
+        vm.prank(user1);
         styz.finalizeRedeem(orderId);
 
+        vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        styz.finalizeRedeem(orderId);
+    }
+
+    function test_FinalizeRedeem_Revert_UnauthorizedFinalizer() public {
+        vm.startPrank(user1);
+        uint256 mintedShares = styz.deposit(200e18, user1);
+        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + styz.redeemDelay());
+
+        vm.prank(user1);
+        styz.finalizeRedeem(orderId);
+
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderFinalizer.selector, user2, user1, user1));
         styz.finalizeRedeem(orderId);
     }
 

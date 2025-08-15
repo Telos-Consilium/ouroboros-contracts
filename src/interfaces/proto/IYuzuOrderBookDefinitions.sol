@@ -15,6 +15,7 @@ struct Order {
     uint256 tokens;
     address owner;
     address receiver;
+    address controller;
     uint40 dueTime;
     OrderStatus status;
 }
@@ -22,7 +23,8 @@ struct Order {
 interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error InvalidZeroAddress();
     error FillWindowTooHigh(uint256 provided, uint256 max);
-    error NotOrderOwner(address account, address owner);
+    error UnauthorizedOrderManager(address account, address owner, address controller);
+    error UnauthorizedOrderFinalizer(address account, address receiver, address controller);
     error OrderNotPending(uint256 orderId);
     error OrderNotDue(uint256 orderId);
     error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
@@ -44,5 +46,5 @@ interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
         uint256 assets,
         uint256 tokens
     );
-    event CancelledRedeemOrder(uint256 orderId);
+    event CancelledRedeemOrder(address sender, uint256 orderId);
 }

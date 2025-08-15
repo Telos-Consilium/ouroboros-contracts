@@ -161,7 +161,11 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
 
     /// @notice Finalizes a 2-step redemption order by `orderId`
     function finalizeRedeem(uint256 orderId) external {
+        address caller = _msgSender();
         Order storage order = orders[orderId];
+        if (caller != order.receiver && caller != order.controller) {
+            revert UnauthorizedOrderFinalizer(caller, order.receiver, order.controller);
+        }
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
         }
@@ -169,7 +173,6 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
             revert OrderNotDue(orderId);
         }
 
-        address caller = _msgSender();
         _finalizeRedeem(order);
 
         emit FinalizedRedeem(caller, order.receiver, order.owner, orderId, order.assets, order.shares);
@@ -242,6 +245,7 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
             shares: shares,
             owner: owner,
             receiver: receiver,
+            controller: caller,
             dueTime: SafeCast.toUint40(block.timestamp + redeemDelay),
             status: OrderStatus.Pending
         });
