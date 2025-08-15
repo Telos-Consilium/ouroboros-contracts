@@ -51,14 +51,14 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
         uint256 _maxWithdrawPerBlock,
         uint256 _redeemDelay
     ) external initializer {
-        if (address(_asset) == address(0) || _owner == address(0)) {
-            revert InvalidZeroAddress();
-        }
-
         __ERC4626_init(_asset);
         __ERC20_init(name_, symbol_);
         __Ownable_init(_owner);
         __Ownable2Step_init();
+
+        if (address(_asset) == address(0)) {
+            revert InvalidZeroAddress();
+        }
 
         maxDepositPerBlock = _maxDepositPerBlock;
         maxWithdrawPerBlock = _maxWithdrawPerBlock;

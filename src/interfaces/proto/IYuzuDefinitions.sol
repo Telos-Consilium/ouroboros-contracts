@@ -7,8 +7,8 @@ interface IYuzuDefinitions {
     error ExceededMaxWithdraw(address owner, uint256 assets, uint256 max);
     error ExceededMaxRedeem(address owner, uint256 token, uint256 max);
 
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 token);
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 tokens);
     event Withdraw(
-        address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 token
+        address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 tokens
     );
 }

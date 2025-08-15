@@ -62,7 +62,7 @@ abstract contract YuzuProto is
         __YuzuOrderBook_init(_fillWindow);
         __AccessControlDefaultAdminRules_init(0, _admin);
 
-        if (_admin == address(0) || __asset == address(0) || __treasury == address(0)) {
+        if (__asset == address(0) || __treasury == address(0)) {
             revert InvalidZeroAddress();
         }
 

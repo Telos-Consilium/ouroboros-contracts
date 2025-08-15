@@ -81,7 +81,6 @@ contract YuzuUSD is YuzuProto {
             return assets - fee;
         } else {
             // Negative fee (incentive) - increase assets returned
-            // slither-disable-next-line dubious_typecast
             uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-redeemOrderFeePpm));
             return assets + incentive;
         }
