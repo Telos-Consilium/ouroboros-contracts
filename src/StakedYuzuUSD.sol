@@ -94,7 +94,20 @@ contract StakedYuzuUSD is ERC4626Upgradeable, Ownable2StepUpgradeable, IStakedYu
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
-        return Math.min(super.maxRedeem(owner), previewWithdraw(maxWithdrawPerBlock - withdrawn));
+
+        uint256 inheritedMaxRedeem = super.maxRedeem(owner);
+        if (inheritedMaxRedeem == 0) {
+            return 0;
+        }
+
+        uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
+        /// @dev If redeeming the inherited max redeem would not exceed the remaining allowance, don't
+        /// calculate the asset value of the allowance to prevent a possible overflow in previewWithdraw.
+        if (previewRedeem(inheritedMaxRedeem) < remainingAllowance) {
+            return inheritedMaxRedeem;
+        } else {
+            return previewWithdraw(remainingAllowance);
+        }
     }
 
     /// @notice See {IERC4626-previewWithdraw}
