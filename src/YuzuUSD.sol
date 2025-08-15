@@ -76,11 +76,11 @@ contract YuzuUSD is YuzuProto {
         uint256 assets = previewMint(tokens);
 
         if (redeemOrderFeePpm >= 0) {
-            // Positive fee - reduce assets returned
+            /// @dev Positive fee - reduce assets returned
             uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(redeemOrderFeePpm));
             return assets - fee;
         } else {
-            // Negative fee (incentive) - increase assets returned
+            /// @dev Negative fee (incentive) - increase assets returned
             uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-redeemOrderFeePpm));
             return assets + incentive;
         }

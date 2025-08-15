@@ -149,7 +149,11 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
     }
 
     function testFuzz_CreateRedeemOrder_FillRedeemOrder(
-        address caller, address receiver, address owner, uint256 tokens, int256 fee
+        address caller,
+        address receiver,
+        address owner,
+        uint256 tokens,
+        int256 fee
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));

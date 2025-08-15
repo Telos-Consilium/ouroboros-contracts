@@ -5,13 +5,13 @@ import {Test, console2} from "forge-std/Test.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import {Order, OrderStatus} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IStakedYuzuUSDDefinitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
-
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 
 contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
@@ -179,7 +179,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 mintedShares = _deposit(_owner, 100e18);
         _initiateRedeemAndAssert(caller, mintedShares, receiver, _owner);
     }
-    
+
     function test_InitiateRedeem_Zero() public {
         address caller = user1;
         address receiver = user1;
@@ -187,7 +187,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 shares = 0;
         _initiateRedeemAndAssert(caller, shares, receiver, _owner);
     }
-    
+
     function test_InitiateRedeem_WithFee() public {
         address caller = user1;
         address receiver = user1;
@@ -289,12 +289,18 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     // Fuzz
-    function testFuzz_InitiateRedeem_FinalizeRedeem(address caller, address receiver, address _owner, uint256 shares, uint256 fee) public {
+    function testFuzz_InitiateRedeem_FinalizeRedeem(
+        address caller,
+        address receiver,
+        address _owner,
+        uint256 shares,
+        uint256 fee
+    ) public {
         vm.assume(caller != address(0) && receiver != address(0) && _owner != address(0));
         vm.assume(caller != address(styz) && receiver != address(styz) && _owner != address(styz));
         shares = bound(shares, 1e12, 1_000_000e18);
         fee = bound(fee, 0, 1_000_000); // 0% to 100%
-        
+
         uint256 depositSize = styz.previewMint(shares);
 
         yzusd.mint(_owner, depositSize);
@@ -405,7 +411,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_SetRedeemDelay_Revert_TooHigh() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(RedeemDelayTooHigh.selector, uint256(type(uint32).max) + 1, type(uint32).max));
+        vm.expectRevert(
+            abi.encodeWithSelector(RedeemDelayTooHigh.selector, uint256(type(uint32).max) + 1, type(uint32).max)
+        );
         styz.setRedeemDelay(uint256(type(uint32).max) + 1);
     }
 

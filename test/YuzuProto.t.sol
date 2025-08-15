@@ -3,13 +3,14 @@ pragma solidity ^0.8.30;
 
 import {Test, console2} from "forge-std/Test.sol";
 
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IAccessControlDefaultAdminRules} from
     "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
@@ -710,19 +711,19 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
         proto.cancelRedeemOrder(orderId);
     }
-    
+
     function test_CancelRedeemOrder_Revert_AlreadyCancelled() public {
         address caller = user1;
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
         _deposit(caller, assets);
         (uint256 orderId,) = _createRedeemOrder(caller, tokens);
-        
+
         vm.warp(block.timestamp + proto.fillWindow());
-        
+
         vm.prank(caller);
         proto.cancelRedeemOrder(orderId);
-        
+
         vm.prank(caller);
         vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
         proto.cancelRedeemOrder(orderId);
@@ -739,7 +740,9 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Fuzz
-    function testFuzz_Deposit_Withdraw(address caller, address receiver, address owner, uint256 assets, uint256 fee) public {
+    function testFuzz_Deposit_Withdraw(address caller, address receiver, address owner, uint256 assets, uint256 fee)
+        public
+    {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
 
@@ -758,7 +761,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         vm.prank(caller);
         asset.approve(address(proto), assets);
-        
+
         _depositAndAssert(caller, assets, owner);
 
         vm.prank(owner);
@@ -767,8 +770,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 withdrawableAssets = proto.maxWithdraw(owner);
         _withdrawAndAssert(caller, withdrawableAssets, receiver, owner);
     }
-    
-    function testFuzz_Mint_Redeem(address caller, address receiver, address owner, uint256 tokens, uint256 fee) public {
+
+    function testFuzz_Mint_Redeem(address caller, address receiver, address owner, uint256 tokens, uint256 fee)
+        public
+    {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
         tokens = bound(tokens, 1e12, 1_000_000e18);
@@ -787,7 +792,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         vm.prank(caller);
         asset.approve(address(proto), depositSize);
-        
+
         _mintAndAssert(caller, tokens, owner);
 
         vm.prank(owner);
@@ -891,7 +896,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setTreasury(newTreasury);
         assertEq(proto.treasury(), newTreasury);
     }
-    
+
     function test_SetTreasury_Revert_ZeroAddress() public {
         vm.prank(admin);
         vm.expectRevert(InvalidZeroAddress.selector);
