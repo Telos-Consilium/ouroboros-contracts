@@ -74,10 +74,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
 
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address owner) public view virtual returns (uint256) {
-        uint256 remainingAllowance = _getRemainingWithdrawAllowance();
-        uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerAssets = previewRedeem(__yuzu_balanceOf(owner));
-        return Math.min(ownerAssets, Math.min(liquidityBuffer, remainingAllowance));
+        return previewRedeem(maxRedeem(owner));
     }
 
     /// @notice See {IERC4626-maxRedeem}

@@ -66,14 +66,14 @@ contract YuzuUSD is YuzuProto {
 
     /// @notice See {IERC4626-previewRedeem}
     function previewRedeem(uint256 tokens) public view override returns (uint256) {
-        uint256 assets = previewMint(tokens);
+        uint256 assets = tokens / 10 ** _decimalsOffset();
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return assets - fee;
     }
 
     /// @notice Preview the amount of assets to receive when redeeming `tokens` through an order after fees
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
-        uint256 assets = previewMint(tokens);
+        uint256 assets = tokens / 10 ** _decimalsOffset();
 
         if (redeemOrderFeePpm >= 0) {
             /// @dev Positive fee - reduce assets returned

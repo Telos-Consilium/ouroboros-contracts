@@ -98,14 +98,12 @@ contract StakedYuzuUSD is
     /// @notice See {IERC4626-maxMint}
     function maxMint(address receiver) public view override returns (uint256) {
         uint256 _maxDeposit = Math.min(maxDeposit(receiver), type(uint256).max - 10 ** _decimalsOffset());
-        return convertToShares(_maxDeposit);
+        return _convertToShares(_maxDeposit, Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address owner) public view override returns (uint256) {
-        uint256 withdrawn = withdrawnPerBlock[block.number];
-        if (withdrawn >= maxWithdrawPerBlock) return 0;
-        return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - withdrawn);
+        return previewRedeem(maxRedeem(owner));
     }
 
     /// @notice See {IERC4626-maxRedeem}
