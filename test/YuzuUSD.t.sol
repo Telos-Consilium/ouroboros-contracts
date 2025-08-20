@@ -75,19 +75,23 @@ contract YuzuUSDTest is YuzuProtoTest {
         _setMaxWithdrawPerBlock(depositSize);
         _setFees(0, fee);
 
-        vm.prank(caller);
-        asset.approve(address(proto), depositSize);
+        _approveAssets(caller, address(proto), depositSize);
 
         vm.prank(caller);
         proto.mint(tokens, owner);
 
-        vm.prank(owner);
-        proto.approve(caller, tokens);
-
+        _approveTokens(owner, caller, tokens);
         _createRedeemOrderAndAssert(caller, tokens, receiver, owner);
 
         vm.warp(block.timestamp + proto.fillWindow());
 
         _fillRedeemOrderAndAssert(orderFiller, proto.orderCount() - 1);
+    }
+}
+
+contract YuzuUSDInvariantTest is YuzuProtoInvariantTest {
+    function _deploy() internal override returns (address) {
+        YuzuUSD yzusd = new YuzuUSD();
+        return address(yzusd);
     }
 }

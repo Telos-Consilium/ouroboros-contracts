@@ -4,10 +4,12 @@ pragma solidity ^0.8.30;
 import {console2} from "forge-std/Test.sol";
 
 import {IYuzuILPDefinitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 
+import {YuzuProto} from "../src/proto/YuzuProto.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 
-import {YuzuProtoTest} from "./YuzuProto.t.sol";
+import {YuzuProtoTest, YuzuProtoHandler, YuzuProtoInvariantTest} from "./YuzuProto.t.sol";
 
 contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
     YuzuILP public ilp;
@@ -142,8 +144,7 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
     function test_FillRedeemOrder_UpdatesPool() public {
         _deposit(user1, 100e6);
         (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
-        vm.prank(orderFiller);
-        ilp.fillRedeemOrder(orderId);
+        _fillRedeemOrder(orderId);
         assertEq(ilp.poolSize(), 0);
         assertEq(ilp.totalAssets(), 0);
     }
@@ -168,22 +169,18 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         _setMaxWithdrawPerBlock(depositSize);
         _setFees(0, fee);
 
-        vm.prank(caller);
-        asset.approve(address(proto), depositSize);
+        _approveAssets(caller, address(proto), depositSize);
 
         vm.prank(caller);
         proto.mint(tokens, owner);
+
         _updatePool(depositSize, 0);
-
-        vm.prank(owner);
-        proto.approve(caller, tokens);
-
+        _approveTokens(owner, caller, tokens);
         _createRedeemOrderAndAssert(caller, tokens, receiver, owner);
 
         vm.warp(block.timestamp + proto.fillWindow());
 
         _updatePool(depositSize * 2, 0);
-
         _fillRedeemOrderAndAssert(orderFiller, proto.orderCount() - 1);
     }
 
@@ -215,5 +212,86 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 
         vm.warp(ilp.lastPoolUpdateTimestamp() + 1 days);
         assertEq(ilp.totalAssets(), 110e6);
+    }
+}
+
+contract YuzuILPHandler is YuzuProtoHandler {
+    constructor(YuzuProto _proto, address _admin) YuzuProtoHandler(_proto, _admin) {}
+
+    function mint(uint256 tokens, uint256 receiverIndexSeed, uint256 actorIndexSeed) public override {
+        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        if (totalAssets < 1e18) return;
+        super.mint(tokens, receiverIndexSeed, actorIndexSeed);
+    }
+
+    function withdraw(uint256 assets, uint256 receiverIndexSeed, uint256 ownerIndexSeed, uint256 actorIndexSeed)
+        public
+        override
+    {
+        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        if (totalAssets < 1e18) return;
+        super.withdraw(assets, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
+    }
+
+    function redeem(uint256 tokens, uint256 receiverIndexSeed, uint256 ownerIndexSeed, uint256 actorIndexSeed)
+        public
+        override
+    {
+        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        if (totalAssets < 1e18) return;
+        super.redeem(tokens, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
+    }
+
+    function fillRedeemOrder(uint256 orderIndex) public override {
+        if (activeOrderIds.length == 0) return;
+
+        orderIndex = bound(orderIndex, 0, activeOrderIds.length - 1);
+        uint256 orderId = activeOrderIds[orderIndex];
+        activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
+        activeOrderIds.pop();
+        Order memory order = proto.getRedeemOrder(orderId);
+
+        uint256 poolSize = YuzuILP(address(proto)).poolSize();
+
+        if (order.assets > poolSize) {
+            uint256 yieldRatePpm = YuzuILP(address(proto)).dailyLinearYieldRatePpm();
+            vm.prank(admin);
+            YuzuILP(address(proto)).updatePool(order.assets, yieldRatePpm);
+        }
+
+        asset.mint(admin, order.assets);
+        vm.prank(admin);
+        proto.fillRedeemOrder(orderId);
+    }
+
+    function nextDay(int256 actualYieldRatePpm, uint256 newYieldRatePpm) external {
+        actualYieldRatePpm = bound(actualYieldRatePpm, int256(-200_000), int256(200_000));
+        newYieldRatePpm = bound(newYieldRatePpm, 0, 200_000);
+        vm.warp(block.timestamp + 1 days);
+        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        uint256 newPoolSize = totalAssets * uint256(1e6 + actualYieldRatePpm) / 1e6;
+        vm.prank(admin);
+        YuzuILP(address(proto)).updatePool(newPoolSize, newYieldRatePpm);
+    }
+}
+
+contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
+    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+
+    function _deploy() internal override returns (address) {
+        YuzuILP ilp = new YuzuILP();
+        return address(ilp);
+    }
+
+    function setUp() public override {
+        super.setUp();
+
+        vm.prank(admin);
+        proto.grantRole(POOL_MANAGER_ROLE, admin);
+
+        excludeContract(address(handler));
+
+        handler = new YuzuILPHandler(proto, admin);
+        targetContract(address(handler));
     }
 }
