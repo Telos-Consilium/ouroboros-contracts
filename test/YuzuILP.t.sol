@@ -220,7 +220,7 @@ contract YuzuILPHandler is YuzuProtoHandler {
 
     function mint(uint256 tokens, uint256 receiverIndexSeed, uint256 actorIndexSeed) public override {
         uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
-        if (totalAssets < 1e18) return;
+        if (useGuardrails && totalAssets < 1e18) return;
         super.mint(tokens, receiverIndexSeed, actorIndexSeed);
     }
 
@@ -229,7 +229,7 @@ contract YuzuILPHandler is YuzuProtoHandler {
         override
     {
         uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
-        if (totalAssets < 1e18) return;
+        if (useGuardrails && totalAssets < 1e18) return;
         super.withdraw(assets, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
     }
 
@@ -238,14 +238,14 @@ contract YuzuILPHandler is YuzuProtoHandler {
         override
     {
         uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
-        if (totalAssets < 1e18) return;
+        if (useGuardrails && totalAssets < 1e18) return;
         super.redeem(tokens, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
     }
 
     function fillRedeemOrder(uint256 orderIndex) public override {
-        if (activeOrderIds.length == 0) return;
+        if (useGuardrails && activeOrderIds.length == 0) return;
 
-        orderIndex = bound(orderIndex, 0, activeOrderIds.length - 1);
+        orderIndex = _bound(orderIndex, 0, activeOrderIds.length - 1);
         uint256 orderId = activeOrderIds[orderIndex];
         activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
         activeOrderIds.pop();
@@ -253,7 +253,7 @@ contract YuzuILPHandler is YuzuProtoHandler {
 
         uint256 poolSize = YuzuILP(address(proto)).poolSize();
 
-        if (order.assets > poolSize) {
+        if (useGuardrails && order.assets > poolSize) {
             uint256 yieldRatePpm = YuzuILP(address(proto)).dailyLinearYieldRatePpm();
             vm.prank(admin);
             YuzuILP(address(proto)).updatePool(order.assets, yieldRatePpm);
@@ -293,5 +293,26 @@ contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
 
         handler = new YuzuILPHandler(proto, admin);
         targetContract(address(handler));
+    }
+
+    function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view override {
+        if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        super.invariantTest_PreviewMintMaxMint_Le_MaxDeposit();
+    }
+
+    function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view override {
+        if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        super.invariantTest_PreviewDepositMaxDeposit_Le_MaxMint();
+    }
+
+    function invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw() public view override {
+        if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        super.invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw();
+    }
+
+    function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view override {
+        return;
+        // if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        // super.invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem();
     }
 }

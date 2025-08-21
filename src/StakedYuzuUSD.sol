@@ -103,27 +103,20 @@ contract StakedYuzuUSD is
 
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address owner) public view override returns (uint256) {
-        return previewRedeem(maxRedeem(owner));
+        uint256 withdrawn = withdrawnPerBlock[block.number];
+        if (withdrawn >= maxWithdrawPerBlock) return 0;
+        uint256 inheritedMaxRedeem = super.maxRedeem(owner);
+        uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
+        return Math.min(previewRedeem(inheritedMaxRedeem), remainingAllowance);
     }
 
     /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
         if (withdrawn >= maxWithdrawPerBlock) return 0;
-
         uint256 inheritedMaxRedeem = super.maxRedeem(owner);
-        if (inheritedMaxRedeem == 0) {
-            return 0;
-        }
-
         uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
-        /// @dev If redeeming the inherited max redeem would not exceed the remaining allowance, don't
-        /// calculate the asset value of the allowance to prevent a possible overflow in previewWithdraw.
-        if (previewRedeem(inheritedMaxRedeem) < remainingAllowance) {
-            return inheritedMaxRedeem;
-        } else {
-            return previewWithdraw(remainingAllowance);
-        }
+        return Math.min(_convertToShares(remainingAllowance, Math.Rounding.Floor), inheritedMaxRedeem);
     }
 
     /// @notice See {IERC4626-previewWithdraw}

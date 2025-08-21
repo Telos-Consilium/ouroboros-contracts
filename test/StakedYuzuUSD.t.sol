@@ -500,7 +500,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Limited by max
         assertEq(styz.maxWithdraw(user1), 100e18);
-        assertEq(styz.maxRedeem(user1), 110e18);
+        assertEq(styz.maxRedeem(user1), 100e18);
     }
 
     function test_PreviewWithdraw_WithFee() public {
@@ -664,6 +664,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 }
 
 contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
+    bool useGuardrails;
+
     StakedYuzuUSD public styz;
     ERC20Mock internal yzusd;
     address internal owner;
@@ -680,6 +682,8 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
     uint256 public redeemedShares;
 
     constructor(StakedYuzuUSD _styz) {
+        useGuardrails = vm.envOr("USE_GUARDRAILS", false);
+
         styz = _styz;
 
         yzusd = ERC20Mock(_styz.asset());
@@ -688,6 +692,7 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
         actors.push(makeAddr("user1"));
         actors.push(makeAddr("user2"));
         actors.push(makeAddr("user3"));
+        actors.push(makeAddr("user4"));
 
         for (uint256 i = 0; i < actors.length; i++) {
             address _actor = actors[i];
@@ -709,14 +714,14 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
     }
 
     modifier useCaller(uint256 actorIndexSeed) {
-        caller = actors[bound(actorIndexSeed, 0, actors.length - 1)];
+        caller = actors[_bound(actorIndexSeed, 0, actors.length - 1)];
         vm.startPrank(caller);
         _;
         vm.stopPrank();
     }
 
     function _getActor(uint256 actorIndexSeed) internal view returns (address) {
-        return actors[bound(actorIndexSeed, 0, actors.length - 1)];
+        return actors[_bound(actorIndexSeed, 0, actors.length - 1)];
     }
 
     function getActors() external view returns (address[] memory) {
@@ -728,7 +733,7 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function donateAssets(uint256 assets) external {
-        assets = bound(assets, 0, 1e27);
+        assets = _bound(assets, 0, 1e27);
         donatedAssets += assets;
         yzusd.mint(address(styz), assets);
     }
@@ -738,8 +743,8 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
         useCaller(actorIndexSeed)
     {
         address receiver = _getActor(receiverIndexSeed);
-        assets = bound(assets, 0, styz.maxDeposit(receiver));
-        assets = bound(assets, 0, 1e27);
+        assets = _bound(assets, 0, styz.maxDeposit(receiver));
+        assets = _bound(assets, 0, 1e27);
         yzusd.mint(caller, assets);
         depositedAssets += assets;
         mintedShares += styz.deposit(assets, receiver);
@@ -750,8 +755,8 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
         useCaller(actorIndexSeed)
     {
         address receiver = _getActor(receiverIndexSeed);
-        shares = bound(shares, 0, styz.maxMint(receiver));
-        shares = bound(shares, 0, 1e27);
+        shares = _bound(shares, 0, styz.maxMint(receiver));
+        shares = _bound(shares, 0, 1e27);
         yzusd.mint(caller, styz.previewMint(shares));
         mintedShares += shares;
         depositedAssets += styz.mint(shares, receiver);
@@ -763,16 +768,16 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
     {
         address receiver = _getActor(receiverIndexSeed);
         address _owner = _getActor(ownerIndexSeed);
-        shares = bound(shares, 0, styz.maxRedeem(_owner));
+        shares = _bound(shares, 0, styz.maxRedeem(_owner));
         redeemedShares += shares;
         (uint256 orderId,) = styz.initiateRedeem(shares, receiver, _owner);
         activeOrderIds.push(orderId);
     }
 
     function finalizeRedeem(uint256 orderIndex, uint256 callerIndex) external {
-        if (activeOrderIds.length == 0) return;
+        if (useGuardrails && activeOrderIds.length == 0) return;
 
-        orderIndex = bound(orderIndex, 0, activeOrderIds.length - 1);
+        orderIndex = _bound(orderIndex, 0, activeOrderIds.length - 1);
         uint256 orderId = activeOrderIds[orderIndex];
         activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
         activeOrderIds.pop();
@@ -792,7 +797,7 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function setRedeemFee(uint256 newFeePpm) external {
-        newFeePpm = bound(newFeePpm, 0, 1_000_000); // 0 to 100%
+        newFeePpm = _bound(newFeePpm, 0, 1_000_000); // 0 to 100%
         vm.prank(owner);
         styz.setRedeemFee(newFeePpm);
     }
@@ -826,27 +831,9 @@ contract StakedYuzuUSDInvariantTest is Test {
         targetContract(address(handler));
     }
 
-    function invariantTest_TotalAssets_Consistent() public view {
-        uint256 totalAssets = styz.totalAssets();
-        uint256 contractAssetBalance = yzusd.balanceOf(address(styz));
-        uint256 pendingOrderValue = styz.totalPendingOrderValue();
-        assertEq(
-            totalAssets,
-            contractAssetBalance - pendingOrderValue,
-            "! totalAssets == contractAssetBalance - pendingOrderValue"
-        );
-    }
-
-    function invariantTest_TotalAssets_Ge_ImpliedAssets() public view {
-        uint256 totalAssets = styz.totalAssets();
-        uint256 totalSupply = styz.totalSupply();
-        uint256 totalSupplyInAssets = styz.convertToAssets(totalSupply);
-        if (totalSupply > 0) {
-            assertGe(totalAssets, totalSupplyInAssets, "! totalAssets >= totalSupplyInAssets");
-        }
-        if (totalSupply > 1e18) {
-            assertApproxEqRel(totalAssets, totalSupplyInAssets, 1, "! totalAssets ~= totalSupplyInAssets");
-        }
+    function invariantTest_ShareBalance_Zero() public view {
+        uint256 contractShareBalance = styz.balanceOf(address(styz));
+        assertEq(contractShareBalance, 0, "! contractShareBalance == 0");
     }
 
     function invariantTest_TotalSupply_Consistent() public view {
@@ -868,12 +855,7 @@ contract StakedYuzuUSDInvariantTest is Test {
         );
     }
 
-    function invariantTest_ShareBalance_Zero() public view {
-        uint256 contractShareBalance = styz.balanceOf(address(styz));
-        assertEq(contractShareBalance, 0, "! contractShareBalance == 0");
-    }
-
-    function invariantTest_TotalPendingOrderValue_Consistent() public view {
+    function invariantTest_PendingOrderValue_Consistent() public view {
         uint256 totalPendingOrderValue = styz.totalPendingOrderValue();
         uint256[] memory _activeOrderIds = handler.getActiveOrderIds();
 

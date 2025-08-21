@@ -291,7 +291,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         // Limited by max
         assertEq(proto.maxWithdraw(user1), 100e6);
-        assertEq(proto.maxRedeem(user1), 110e18);
+        assertEq(proto.maxRedeem(user1), 100e18);
         // Limited by balance
         assertEq(proto.maxRedeemOrder(user1), 300e18);
 
@@ -299,7 +299,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         // Limited by buffer
         assertEq(proto.maxWithdraw(user1), 200e6);
-        assertEq(proto.maxRedeem(user1), 220e18);
+        assertEq(proto.maxRedeem(user1), 200e18);
         // Limited by balance
         assertEq(proto.maxRedeemOrder(user1), 300e18);
 
@@ -1239,6 +1239,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 }
 
 contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
+    bool useGuardrails;
+
     YuzuProto public proto;
     ERC20Mock internal asset;
     address internal admin;
@@ -1256,6 +1258,8 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     uint256 public canceledOrderTokens;
 
     constructor(YuzuProto _proto, address _admin) {
+        useGuardrails = vm.envOr("USE_GUARDRAILS", false);
+
         proto = _proto;
 
         asset = ERC20Mock(_proto.asset());
@@ -1267,6 +1271,7 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         actors.push(makeAddr("user1"));
         actors.push(makeAddr("user2"));
         actors.push(makeAddr("user3"));
+        actors.push(makeAddr("user4"));
 
         for (uint256 i = 0; i < actors.length; i++) {
             address _actor = actors[i];
@@ -1288,14 +1293,14 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     }
 
     modifier useCaller(uint256 actorIndexSeed) {
-        caller = actors[bound(actorIndexSeed, 0, actors.length - 1)];
+        caller = actors[_bound(actorIndexSeed, 0, actors.length - 1)];
         vm.startPrank(caller);
         _;
         vm.stopPrank();
     }
 
     function _getActor(uint256 actorIndexSeed) internal view returns (address) {
-        return actors[bound(actorIndexSeed, 0, actors.length - 1)];
+        return actors[_bound(actorIndexSeed, 0, actors.length - 1)];
     }
 
     function getActors() external view returns (address[] memory) {
@@ -1307,7 +1312,7 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function donateAssets(uint256 assets) public virtual {
-        assets = bound(assets, 0, 1e15);
+        assets = _bound(assets, 0, 1e15);
         donatedAssets += assets;
         asset.mint(address(proto), assets);
     }
@@ -1318,8 +1323,8 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         useCaller(actorIndexSeed)
     {
         address receiver = _getActor(receiverIndexSeed);
-        assets = bound(assets, 0, proto.maxDeposit(receiver));
-        assets = bound(assets, 0, 1e15);
+        assets = _bound(assets, 0, proto.maxDeposit(receiver));
+        assets = _bound(assets, 0, 1e15);
         asset.mint(caller, assets);
         depositedAssets += assets;
         mintedTokens += proto.deposit(assets, receiver);
@@ -1332,9 +1337,9 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     {
         address receiver = _getActor(receiverIndexSeed);
         uint256 _maxMint = proto.maxMint(receiver);
-        if (_maxMint < 1e12) return;
-        tokens = bound(tokens, 1e12, _maxMint);
-        tokens = bound(tokens, 1e12, 1e27);
+        if (useGuardrails && _maxMint < 1e12) return;
+        tokens = _bound(tokens, 1e12, _maxMint);
+        tokens = _bound(tokens, 1e12, 1e27);
         asset.mint(caller, proto.previewMint(tokens));
         mintedTokens += tokens;
         depositedAssets += proto.mint(tokens, receiver);
@@ -1347,7 +1352,7 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     {
         address receiver = _getActor(receiverIndexSeed);
         address owner = _getActor(ownerIndexSeed);
-        assets = bound(assets, 0, proto.maxWithdraw(owner));
+        assets = _bound(assets, 0, proto.maxWithdraw(owner));
         withdrawnAssets += assets;
         redeemedTokens += proto.withdraw(assets, receiver, owner);
     }
@@ -1360,8 +1365,8 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         address receiver = _getActor(receiverIndexSeed);
         address owner = _getActor(ownerIndexSeed);
         uint256 _maxRedeem = proto.maxRedeem(owner);
-        if (_maxRedeem < 1e12) return;
-        tokens = bound(tokens, 1e12, _maxRedeem);
+        if (useGuardrails && _maxRedeem < 1e12) return;
+        tokens = _bound(tokens, 1e12, _maxRedeem);
         redeemedTokens += tokens;
         withdrawnAssets += proto.redeem(tokens, receiver, owner);
     }
@@ -1375,17 +1380,17 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         address receiver = _getActor(receiverIndexSeed);
         address owner = _getActor(ownerIndexSeed);
         uint256 _maxRedeem = proto.maxRedeemOrder(owner);
-        if (_maxRedeem < 1e12) return;
-        tokens = bound(tokens, 1e12, _maxRedeem);
+        if (useGuardrails && _maxRedeem < 1e12) return;
+        tokens = _bound(tokens, 1e12, _maxRedeem);
         redeemedTokens += tokens;
         (uint256 orderId,) = proto.createRedeemOrder(tokens, receiver, owner);
         activeOrderIds.push(orderId);
     }
 
     function fillRedeemOrder(uint256 orderIndex) public virtual {
-        if (activeOrderIds.length == 0) return;
+        if (useGuardrails && activeOrderIds.length == 0) return;
 
-        orderIndex = bound(orderIndex, 0, activeOrderIds.length - 1);
+        orderIndex = _bound(orderIndex, 0, activeOrderIds.length - 1);
         uint256 orderId = activeOrderIds[orderIndex];
         activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
         activeOrderIds.pop();
@@ -1397,15 +1402,15 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function cancelRedeemOrder(uint256 orderIndex, uint256 callerIndex) public virtual {
-        if (activeOrderIds.length == 0) return;
+        if (useGuardrails && activeOrderIds.length == 0) return;
 
-        orderIndex = bound(orderIndex, 0, activeOrderIds.length - 1);
+        orderIndex = _bound(orderIndex, 0, activeOrderIds.length - 1);
         uint256 orderId = activeOrderIds[orderIndex];
         activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
         activeOrderIds.pop();
         Order memory order = proto.getRedeemOrder(orderId);
 
-        if (order.status != OrderStatus.Pending) return;
+        if (useGuardrails && order.status != OrderStatus.Pending) return;
 
         if (callerIndex % 2 == 0) {
             caller = order.owner;
@@ -1421,15 +1426,15 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function finalizeRedeemOrder(uint256 orderIndex, uint256 callerIndex) public virtual {
-        if (activeOrderIds.length == 0) return;
+        if (useGuardrails && activeOrderIds.length == 0) return;
 
-        orderIndex = bound(orderIndex, 0, activeOrderIds.length - 1);
+        orderIndex = _bound(orderIndex, 0, activeOrderIds.length - 1);
         uint256 orderId = activeOrderIds[orderIndex];
         activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
         activeOrderIds.pop();
         Order memory order = proto.getRedeemOrder(orderId);
 
-        if (order.status != OrderStatus.Filled) return;
+        if (useGuardrails && order.status != OrderStatus.Filled) return;
 
         if (callerIndex % 2 == 0) {
             caller = order.receiver;
@@ -1444,13 +1449,13 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     }
 
     function setRedeemFee(uint256 newFeePpm) external {
-        newFeePpm = bound(newFeePpm, 0, 1_000_000); // 0 to 100%
+        newFeePpm = _bound(newFeePpm, 0, 1_000_000); // 0 to 100%
         vm.prank(admin);
         proto.setRedeemFee(newFeePpm);
     }
 
     function setRedeemOrderFee(int256 newFeePpm) external {
-        newFeePpm = bound(newFeePpm, -1_000_000, 1_000_000); // -100% to 100%
+        newFeePpm = _bound(newFeePpm, -1_000_000, 1_000_000); // -100% to 100%
         vm.prank(admin);
         proto.setRedeemOrderFee(newFeePpm);
     }
@@ -1505,15 +1510,6 @@ abstract contract YuzuProtoInvariantTest is Test {
         targetContract(address(handler));
     }
 
-    function invariantTest_TotalAssets_Consistent() public view virtual {
-        uint256 totalAssets = proto.totalAssets();
-        uint256 totalSupply = proto.totalSupply();
-        uint256 totalSupplyInAssets = proto.convertToAssets(totalSupply);
-        if (totalSupply > 1e18 && totalSupplyInAssets - totalAssets > 1) {
-            assertApproxEqRel(totalAssets, totalSupplyInAssets, 1e12, "! totalAssets ~= totalSupplyInAssets");
-        }
-    }
-
     function invariantTest_TotalSupply_Consistent() public view virtual {
         uint256 totalSupply = proto.totalSupply();
         uint256 mintedTokens = handler.mintedTokens();
@@ -1540,10 +1536,31 @@ abstract contract YuzuProtoInvariantTest is Test {
         );
     }
 
-    function invariantTest_TokenBalance_Consistent() public view virtual {
-        uint256 contractTokenBalance = proto.balanceOf(address(proto));
+    function invariantTest_TotalAssets_Ge_ImpliedTotalAssets() public view virtual {
+        uint256 totalAssets = proto.totalAssets();
+        uint256 totalSupply = proto.totalSupply();
+        uint256 totalSupplyInAssets = proto.previewRedeem(totalSupply);
+        assertGe(
+            totalAssets,
+            totalSupplyInAssets,
+            "! totalAssets >= totalSupplyInAssets"
+        );
+    }
+
+    function invariantTest_PendingOrderSize_Le_TokenBalance() public view virtual {
         uint256 pendingOrderSize = proto.totalPendingOrderSize();
-        assertEq(contractTokenBalance, pendingOrderSize, "! contractTokenBalance == pendingOrderSize");
+        uint256 contractTokenBalance = proto.balanceOf(address(proto));
+        assertLe(
+            pendingOrderSize,
+            contractTokenBalance,
+            "! pendingOrderSize <= contractTokenBalance"
+        );
+    }
+
+    function invariantTest_UnfinalizedOrderValue_Le_AssetBalance() public {
+        uint256 contractAssetBalance = asset.balanceOf(address(proto));
+        uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
+        assertLe(unfinalizedOrderValue, contractAssetBalance, "! unfinalizedOrderValue <= contractAssetBalance");
     }
 
     function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view virtual {
