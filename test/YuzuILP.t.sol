@@ -129,14 +129,14 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 
     function test_FillRedeemOrder_WithIncentive() public {
         uint256 assets = 100e6;
-        uint256 tokens = 100e18;
+        uint256 shares = 100e18;
         int256 fee = -100_000; // -10%
 
         vm.prank(redeemManager);
         proto.setRedeemOrderFee(fee);
 
         _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
+        (uint256 orderId,) = _createRedeemOrder(user1, shares);
         _updatePool(200e6, 0);
         _fillRedeemOrderAndAssert(orderFiller, orderId);
     }
@@ -153,16 +153,16 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         address caller,
         address receiver,
         address owner,
-        uint256 tokens,
+        uint256 shares,
         int256 fee
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
         vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
-        tokens = bound(tokens, 1e12, 1_000_000e18);
+        shares = bound(shares, 1e12, 1_000_000e18);
         fee = bound(fee, -1_000_000, 1_000_000); // -100% to 100%
 
-        uint256 depositSize = proto.previewMint(tokens);
+        uint256 depositSize = proto.previewMint(shares);
 
         asset.mint(caller, depositSize);
         _setMaxDepositPerBlock(depositSize);
@@ -172,11 +172,11 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         _approveAssets(caller, address(proto), depositSize);
 
         vm.prank(caller);
-        proto.mint(tokens, owner);
+        proto.mint(shares, owner);
 
         _updatePool(depositSize, 0);
-        _approveTokens(owner, caller, tokens);
-        _createRedeemOrderAndAssert(caller, tokens, receiver, owner);
+        _approveTokens(owner, caller, shares);
+        _createRedeemOrderAndAssert(caller, shares, receiver, owner);
 
         vm.warp(block.timestamp + proto.fillWindow());
 
@@ -218,10 +218,10 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 contract YuzuILPHandler is YuzuProtoHandler {
     constructor(YuzuProto _proto, address _admin) YuzuProtoHandler(_proto, _admin) {}
 
-    function mint(uint256 tokens, uint256 receiverIndexSeed, uint256 actorIndexSeed) public override {
+    function mint(uint256 shares, uint256 receiverIndexSeed, uint256 actorIndexSeed) public override {
         uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
         if (useGuardrails && totalAssets < 1e18) return;
-        super.mint(tokens, receiverIndexSeed, actorIndexSeed);
+        super.mint(shares, receiverIndexSeed, actorIndexSeed);
     }
 
     function withdraw(uint256 assets, uint256 receiverIndexSeed, uint256 ownerIndexSeed, uint256 actorIndexSeed)
@@ -233,13 +233,13 @@ contract YuzuILPHandler is YuzuProtoHandler {
         super.withdraw(assets, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
     }
 
-    function redeem(uint256 tokens, uint256 receiverIndexSeed, uint256 ownerIndexSeed, uint256 actorIndexSeed)
+    function redeem(uint256 shares, uint256 receiverIndexSeed, uint256 ownerIndexSeed, uint256 actorIndexSeed)
         public
         override
     {
         uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
         if (useGuardrails && totalAssets < 1e18) return;
-        super.redeem(tokens, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
+        super.redeem(shares, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
     }
 
     function fillRedeemOrder(uint256 orderIndex) public override {

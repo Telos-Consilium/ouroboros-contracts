@@ -85,18 +85,18 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     function maxWithdraw(address owner) public view override returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerTokens = __yuzu_balanceOf(owner);
+        uint256 ownerShares = __yuzu_balanceOf(owner);
         uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
-        return Math.min(previewRedeem(ownerTokens), _maxWithdraw);
+        return Math.min(previewRedeem(ownerShares), _maxWithdraw);
     }
 
     /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address owner) public view override returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerTokens = __yuzu_balanceOf(owner);
+        uint256 ownerShares = __yuzu_balanceOf(owner);
         uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
-        return Math.min(_convertToSharesRedeemed(_maxWithdraw, Math.Rounding.Floor), ownerTokens);
+        return Math.min(_convertToSharesRedeemed(_maxWithdraw, Math.Rounding.Floor), ownerShares);
     }
 
     /// @notice See {IERC4626-previewDeposit}
@@ -161,24 +161,6 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         poolSize -= order.assets;
         super._fillRedeemOrder(caller, order);
     }
-
-    // function _convertToSharesMinted(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
-    //     uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding(1 - uint256(rounding)));
-    //     return Math.mulDiv(assets, totalSupply() + 10 ** _decimalsOffset(), _totalAssets + 1, rounding);
-    // }
-
-    // function _convertToSharesRedeemed(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
-    //     return Math.mulDiv(assets, totalSupply() + 10 ** _decimalsOffset(), poolSize + 1, rounding);
-    // }
-
-    // function _convertToAssetsDeposited(uint256 shares, Math.Rounding rounding) internal view returns (uint256) {
-    //     uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding(1 - uint256(rounding)));
-    //     return Math.mulDiv(shares, _totalAssets + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
-    // }
-
-    // function _convertToAssetsWithdrawn(uint256 shares, Math.Rounding rounding) internal view returns (uint256) {
-    //     return Math.mulDiv(shares, poolSize + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
-    // }
 
     function _convertToSharesMinted(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
         if (poolSize == 0) return assets * 10 ** _decimalsOffset();
