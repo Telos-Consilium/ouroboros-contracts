@@ -38,10 +38,10 @@ contract YuzuUSDTest is YuzuProtoTest {
     function test_FillRedeemOrder_WithIncentive() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        int256 fee = -100_000; // -10%
+        int256 feePpm = -100_000; // -10%
 
         vm.prank(redeemManager);
-        proto.setRedeemOrderFee(fee);
+        proto.setRedeemOrderFee(feePpm);
 
         _deposit(user1, assets);
         (uint256 orderId,) = _createRedeemOrder(user1, tokens);
@@ -60,20 +60,20 @@ contract YuzuUSDTest is YuzuProtoTest {
         address receiver,
         address owner,
         uint256 tokens,
-        int256 fee
+        int256 feePpm
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
         vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
         tokens = bound(tokens, 1e12, 1_000_000e18);
-        fee = bound(fee, -1_000_000, 1_000_000); // -100% to 100%
+        feePpm = bound(feePpm, -1_000_000, 1_000_000); // -100% to 100%
 
         uint256 depositSize = proto.previewMint(tokens);
 
         asset.mint(caller, depositSize);
         _setMaxDepositPerBlock(depositSize);
         _setMaxWithdrawPerBlock(depositSize);
-        _setFees(0, fee);
+        _setFees(0, feePpm);
 
         _approveAssets(caller, address(proto), depositSize);
 

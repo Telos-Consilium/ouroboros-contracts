@@ -209,10 +209,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_InitiateRedeem_WithFee() public {
-        uint256 fee = 100_000; // 10%
+        uint256 feePpm = 100_000; // 10%
 
         vm.prank(owner);
-        styz.setRedeemFee(fee);
+        styz.setRedeemFee(feePpm);
 
         uint256 mintedShares = _deposit(user1, 100e18);
         _initiateRedeemAndAssert(user1, mintedShares, user1, user1);
@@ -346,12 +346,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         address receiver,
         address _owner,
         uint256 shares,
-        uint256 fee
+        uint256 feePpm
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && _owner != address(0));
         vm.assume(caller != address(styz) && receiver != address(styz) && _owner != address(styz));
         shares = bound(shares, 1e12, 1_000_000e18);
-        fee = bound(fee, 0, 1_000_000); // 0% to 100%
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
         uint256 depositSize = styz.previewMint(shares);
 

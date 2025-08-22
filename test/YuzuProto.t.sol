@@ -417,10 +417,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_Withdraw_WithFee() public {
         uint256 assets = 100e6;
-        uint256 fee = 100_000; // 10%
+        uint256 feePpm = 100_000; // 10%
 
         vm.prank(redeemManager);
-        proto.setRedeemFee(fee);
+        proto.setRedeemFee(feePpm);
 
         _setBalances(user1, assets + assets / 10, assets);
         _withdrawAndAssert(user1, assets, user2, user1);
@@ -470,10 +470,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_Redeem_WithFee() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        uint256 fee = 100_000; // 10%
+        uint256 feePpm = 100_000; // 10%
 
         vm.prank(redeemManager);
-        proto.setRedeemFee(fee);
+        proto.setRedeemFee(feePpm);
 
         _setBalances(user1, assets, assets);
         _redeemAndAssert(user1, tokens, user2, user1);
@@ -539,10 +539,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_CreateRedeemOrder_WithFee() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        int256 fee = 100_000; // 10%
+        int256 feePpm = 100_000; // 10%
 
         vm.prank(redeemManager);
-        proto.setRedeemOrderFee(fee);
+        proto.setRedeemOrderFee(feePpm);
 
         _deposit(user1, assets);
         _createRedeemOrderAndAssert(user1, tokens, user2, user1);
@@ -552,10 +552,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         address owner = user1;
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        int256 fee = -100_000; // -10%
+        int256 feePpm = -100_000; // -10%
 
         vm.prank(redeemManager);
-        proto.setRedeemOrderFee(fee);
+        proto.setRedeemOrderFee(feePpm);
 
         _deposit(owner, assets);
         _createRedeemOrderAndAssert(user1, tokens, user2, user1);
@@ -622,10 +622,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_FillRedeemOrder_WithFee() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        int256 fee = 100_000; // 10%
+        int256 feePpm = 100_000; // 10%
 
         vm.prank(redeemManager);
-        proto.setRedeemOrderFee(fee);
+        proto.setRedeemOrderFee(feePpm);
 
         _deposit(user1, assets);
         (uint256 orderId,) = _createRedeemOrder(user1, tokens);
@@ -635,10 +635,10 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     // function test_FillRedeemOrder_WithIncentive() public {
     //     uint256 assets = 100e6;
     //     uint256 tokens = 100e18;
-    //     int256 fee = -100_000; // -10%
+    //     int256 feePpm = -100_000; // -10%
 
     //     vm.prank(redeemManager);
-    //     proto.setRedeemOrderFee(fee);
+    //     proto.setRedeemOrderFee(feePpm);
 
     //     _deposit(user1, assets);
     //     (uint256 orderId,) = _createRedeemOrder(user1, tokens);
@@ -908,21 +908,21 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Fuzz
-    function testFuzz_Deposit_Withdraw(address caller, address receiver, address owner, uint256 assets, uint256 fee)
+    function testFuzz_Deposit_Withdraw(address caller, address receiver, address owner, uint256 assets, uint256 feePpm)
         public
     {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
 
         assets = bound(assets, 0, 1_000_000e6);
-        fee = bound(fee, 0, 1_000_000); // 0% to 100%
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
         uint256 mintSize = proto.previewDeposit(assets);
 
         asset.mint(caller, assets);
         _setMaxDepositPerBlock(assets);
         _setMaxWithdrawPerBlock(assets);
-        _setFees(fee, 0);
+        _setFees(feePpm, 0);
 
         vm.prank(admin);
         proto.setTreasury(address(proto));
@@ -935,21 +935,20 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         _withdrawAndAssert(caller, withdrawableAssets, receiver, owner);
     }
 
-    function testFuzz_Mint_Redeem(address caller, address receiver, address owner, uint256 tokens, uint256 fee)
+    function testFuzz_Mint_Redeem(address caller, address receiver, address owner, uint256 tokens, uint256 feePpm)
         public
     {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
         tokens = bound(tokens, 1e12, 1_000_000e18);
-        fee = bound(fee, 0, 1_000_000); // 0% to 100%
-        fee = 0;
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
         uint256 depositSize = proto.previewMint(tokens);
 
         asset.mint(caller, depositSize);
         _setMaxDepositPerBlock(depositSize);
         _setMaxWithdrawPerBlock(depositSize);
-        _setFees(fee, 0);
+        _setFees(feePpm, 0);
 
         vm.prank(admin);
         proto.setTreasury(address(proto));
