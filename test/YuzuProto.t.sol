@@ -697,7 +697,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         vm.prank(caller);
         vm.expectEmit();
-        emit CancelledRedeemOrder(orderId);
+        emit CancelledRedeemOrder(caller, orderId);
         proto.cancelRedeemOrder(orderId);
 
         Order memory orderAfter = proto.getRedeemOrder(orderId);
@@ -707,14 +707,42 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore - order.tokens);
     }
 
-    function test_CancelRedeemOrder() public {
-        address caller = user1;
+    function test_CancelRedeemOrder_ByOwner() public {
+        address controller = user1;
+        address owner = user2;
+        address receiver = makeAddr("receiver");
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _deposit(caller, assets);
-        (uint256 orderId,) = _createRedeemOrder(caller, tokens);
+        _deposit(owner, assets);
+
+        vm.prank(owner);
+        proto.approve(controller, tokens);
+
+        vm.prank(controller);
+        (uint256 orderId,) = proto.createRedeemOrder(tokens, receiver, owner);
+
         vm.warp(block.timestamp + proto.fillWindow());
-        _cancelRedeemOrderAndAssert(caller, orderId);
+
+        _cancelRedeemOrderAndAssert(owner, orderId);
+    }
+
+    function test_CancelRedeemOrder_ByController() public {
+        address controller = user1;
+        address owner = user2;
+        address receiver = makeAddr("receiver");
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(owner, assets);
+
+        vm.prank(owner);
+        proto.approve(controller, tokens);
+
+        vm.prank(controller);
+        (uint256 orderId,) = proto.createRedeemOrder(tokens, receiver, owner);
+
+        vm.warp(block.timestamp + proto.fillWindow());
+
+        _cancelRedeemOrderAndAssert(controller, orderId);
     }
 
     function test_CancelRedeemOrder_Revert_NotDue() public {
@@ -744,13 +772,13 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.cancelRedeemOrder(orderId);
     }
 
-    function test_CancelRedeemOrder_Revert_NotOwner() public {
+    function test_CancelRedeemOrder_Revert_UnauthorizedManager() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
         _deposit(user1, assets);
         (uint256 orderId,) = _createRedeemOrder(user1, tokens);
         vm.prank(user2);
-        vm.expectRevert(abi.encodeWithSelector(NotOrderOwner.selector, user2, user1));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderManager.selector, user2, user1, user1));
         proto.cancelRedeemOrder(orderId);
     }
 

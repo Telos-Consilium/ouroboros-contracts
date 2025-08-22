@@ -12,6 +12,7 @@ struct Order {
     uint256 shares;
     address owner;
     address receiver;
+    address controller;
     uint40 dueTime;
     OrderStatus status;
 }
@@ -22,6 +23,7 @@ interface IStakedYuzuUSDDefinitions {
     error InvalidZeroAddress();
     error RedeemDelayTooHigh(uint256 provided, uint256 max);
     error FeeTooHigh(uint256 provided, uint256 max);
+    error UnauthorizedOrderFinalizer(address caller, address receiver, address controller);
     error OrderNotPending(uint256 orderId);
     error OrderNotDue(uint256 orderId);
     error InvalidAssetRescue(address token);
