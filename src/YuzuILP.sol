@@ -119,11 +119,17 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         internal
         override
     {
+        if (assets > poolSize) {
+            revert InsufficientPoolSize(assets, poolSize);
+        }
         poolSize -= assets;
         super._withdraw(caller, receiver, owner, assets, shares);
     }
 
     function _fillRedeemOrder(address caller, Order storage order) internal override {
+        if (order.assets > poolSize) {
+            revert InsufficientPoolSize(order.assets, poolSize);
+        }
         poolSize -= order.assets;
         super._fillRedeemOrder(caller, order);
     }
