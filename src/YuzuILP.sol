@@ -147,9 +147,6 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         internal
         override
     {
-        if (assets > poolSize) {
-            revert InsufficientPoolSize(assets, poolSize);
-        }
         poolSize -= assets;
         super._withdraw(caller, receiver, owner, assets, shares);
     }
