@@ -1241,7 +1241,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     bool useGuardrails;
 
-    YuzuProto public proto;
+    YuzuProto internal proto;
     ERC20Mock internal asset;
     address internal admin;
 

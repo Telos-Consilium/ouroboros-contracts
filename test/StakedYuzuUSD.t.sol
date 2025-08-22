@@ -666,7 +666,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
     bool useGuardrails;
 
-    StakedYuzuUSD public styz;
+    StakedYuzuUSD internal styz;
     ERC20Mock internal yzusd;
     address internal owner;
 

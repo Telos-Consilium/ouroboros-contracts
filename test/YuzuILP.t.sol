@@ -133,7 +133,7 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         int256 fee = -100_000; // -10%
 
         vm.prank(redeemManager);
-        proto.setRedeemOrderFee(fee);
+        ilp.setRedeemOrderFee(fee);
 
         _deposit(user1, assets);
         (uint256 orderId,) = _createRedeemOrder(user1, shares);
@@ -157,31 +157,31 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         int256 fee
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
-        vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        vm.assume(caller != address(ilp) && receiver != address(ilp) && owner != address(ilp));
         vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
         shares = bound(shares, 1e12, 1_000_000e18);
         fee = bound(fee, -1_000_000, 1_000_000); // -100% to 100%
 
-        uint256 depositSize = proto.previewMint(shares);
+        uint256 depositSize = ilp.previewMint(shares);
 
         asset.mint(caller, depositSize);
         _setMaxDepositPerBlock(depositSize);
         _setMaxWithdrawPerBlock(depositSize);
         _setFees(0, fee);
 
-        _approveAssets(caller, address(proto), depositSize);
+        _approveAssets(caller, address(ilp), depositSize);
 
         vm.prank(caller);
-        proto.mint(shares, owner);
+        ilp.mint(shares, owner);
 
         _updatePool(depositSize, 0);
         _approveTokens(owner, caller, shares);
         _createRedeemOrderAndAssert(caller, shares, receiver, owner);
 
-        vm.warp(block.timestamp + proto.fillWindow());
+        vm.warp(block.timestamp + ilp.fillWindow());
 
         _updatePool(depositSize * 2, 0);
-        _fillRedeemOrderAndAssert(orderFiller, proto.orderCount() - 1);
+        _fillRedeemOrderAndAssert(orderFiller, ilp.orderCount() - 1);
     }
 
     // Admin Functions
@@ -216,10 +216,14 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 }
 
 contract YuzuILPHandler is YuzuProtoHandler {
-    constructor(YuzuProto _proto, address _admin) YuzuProtoHandler(_proto, _admin) {}
+    YuzuILP public ilp;
+
+    constructor(YuzuProto _proto, address _admin) YuzuProtoHandler(_proto, _admin) {
+        ilp = YuzuILP(address(_proto));
+    }
 
     function mint(uint256 shares, uint256 receiverIndexSeed, uint256 actorIndexSeed) public override {
-        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        uint256 totalAssets = ilp.totalAssets();
         if (useGuardrails && totalAssets < 1e18) return;
         super.mint(shares, receiverIndexSeed, actorIndexSeed);
     }
@@ -228,7 +232,7 @@ contract YuzuILPHandler is YuzuProtoHandler {
         public
         override
     {
-        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        uint256 totalAssets = ilp.totalAssets();
         if (useGuardrails && totalAssets < 1e18) return;
         super.withdraw(assets, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
     }
@@ -237,7 +241,7 @@ contract YuzuILPHandler is YuzuProtoHandler {
         public
         override
     {
-        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        uint256 totalAssets = ilp.totalAssets();
         if (useGuardrails && totalAssets < 1e18) return;
         super.redeem(shares, receiverIndexSeed, ownerIndexSeed, actorIndexSeed);
     }
@@ -249,37 +253,39 @@ contract YuzuILPHandler is YuzuProtoHandler {
         uint256 orderId = activeOrderIds[orderIndex];
         activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
         activeOrderIds.pop();
-        Order memory order = proto.getRedeemOrder(orderId);
+        Order memory order = ilp.getRedeemOrder(orderId);
 
-        uint256 poolSize = YuzuILP(address(proto)).poolSize();
+        uint256 poolSize = ilp.poolSize();
 
         if (useGuardrails && order.assets > poolSize) {
-            uint256 yieldRatePpm = YuzuILP(address(proto)).dailyLinearYieldRatePpm();
+            uint256 yieldRatePpm = ilp.dailyLinearYieldRatePpm();
             vm.prank(admin);
-            YuzuILP(address(proto)).updatePool(order.assets, yieldRatePpm);
+            ilp.updatePool(order.assets, yieldRatePpm);
         }
 
         asset.mint(admin, order.assets);
         vm.prank(admin);
-        proto.fillRedeemOrder(orderId);
+        ilp.fillRedeemOrder(orderId);
     }
 
     function nextDay(int256 actualYieldRatePpm, uint256 newYieldRatePpm) external {
         actualYieldRatePpm = bound(actualYieldRatePpm, int256(-200_000), int256(200_000));
         newYieldRatePpm = bound(newYieldRatePpm, 0, 200_000);
         vm.warp(block.timestamp + 1 days);
-        uint256 totalAssets = YuzuILP(address(proto)).totalAssets();
+        uint256 totalAssets = ilp.totalAssets();
         uint256 newPoolSize = totalAssets * uint256(1e6 + actualYieldRatePpm) / 1e6;
         vm.prank(admin);
-        YuzuILP(address(proto)).updatePool(newPoolSize, newYieldRatePpm);
+        ilp.updatePool(newPoolSize, newYieldRatePpm);
     }
 }
 
 contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
+    YuzuILP public ilp;
+
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     function _deploy() internal override returns (address) {
-        YuzuILP ilp = new YuzuILP();
+        ilp = new YuzuILP();
         return address(ilp);
     }
 
@@ -287,32 +293,32 @@ contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
         super.setUp();
 
         vm.prank(admin);
-        proto.grantRole(POOL_MANAGER_ROLE, admin);
+        ilp.grantRole(POOL_MANAGER_ROLE, admin);
 
         excludeContract(address(handler));
 
-        handler = new YuzuILPHandler(proto, admin);
+        handler = new YuzuILPHandler(ilp, admin);
         targetContract(address(handler));
     }
 
     function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view override {
-        if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        if (ilp.poolSize() > 1e15) return;
         super.invariantTest_PreviewMintMaxMint_Le_MaxDeposit();
     }
 
     function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view override {
-        if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        if (ilp.poolSize() > 1e15) return;
         super.invariantTest_PreviewDepositMaxDeposit_Le_MaxMint();
     }
 
     function invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw() public view override {
-        if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        if (ilp.poolSize() > 1e15) return;
         super.invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw();
     }
 
     function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view override {
         return;
-        // if (YuzuILP(address(proto)).poolSize() > 1e15) return;
+        // if (ilp.poolSize() > 1e15) return;
         // super.invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem();
     }
 }
