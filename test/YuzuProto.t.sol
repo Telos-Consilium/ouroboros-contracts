@@ -2,8 +2,11 @@
 pragma solidity ^0.8.30;
 
 import {Test, console2} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {ERC20PermitUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IAccessControlDefaultAdminRules} from
     "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
@@ -37,10 +40,16 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     address public user1;
     address public user2;
 
+    uint256 public user1key;
+    uint256 public user2key;
+
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 private constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+
+    bytes32 private constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     function _deploy() internal virtual returns (address);
 
@@ -50,8 +59,14 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         limitManager = makeAddr("limitManager");
         redeemManager = makeAddr("redeemManager");
         orderFiller = makeAddr("orderFiller");
-        user1 = makeAddr("user1");
-        user2 = makeAddr("user2");
+
+        Vm.Wallet memory user1Wallet = vm.createWallet("user1");
+        user1 = user1Wallet.addr;
+        user1key = user1Wallet.privateKey;
+
+        Vm.Wallet memory user2Wallet = vm.createWallet("user2");
+        user2 = user2Wallet.addr;
+        user2key = user2Wallet.privateKey;
 
         // Deploy mock asset and mint balances
         asset = new USDCMock();
@@ -737,6 +752,61 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.prank(user2);
         vm.expectRevert(abi.encodeWithSelector(NotOrderOwner.selector, user2, user1));
         proto.cancelRedeemOrder(orderId);
+    }
+
+    function test_Permit() public {
+        address owner = user1;
+        uint256 ownerPrivateKey = user1key;
+        address spender = user2;
+        uint256 value = 123e18;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = proto.nonces(owner);
+
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", proto.DOMAIN_SEPARATOR(), structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+
+        assertEq(proto.allowance(owner, spender), 0);
+
+        proto.permit(owner, spender, value, deadline, v, r, s);
+
+        assertEq(proto.allowance(owner, spender), value);
+        assertEq(proto.nonces(owner), nonce + 1);
+    }
+
+    function test_Permit_Revert_InvalidSigner() public {
+        address owner = user1;
+        uint256 invalidPrivateKey = user2key;
+        address spender = user2;
+        uint256 value = 123e18;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = proto.nonces(owner);
+
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", proto.DOMAIN_SEPARATOR(), structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalidPrivateKey, digest);
+
+        vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612InvalidSigner.selector, user2, user1));
+        proto.permit(owner, spender, value, deadline, v, r, s);
+    }
+
+    function test_Permit_Revert_ExpiredSignature() public {
+        address owner = user1;
+        uint256 ownerPrivateKey = user2key;
+        address spender = user2;
+        uint256 value = 123e18;
+        uint256 deadline = block.timestamp - 1;
+        uint256 nonce = proto.nonces(owner);
+
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", proto.DOMAIN_SEPARATOR(), structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+
+        vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612ExpiredSignature.selector, deadline));
+        proto.permit(owner, spender, value, deadline, v, r, s);
     }
 
     // Fuzz
