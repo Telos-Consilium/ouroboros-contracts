@@ -1,4 +1,4 @@
-.PHONY: install format-sol format-python format test coverage build
+.PHONY: install format-sol format-python format test coverage coverage-html build
 
 install:
 	forge install
@@ -12,10 +12,20 @@ format-python:
 format: format-sol format-python
 
 test:
-	forge test -vv
+	forge test
 
 coverage:
-	forge coverage --ir-minimum
+	forge coverage \
+		--ir-minimum \
+		--report lcov \
+		--report summary \
+		--report-file coverage/lcov.info \
+		--no-match-coverage "test/"
+
+coverage-html:
+	mkdir -p coverage/html
+	genhtml coverage/lcov.info --output-directory coverage/html
+	open coverage/html/index.html
 
 build:
 	forge build
