@@ -29,8 +29,7 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
     }
 
     function _deploy() internal override returns (address) {
-        YuzuILP minter = new YuzuILP();
-        return address(minter);
+        return address(new YuzuILP());
     }
 
     // Helpers
@@ -147,6 +146,14 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         _fillRedeemOrder(orderId);
         assertEq(ilp.poolSize(), 0);
         assertEq(ilp.totalAssets(), 0);
+    }
+
+    function test_FillRedeemOrder_Reverts_InsufficientPoolSize() public {
+        _deposit(user1, 100e6);
+        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
+        _updatePool(50e6, 0);
+        vm.expectRevert(abi.encodeWithSelector(InsufficientPoolSize.selector, 100e6, 50e6));
+        _fillRedeemOrder(orderId);
     }
 
     function testFuzz_CreateRedeemOrder_FillRedeemOrder(
@@ -285,12 +292,13 @@ contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     function _deploy() internal override returns (address) {
-        ilp = new YuzuILP();
-        return address(ilp);
+        return address(new YuzuILP());
     }
 
     function setUp() public override {
         super.setUp();
+
+        ilp = YuzuILP(address(proto));
 
         vm.prank(admin);
         ilp.grantRole(POOL_MANAGER_ROLE, admin);

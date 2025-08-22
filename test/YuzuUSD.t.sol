@@ -9,8 +9,7 @@ import {YuzuProtoTest} from "./YuzuProto.t.sol";
 
 contract YuzuUSDTest is YuzuProtoTest {
     function _deploy() internal override returns (address) {
-        YuzuUSD yzusd = new YuzuUSD();
-        return address(yzusd);
+        return address(new YuzuUSD());
     }
 
     // Preview Functions
@@ -91,7 +90,6 @@ contract YuzuUSDTest is YuzuProtoTest {
 
 contract YuzuUSDInvariantTest is YuzuProtoInvariantTest {
     function _deploy() internal override returns (address) {
-        YuzuUSD yzusd = new YuzuUSD();
-        return address(yzusd);
+        return address(new YuzuUSD());
     }
 }
