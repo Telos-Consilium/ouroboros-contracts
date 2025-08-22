@@ -1540,21 +1540,13 @@ abstract contract YuzuProtoInvariantTest is Test {
         uint256 totalAssets = proto.totalAssets();
         uint256 totalSupply = proto.totalSupply();
         uint256 totalSupplyInAssets = proto.previewRedeem(totalSupply);
-        assertGe(
-            totalAssets,
-            totalSupplyInAssets,
-            "! totalAssets >= totalSupplyInAssets"
-        );
+        assertGe(totalAssets, totalSupplyInAssets, "! totalAssets >= totalSupplyInAssets");
     }
 
     function invariantTest_PendingOrderSize_Le_TokenBalance() public view virtual {
         uint256 pendingOrderSize = proto.totalPendingOrderSize();
         uint256 contractTokenBalance = proto.balanceOf(address(proto));
-        assertLe(
-            pendingOrderSize,
-            contractTokenBalance,
-            "! pendingOrderSize <= contractTokenBalance"
-        );
+        assertLe(pendingOrderSize, contractTokenBalance, "! pendingOrderSize <= contractTokenBalance");
     }
 
     function invariantTest_UnfinalizedOrderValue_Le_AssetBalance() public {
