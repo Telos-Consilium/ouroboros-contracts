@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: true
 
-    name: Foundry project
+    name: Solidity (fmt, build, slitherin, test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +27,19 @@ jobs:
         run: |
           forge --version
 
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Slither
+        run: |
+          pip install slither-analyzer
+      
+      - name: Install Slitherin
+        run: |
+          pip install slitherin
+
       - name: Run Forge fmt
         run: |
           forge fmt --check
@@ -37,7 +50,11 @@ jobs:
           forge build --sizes --via-ir
         id: build
 
+      - name: Run Slitherin
+        run: |
+          slitherin . --config-file slither.config.json
+
       - name: Run Forge tests
         run: |
-          forge test -vvv --via-ir --no-match-contract YuzuILPFuzz
+          forge test
         id: test
