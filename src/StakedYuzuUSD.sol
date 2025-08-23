@@ -59,6 +59,7 @@ contract StakedYuzuUSD is
      * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      * @param _redeemDelay The delay in seconds before a redeem order can be finalized
      */
+    // slither-disable-next-line pess-arbitrary-call-destination-tainted
     function initialize(
         IERC20 _asset,
         string memory name_,

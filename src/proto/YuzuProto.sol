@@ -33,7 +33,6 @@ abstract contract YuzuProto is
     uint256 public redeemFeePpm;
     int256 public redeemOrderFeePpm;
 
-    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuProto_init(
         address __asset,
         string memory __name,
@@ -49,7 +48,6 @@ abstract contract YuzuProto is
         );
     }
 
-    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuProto_init_unchained(
         address __asset,
         string memory __name,
