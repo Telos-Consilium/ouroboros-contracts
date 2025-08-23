@@ -87,11 +87,11 @@ abstract contract YuzuProto is
         _burn(account, amount);
     }
 
-    function __yuzu_spendAllowance(address owner, address spender, uint256 amount)
+    function __yuzu_spendAllowance(address _owner, address spender, uint256 amount)
         internal
         override(YuzuIssuer, YuzuOrderBook)
     {
-        _spendAllowance(owner, spender, amount);
+        _spendAllowance(_owner, spender, amount);
     }
 
     function __yuzu_mint(address account, uint256 amount) internal override(YuzuIssuer) {

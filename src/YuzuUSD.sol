@@ -58,19 +58,19 @@ contract YuzuUSD is YuzuProto {
     }
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address owner) public view override returns (uint256) {
+    function maxWithdraw(address _owner) public view override returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerTokens = __yuzu_balanceOf(owner);
+        uint256 ownerTokens = __yuzu_balanceOf(_owner);
         uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
         return Math.min(previewRedeem(ownerTokens), _maxWithdraw);
     }
 
     /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address owner) public view override returns (uint256) {
+    function maxRedeem(address _owner) public view override returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerTokens = __yuzu_balanceOf(owner);
+        uint256 ownerTokens = __yuzu_balanceOf(_owner);
         uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
         return Math.min(_convertToShares(_maxWithdraw, Math.Rounding.Floor), ownerTokens);
     }

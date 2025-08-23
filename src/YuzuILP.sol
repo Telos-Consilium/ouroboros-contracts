@@ -82,19 +82,19 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address owner) public view override returns (uint256) {
+    function maxWithdraw(address _owner) public view override returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerShares = __yuzu_balanceOf(owner);
+        uint256 ownerShares = __yuzu_balanceOf(_owner);
         uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
         return Math.min(previewRedeem(ownerShares), _maxWithdraw);
     }
 
     /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address owner) public view override returns (uint256) {
+    function maxRedeem(address _owner) public view override returns (uint256) {
         uint256 remainingAllowance = _getRemainingWithdrawAllowance();
         uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerShares = __yuzu_balanceOf(owner);
+        uint256 ownerShares = __yuzu_balanceOf(_owner);
         uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
         return Math.min(_convertToSharesRedeemed(_maxWithdraw, Math.Rounding.Floor), ownerShares);
     }
@@ -143,12 +143,12 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         super._deposit(caller, receiver, assets, shares);
     }
 
-    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 shares)
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
         internal
         override
     {
         poolSize -= assets;
-        super._withdraw(caller, receiver, owner, assets, shares);
+        super._withdraw(caller, receiver, _owner, assets, shares);
     }
 
     function _fillRedeemOrder(address caller, Order storage order) internal override {
