@@ -189,7 +189,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     function _yieldSinceUpdate(Math.Rounding rounding) internal view returns (uint256) {
         uint256 elapsedTime = _timeSinceUpdate();
         // slither-disable-next-line incorrect-equality
-        if (poolSize == 0 || dailyLinearYieldRatePpm == 0 || elapsedTime == 0) {
+        if (elapsedTime == 0) {
             return 0;
         }
         uint256 yieldSinceUpdate = Math.mulDiv(poolSize * dailyLinearYieldRatePpm, elapsedTime, 1e6 days, rounding);
@@ -201,12 +201,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
      * would have accrued yield making it worth {assets} now.
      */
     function _discountYield(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
-        uint256 elapsedTime = _timeSinceUpdate();
         // slither-disable-next-line incorrect-equality
-        if (poolSize == 0 || dailyLinearYieldRatePpm == 0 || elapsedTime == 0) {
-            return assets;
-        }
-        return Math.mulDiv(assets, 1e6 days, 1e6 days + dailyLinearYieldRatePpm * elapsedTime, rounding);
+        return Math.mulDiv(assets, 1e6 days, 1e6 days + dailyLinearYieldRatePpm * _timeSinceUpdate(), rounding);
     }
 
     function _timeSinceUpdate() internal view returns (uint256) {

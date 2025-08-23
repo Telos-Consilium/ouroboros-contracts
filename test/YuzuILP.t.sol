@@ -110,6 +110,14 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         assertEq(ilp.totalAssets(), 100e6);
     }
 
+    function test_Deposit_EmptyPool_WithYield() public {
+        _updatePool(0, 500_000);
+        vm.warp(block.timestamp + 1 days);
+        _deposit(user1, 150e6);
+        assertEq(ilp.poolSize(), 100e6);
+        assertEq(ilp.totalAssets(), 150e6);
+    }
+
     // Withdraw
     function test_Withdraw_UpdatesPool() public {
         _setBalances(user1, 100e6, 100e6);
