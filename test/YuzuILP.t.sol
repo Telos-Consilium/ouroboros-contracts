@@ -284,8 +284,8 @@ contract YuzuILPHandler is YuzuProtoHandler {
     }
 
     function nextDay(int256 actualYieldRatePpm, uint256 newYieldRatePpm) external {
-        actualYieldRatePpm = bound(actualYieldRatePpm, int256(-200_000), int256(200_000));
-        newYieldRatePpm = bound(newYieldRatePpm, 0, 200_000);
+        actualYieldRatePpm = bound(actualYieldRatePpm, int256(-1_000_000), int256(10_000_000)); // -100% to 1000%
+        newYieldRatePpm = bound(newYieldRatePpm, 0, 1_000_000); // 0% to 100%
         vm.warp(block.timestamp + 1 days);
         uint256 totalAssets = ilp.totalAssets();
         uint256 newPoolSize = totalAssets * uint256(1e6 + actualYieldRatePpm) / 1e6;
@@ -334,7 +334,5 @@ contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
 
     function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view override {
         return;
-        // if (ilp.poolSize() > 1e15) return;
-        // super.invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem();
     }
 }
