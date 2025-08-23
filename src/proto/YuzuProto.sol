@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from
@@ -158,7 +159,7 @@ abstract contract YuzuProto is
 
     function setRedeemOrderFee(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
-            revert FeeTooHigh(uint256(newFeePpm), 1e6);
+            revert FeeTooHigh(SafeCast.toUint256(newFeePpm), 1e6);
         }
         int256 oldFee = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;
