@@ -92,7 +92,9 @@ contract StakedYuzuUSD is
     /// @notice See {IERC4626-maxDeposit}
     function maxDeposit(address) public view override returns (uint256) {
         uint256 deposited = depositedPerBlock[block.number];
-        if (deposited >= maxDepositPerBlock) return 0;
+        if (deposited >= maxDepositPerBlock) {
+            return 0;
+        }
         return maxDepositPerBlock - deposited;
     }
 
@@ -105,7 +107,9 @@ contract StakedYuzuUSD is
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address _owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
-        if (withdrawn >= maxWithdrawPerBlock) return 0;
+        if (withdrawn >= maxWithdrawPerBlock) {
+            return 0;
+        }
         uint256 inheritedMaxRedeem = super.maxRedeem(_owner);
         uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
         return Math.min(previewRedeem(inheritedMaxRedeem), remainingAllowance);
@@ -114,7 +118,9 @@ contract StakedYuzuUSD is
     /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address _owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
-        if (withdrawn >= maxWithdrawPerBlock) return 0;
+        if (withdrawn >= maxWithdrawPerBlock) {
+            return 0;
+        }
         uint256 inheritedMaxRedeem = super.maxRedeem(_owner);
         uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
         return Math.min(_convertToShares(remainingAllowance, Math.Rounding.Floor), inheritedMaxRedeem);

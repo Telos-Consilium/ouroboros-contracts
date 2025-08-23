@@ -161,27 +161,35 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
     function _convertToSharesMinted(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality
-        if (poolSize == 0) return assets * 10 ** _decimalsOffset();
+        if (poolSize == 0) {
+            return assets * 10 ** _decimalsOffset();
+        }
         uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding(1 - uint256(rounding)));
         return Math.mulDiv(totalSupply(), assets, _totalAssets, rounding);
     }
 
     function _convertToSharesRedeemed(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality
-        if (poolSize == 0) return totalSupply();
+        if (poolSize == 0) {
+            return totalSupply();
+        }
         return Math.mulDiv(totalSupply(), assets, poolSize, rounding);
     }
 
     function _convertToAssetsDeposited(uint256 shares, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality
-        if (totalSupply() == 0) return Math.ceilDiv(shares, 10 ** _decimalsOffset());
+        if (totalSupply() == 0) {
+            return Math.ceilDiv(shares, 10 ** _decimalsOffset());
+        }
         uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding(1 - uint256(rounding)));
         return Math.mulDiv(_totalAssets, shares, totalSupply(), rounding);
     }
 
     function _convertToAssetsWithdrawn(uint256 shares, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality
-        if (totalSupply() == 0) return 0;
+        if (totalSupply() == 0) {
+            return 0;
+        }
         return Math.mulDiv(poolSize, shares, totalSupply(), rounding);
     }
 
