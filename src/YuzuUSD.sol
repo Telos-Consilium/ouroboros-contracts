@@ -102,14 +102,15 @@ contract YuzuUSD is YuzuProto {
     /// @notice Preview the amount of assets to receive when redeeming `tokens` through an order after fees
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
+        int256 _redeemOrderFeePpm = redeemOrderFeePpm;
 
-        if (redeemOrderFeePpm >= 0) {
+        if (_redeemOrderFeePpm >= 0) {
             /// @dev Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(redeemOrderFeePpm));
+            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(_redeemOrderFeePpm));
             return assets - fee;
         } else {
             /// @dev Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-redeemOrderFeePpm));
+            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-_redeemOrderFeePpm));
             return assets + incentive;
         }
     }
