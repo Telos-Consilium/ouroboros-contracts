@@ -5,7 +5,7 @@ import {console2} from "forge-std/Test.sol";
 
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 
-import {YuzuProtoTest} from "./YuzuProto.t.sol";
+import {YuzuProtoTest, YuzuProtoInvariantTest} from "./YuzuProto.t.sol";
 
 contract YuzuUSDTest is YuzuProtoTest {
     function _deploy() internal override returns (address) {
