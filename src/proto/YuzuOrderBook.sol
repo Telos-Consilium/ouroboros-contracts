@@ -11,6 +11,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     struct YuzuOrderBookStorage {
         uint256 _fillWindow;
         uint256 _totalPendingOrderSize;
+        uint256 _totalUnfinalizedOrderValue;
         uint256 _orderCount;
         mapping(uint256 => Order) _orders;
     }
@@ -78,6 +79,21 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         _fillRedeemOrder(caller, order);
 
         emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
+    }
+
+    function finalizeRedeemOrder(uint256 orderId) public virtual {
+        address caller = _msgSender();
+        Order storage order = _getOrder(orderId);
+        if (caller != order.owner && caller != order.controller) {
+            revert UnauthorizedOrderFinalizer(caller, order.owner, order.controller);
+        }
+        if (order.status != OrderStatus.Filled) {
+            revert OrderNotFilled(orderId);
+        }
+
+        _finalizeRedeemOrder(caller, order);
+
+        emit FinalizedRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
     }
 
@@ -107,6 +123,11 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     function totalPendingOrderSize() public view returns (uint256) {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         return $._totalPendingOrderSize;
+    }
+
+    function totalUnfinalizedOrderValue() public view returns (uint256) {
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        return $._totalUnfinalizedOrderValue;
     }
 
     function orderCount() public view returns (uint256) {
@@ -150,9 +171,18 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         order.status = OrderStatus.Filled;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._totalPendingOrderSize -= order.tokens;
+        $._totalUnfinalizedOrderValue += order.assets;
 
         __yuzu_burn(address(this), order.tokens);
-        SafeERC20.safeTransferFrom(IERC20(asset()), caller, order.receiver, order.assets);
+        SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), order.assets);
+    }
+
+    function _finalizeRedeemOrder(address caller, Order storage order) internal virtual {
+        order.status = OrderStatus.Finalized;
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        $._totalUnfinalizedOrderValue -= order.assets;
+
+        SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
     }
 
     function _cancelRedeemOrder(Order storage order) internal virtual {

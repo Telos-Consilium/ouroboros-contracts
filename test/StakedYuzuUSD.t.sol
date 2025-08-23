@@ -329,7 +329,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.finalizeRedeem(orderId);
     }
 
-    function test_FinalizeRedeem_Revert_UnauthorizedFinalizer() public {
+    function test_FinalizeRedeem_Revert_NotFinalizer() public {
         vm.startPrank(user1);
         uint256 mintedShares = styz.deposit(200e18, user1);
         (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
