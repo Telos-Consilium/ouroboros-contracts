@@ -180,8 +180,6 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         uint256 depositSize = ilp.previewMint(shares);
 
         asset.mint(caller, depositSize);
-        _setMaxDepositPerBlock(depositSize);
-        _setMaxWithdrawPerBlock(depositSize);
         _setFees(0, feePpm);
 
         _approveAssets(caller, address(ilp), depositSize);
@@ -315,24 +313,5 @@ contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
 
         handler = new YuzuILPHandler(ilp, admin);
         targetContract(address(handler));
-    }
-
-    function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view override {
-        if (ilp.poolSize() > 1e15) return;
-        super.invariantTest_PreviewMintMaxMint_Le_MaxDeposit();
-    }
-
-    function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view override {
-        if (ilp.poolSize() > 1e15) return;
-        super.invariantTest_PreviewDepositMaxDeposit_Le_MaxMint();
-    }
-
-    function invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw() public view override {
-        if (ilp.poolSize() > 1e15) return;
-        super.invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw();
-    }
-
-    function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view override {
-        return;
     }
 }

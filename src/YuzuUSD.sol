@@ -23,8 +23,7 @@ contract YuzuUSD is YuzuProto {
      * @param __symbol The symbol of the YuzuUSD token
      * @param _admin The admin of the contract
      * @param __treasury The address of the treasury where collateral is sent
-     * @param _maxDepositPerBlock Maximum collateral that can be deposited per block
-     * @param _maxWithdrawPerBlock Maximum collateral that can be withdrawn per block
+     * @param _supplyCap The maximum supply of YuzuUSD tokens
      * @param _fillWindow The fill window in seconds after which redeem order become cancellable
      */
     function initialize(
@@ -33,18 +32,12 @@ contract YuzuUSD is YuzuProto {
         string memory __symbol,
         address _admin,
         address __treasury,
-        uint256 _maxDepositPerBlock,
-        uint256 _maxWithdrawPerBlock,
+        uint256 _supplyCap,
         uint256 _fillWindow
     ) external initializer {
         __YuzuProto_init(
-            __asset, __name, __symbol, _admin, __treasury, _maxDepositPerBlock, _maxWithdrawPerBlock, _fillWindow
+            __asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow
         );
-    }
-
-    /// @notice See {IERC4626-totalAssets}
-    function totalAssets() public view override returns (uint256) {
-        return _convertToAssets(totalSupply(), Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-convertToShares}
@@ -55,24 +48,6 @@ contract YuzuUSD is YuzuProto {
     /// @notice See {IERC4626-convertToAssets}
     function convertToAssets(uint256 shares) public view virtual override returns (uint256 assets) {
         return _convertToAssets(shares, Math.Rounding.Floor);
-    }
-
-    /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address _owner) public view override returns (uint256) {
-        uint256 remainingAllowance = _getRemainingWithdrawAllowance();
-        uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerTokens = __yuzu_balanceOf(_owner);
-        uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
-        return Math.min(previewRedeem(ownerTokens), _maxWithdraw);
-    }
-
-    /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address _owner) public view override returns (uint256) {
-        uint256 remainingAllowance = _getRemainingWithdrawAllowance();
-        uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerTokens = __yuzu_balanceOf(_owner);
-        uint256 _maxWithdraw = Math.min(remainingAllowance, liquidityBuffer);
-        return Math.min(_convertToShares(_maxWithdraw, Math.Rounding.Floor), ownerTokens);
     }
 
     /// @notice See {IERC4626-previewDeposit}

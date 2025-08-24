@@ -4,6 +4,8 @@ pragma solidity ^0.8.30;
 import {IYuzu} from "./IYuzu.sol";
 
 interface IYuzuIssuer is IYuzu {
+    function totalAssets() external view returns (uint256);
+
     function previewDeposit(uint256 assets) external view returns (uint256 tokens);
     function previewMint(uint256 tokens) external view returns (uint256 assets);
     function previewWithdraw(uint256 assets) external view returns (uint256 tokens);
@@ -24,10 +26,6 @@ interface IYuzuIssuer is IYuzu {
 
     function withdrawCollateral(uint256 assets, address receiver) external;
 
-    function depositedPerBlock(uint256 blockNumber) external view returns (uint256);
-    function withdrawnPerBlock(uint256 blockNumber) external view returns (uint256);
-
     function treasury() external view returns (address);
-    function maxDepositPerBlock() external view returns (uint256);
-    function maxWithdrawPerBlock() external view returns (uint256);
+    function cap() external view returns (uint256);
 }

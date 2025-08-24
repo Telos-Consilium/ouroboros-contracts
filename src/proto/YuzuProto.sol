@@ -40,12 +40,11 @@ abstract contract YuzuProto is
         string memory __symbol,
         address _admin,
         address __treasury,
-        uint256 _maxDepositPerBlock,
-        uint256 _maxWithdrawPerBlock,
+        uint256 _supplyCap,
         uint256 _fillWindow
     ) internal onlyInitializing {
         __YuzuProto_init_unchained(
-            __asset, __name, __symbol, _admin, __treasury, _maxDepositPerBlock, _maxWithdrawPerBlock, _fillWindow
+            __asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow
         );
     }
 
@@ -55,13 +54,12 @@ abstract contract YuzuProto is
         string memory __symbol,
         address _admin,
         address __treasury,
-        uint256 _maxDepositPerBlock,
-        uint256 _maxWithdrawPerBlock,
+        uint256 _supplyCap,
         uint256 _fillWindow
     ) internal onlyInitializing {
         __ERC20_init(__name, __symbol);
         __ERC20Permit_init(__name);
-        __YuzuIssuer_init(_maxDepositPerBlock, _maxWithdrawPerBlock);
+        __YuzuIssuer_init(_supplyCap);
         __YuzuOrderBook_init(_fillWindow);
         __AccessControlDefaultAdminRules_init(0, _admin);
 
@@ -78,7 +76,9 @@ abstract contract YuzuProto is
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
     }
 
-    function totalAssets() public view virtual returns (uint256);
+    function __yuzu_totalSupply() internal view override(YuzuIssuer) returns (uint256) {
+        return totalSupply();
+    }
 
     function __yuzu_balanceOf(address account) internal view override(YuzuIssuer, YuzuOrderBook) returns (uint256) {
         return balanceOf(account);
@@ -109,14 +109,6 @@ abstract contract YuzuProto is
 
     function treasury() public view override returns (address) {
         return _treasury;
-    }
-
-    function maxMint(address receiver) public view override returns (uint256) {
-        uint256 _maxDeposit = maxDeposit(receiver);
-        if (_maxDeposit > type(uint256).max / 10 ** _decimalsOffset()) {
-            return type(uint256).max;
-        }
-        return previewDeposit(_maxDeposit);
     }
 
     function fillRedeemOrder(uint256 orderId) public override onlyRole(ORDER_FILLER_ROLE) {
@@ -167,13 +159,8 @@ abstract contract YuzuProto is
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setMaxDepositPerBlock(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
-        _setMaxDepositPerBlock(newMax);
-    }
-
-    // slither-disable-next-line pess-strange-setter
-    function setMaxWithdrawPerBlock(uint256 newMax) external onlyRole(LIMIT_MANAGER_ROLE) {
-        _setMaxWithdrawPerBlock(newMax);
+    function setSupplyCap(uint256 newCap) external onlyRole(LIMIT_MANAGER_ROLE) {
+        _setSupplyCap(newCap);
     }
 
     // slither-disable-next-line pess-strange-setter
