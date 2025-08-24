@@ -1472,7 +1472,6 @@ abstract contract YuzuProtoInvariantTest is Test {
     }
 
     function invariantTest_PreviewWithdrawMaxWithdraw_Le_TokenBalance() public view virtual {
-        if (proto.totalAssets() < 1e6) return;
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             address actor = actors[i];
