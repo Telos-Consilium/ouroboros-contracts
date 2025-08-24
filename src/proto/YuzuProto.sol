@@ -111,6 +111,36 @@ abstract contract YuzuProto is
         return _treasury;
     }
 
+     /// @notice See {IERC4626-previewWithdraw}
+    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
+        uint256 tokens = previewDeposit(assets + fee);
+        return tokens;
+    }
+
+    /// @notice See {IERC4626-previewRedeem}
+    function previewRedeem(uint256 tokens) public view virtual override returns (uint256) {
+        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
+        return assets - fee;
+    }
+
+    /// @notice Preview the amount of assets to receive when redeeming `tokens` with an order after fees
+    function previewRedeemOrder(uint256 tokens) public view virtual override returns (uint256) {
+        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
+        int256 _redeemOrderFeePpm = redeemOrderFeePpm;
+
+        if (_redeemOrderFeePpm >= 0) {
+            /// @dev Positive fee - reduce assets returned
+            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(_redeemOrderFeePpm));
+            return assets - fee;
+        } else {
+            /// @dev Negative fee (incentive) - increase assets returned
+            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-_redeemOrderFeePpm));
+            return assets + incentive;
+        }
+    }
+
     function fillRedeemOrder(uint256 orderId) public override onlyRole(ORDER_FILLER_ROLE) {
         super.fillRedeemOrder(orderId);
     }
@@ -168,7 +198,7 @@ abstract contract YuzuProto is
         _setFillWindow(newWindow);
     }
 
-    // @dev Returns the assets available for withdrawal.
+    /// @dev Returns the assets available for withdrawal.
     function _getLiquidityBufferSize() internal view override returns (uint256) {
         return super._getLiquidityBufferSize() - totalUnfinalizedOrderValue();
     }

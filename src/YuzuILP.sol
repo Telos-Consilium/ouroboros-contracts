@@ -65,8 +65,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
     /// @notice See {IERC4626-totalAssets}
     function totalAssets() public view override returns (uint256) {
-        uint256 yieldSinceUpdate = _yieldSinceUpdate(Math.Rounding.Floor);
-        return poolSize + yieldSinceUpdate;
+        return _totalAssets(Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-convertToShares}
@@ -84,24 +83,22 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         uint256 _maxMint = maxMint(receiver);
         uint256 _totalSupply = totalSupply();
         
-        if ( _totalSupply == 0) {
+        if (_totalSupply == 0) {
             return Math.ceilDiv(_maxMint, 10 ** _decimalsOffset());
         }
         
-        uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding.Floor);
+        uint256 _totalAssets = _totalAssets(Math.Rounding.Floor);
         (uint256 high, uint256 low) = Math.mul512(_totalAssets, _maxMint);
         if (high >= _totalSupply) {
             return type(uint256).max;
         }
 
-        return _convertToAssets(_maxMint, _totalAssets, _totalSupply, Math.Rounding.Floor);
+        return Math.mulDiv(_totalAssets, _maxMint, _totalSupply, Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address _owner) public view override returns (uint256) {
-        uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerShares = __yuzu_balanceOf(_owner);
-        return Math.min(_convertToSharesRedeemed(liquidityBuffer, Math.Rounding.Floor), ownerShares);
+        return Math.min(_convertToSharesRedeemed(_maxWithdraw(_owner), Math.Rounding.Floor), _maxRedeem(_owner));
     }
 
     /// @notice See {IERC4626-previewDeposit}
@@ -166,13 +163,26 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         super._fillRedeemOrder(caller, order);
     }
 
+    function _totalAssets(Math.Rounding rounding) internal view returns (uint256) {
+        uint256 yieldSinceUpdate = _yieldSinceUpdate(rounding);
+        return poolSize + yieldSinceUpdate;
+    }
+
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal override view virtual returns (uint256) {
+        return _convertToSharesMinted(assets, rounding);
+    }
+
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal override view virtual returns (uint256) {
+        return _convertToAssetsDeposited(shares, rounding);
+    }
+
     function _convertToSharesMinted(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality
         if (poolSize == 0) {
             return assets * 10 ** _decimalsOffset();
         }
-        uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding(1 - uint256(rounding)));
-        return _convertToShares(assets, _totalAssets, totalSupply(), rounding);
+        uint256 _totalAssets = _totalAssets(Math.Rounding(1 - uint256(rounding)));
+        return Math.mulDiv(totalSupply(), assets, _totalAssets, rounding);
     }
 
     function _convertToSharesRedeemed(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
@@ -180,7 +190,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (poolSize == 0) {
             return totalSupply();
         }
-        return _convertToShares(assets, poolSize, totalSupply(), rounding);
+        return Math.mulDiv(totalSupply(), assets, poolSize, rounding);
     }
 
     function _convertToAssetsDeposited(uint256 shares, Math.Rounding rounding) internal view returns (uint256) {
@@ -188,8 +198,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (totalSupply() == 0) {
             return Math.ceilDiv(shares, 10 ** _decimalsOffset());
         }
-        uint256 _totalAssets = poolSize + _yieldSinceUpdate(Math.Rounding(1 - uint256(rounding)));
-        return _convertToAssets(shares, _totalAssets, totalSupply(), rounding);
+        uint256 _totalAssets = _totalAssets(rounding);
+        return Math.mulDiv(_totalAssets, shares, totalSupply(), rounding);
     }
 
     function _convertToAssetsWithdrawn(uint256 shares, Math.Rounding rounding) internal view returns (uint256) {
@@ -197,15 +207,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (totalSupply() == 0) {
             return 0;
         }
-        return _convertToAssets(shares, poolSize, totalSupply(), rounding);
-    }
-
-    function _convertToShares(uint256 _assets, uint256 _totalAssets, uint256 _totalSupply, Math.Rounding _rounding) internal pure returns (uint256) {
-        return Math.mulDiv(_totalSupply, _assets, _totalAssets, _rounding);
-    }
-
-    function _convertToAssets(uint256 _shares, uint256 _totalAssets, uint256 _totalSupply, Math.Rounding _rounding) internal pure returns (uint256) {
-        return Math.mulDiv(_totalAssets, _shares, _totalSupply, _rounding);
+        return Math.mulDiv(poolSize, shares, totalSupply(), rounding);
     }
 
     /// @dev Returns the yield accrued since the last pool update.
