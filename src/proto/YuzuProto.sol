@@ -80,7 +80,7 @@ abstract contract YuzuProto is
 
     function totalAssets() public view virtual returns (uint256);
 
-    function __yuzu_balanceOf(address account) public view override(YuzuIssuer, YuzuOrderBook) returns (uint256) {
+    function __yuzu_balanceOf(address account) internal view override(YuzuIssuer, YuzuOrderBook) returns (uint256) {
         return balanceOf(account);
     }
 
