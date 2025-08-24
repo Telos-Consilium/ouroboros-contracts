@@ -60,8 +60,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
             "Staked Yuzu USD",
             "st-yzUSD",
             owner,
-            type(uint256).max,
-            type(uint256).max,
             1 days
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -109,24 +107,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.finalizeRedeem(orderId);
     }
 
-    function _setMaxDepositPerBlock(uint256 maxDepositPerBlock) internal {
-        vm.prank(owner);
-        styz.setMaxDepositPerBlock(maxDepositPerBlock);
-    }
-
-    function _setMaxWithdrawPerBlock(uint256 maxWithdrawPerBlock) internal {
-        vm.prank(owner);
-        styz.setMaxWithdrawPerBlock(maxWithdrawPerBlock);
-    }
-
     // Initialization
     function test_Initialize() public {
         assertEq(address(styz.asset()), address(yzusd));
         assertEq(styz.name(), "Staked Yuzu USD");
         assertEq(styz.symbol(), "st-yzUSD");
         assertEq(styz.owner(), owner);
-        assertEq(styz.maxDepositPerBlock(), type(uint256).max);
-        assertEq(styz.maxWithdrawPerBlock(), type(uint256).max);
         assertEq(styz.redeemDelay(), 1 days);
     }
 
@@ -137,8 +123,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
             "Staked Yuzu USD",
             "st-yzUSD",
             _owner,
-            type(uint256).max,
-            type(uint256).max,
             1 days
         );
     }
@@ -170,7 +154,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         uint256 ownerSharesBefore = styz.balanceOf(_owner);
         uint256 shareSupplyBefore = styz.totalSupply();
-        uint256 withdrawnPerBlockBefore = styz.withdrawnPerBlock(block.number);
         uint256 pendingOrderValueBefore = styz.totalPendingOrderValue();
 
         uint256 callerAllowanceBefore = styz.allowance(_owner, caller);
@@ -186,7 +169,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.balanceOf(_owner), ownerSharesBefore - shares);
         assertEq(styz.totalSupply(), shareSupplyBefore - shares);
-        assertEq(styz.withdrawnPerBlock(block.number), withdrawnPerBlockBefore + expectedAssets);
         assertEq(styz.totalPendingOrderValue(), pendingOrderValueBefore + expectedAssets);
 
         if (caller != _owner) {
@@ -256,7 +238,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         uint256 receiverAssetsBefore = yzusd.balanceOf(order.receiver);
         uint256 contractAssetsBefore = yzusd.balanceOf(address(styz));
-        uint256 withdrawnPerBlockBefore = styz.withdrawnPerBlock(block.number);
         uint256 pendingOrderValueBefore = styz.totalPendingOrderValue();
 
         vm.prank(caller);
@@ -271,7 +252,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(yzusd.balanceOf(order.receiver), receiverAssetsBefore + order.assets);
         assertEq(yzusd.balanceOf(address(styz)), contractAssetsBefore - order.assets);
-        assertEq(styz.withdrawnPerBlock(block.number), withdrawnPerBlockBefore);
         assertEq(styz.totalPendingOrderValue(), pendingOrderValueBefore - order.assets);
     }
 
@@ -359,8 +339,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 depositSize = styz.previewMint(shares);
 
         yzusd.mint(_owner, depositSize);
-        _setMaxDepositPerBlock(depositSize);
-        _setMaxWithdrawPerBlock(depositSize);
 
         _approveAssets(_owner, address(styz), depositSize);
         _deposit(_owner, depositSize, _owner);
@@ -416,16 +394,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_Setters() public {
         vm.startPrank(owner);
-        // Set Max Deposit
-        vm.expectEmit();
-        emit UpdatedMaxDepositPerBlock(type(uint256).max, 200e18);
-        styz.setMaxDepositPerBlock(200e18);
-        assertEq(styz.maxDepositPerBlock(), 200e18);
-        // Set Max Withdraw
-        vm.expectEmit();
-        emit UpdatedMaxWithdrawPerBlock(type(uint256).max, 200e18);
-        styz.setMaxWithdrawPerBlock(200e18);
-        assertEq(styz.maxWithdrawPerBlock(), 200e18);
         // Set Redeem Fee
         vm.expectEmit();
         emit UpdatedRedeemFee(0, 1_000_000);
@@ -441,12 +409,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_Setters_Revert_NotOwner() public {
         vm.startPrank(user1);
-        // Set Max Deposit
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
-        styz.setMaxDepositPerBlock(200e18);
-        // Set Max Withdraw
-        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
-        styz.setMaxWithdrawPerBlock(200e18);
         // Set Redeem Fee
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
         styz.setRedeemFee(100_000);
@@ -471,41 +433,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     // ERC-4626 Override
-    function test_MaxDeposit_MaxMint() public {
-        _setMaxDepositPerBlock(0);
-
-        assertEq(styz.maxDeposit(user1), 0);
-        assertEq(styz.maxMint(user1), 0);
-
-        _setMaxDepositPerBlock(100e18);
-
-        assertEq(styz.maxDeposit(user1), 100e18);
-        assertEq(styz.maxMint(user1), 100e18);
-    }
-
-    function test_MaxWithdraw_MaxRedeem() public {
-        vm.prank(owner);
-        styz.setRedeemFee(100_000); // 10%
-
-        _setMaxWithdrawPerBlock(0);
-
-        // Limited by max, balance
-        assertEq(styz.maxWithdraw(user1), 0);
-        assertEq(styz.maxRedeem(user1), 0);
-
-        _setMaxWithdrawPerBlock(100e18);
-
-        // Limited by balance
-        assertEq(styz.maxWithdraw(user1), 0);
-        assertEq(styz.maxRedeem(user1), 0);
-
-        _deposit(user1, 200e18);
-
-        // Limited by max
-        assertEq(styz.maxWithdraw(user1), 100e18);
-        assertEq(styz.maxRedeem(user1), 100e18);
-    }
-
     function test_PreviewWithdraw_WithFee() public {
         _deposit(user1, 200e18);
         vm.prank(owner);
@@ -549,64 +476,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.maxRedeem(user1), mintedShares);
         assertEq(styz.previewRedeem(1e18), 2e18 - 1);
-    }
-
-    function test_MaxDeposit_MaxMint_AcrossBlocks() public {
-        _setMaxDepositPerBlock(100e18);
-        _deposit(user1, 50e18);
-
-        assertEq(styz.maxDeposit(user1), 50e18);
-        assertEq(styz.maxMint(user1), 50e18);
-
-        vm.roll(block.number + 1);
-
-        assertEq(styz.maxDeposit(user1), 100e18);
-        assertEq(styz.maxMint(user1), 100e18);
-    }
-
-    function test_MaxWithdraw_MaxRedeem_AcrossBlocks() public {
-        _setMaxWithdrawPerBlock(100e18);
-        _deposit(user1, 100e18);
-        _deposit(user2, 100e18);
-        _initiateRedeem(user1, 50e18, user2, user1);
-
-        // Limited by balance
-        assertEq(styz.maxWithdraw(user1), 50e18);
-        assertEq(styz.maxRedeem(user1), 50e18);
-        // Limited by max
-        assertEq(styz.maxWithdraw(user2), 50e18);
-        assertEq(styz.maxRedeem(user2), 50e18);
-
-        vm.roll(block.number + 1);
-
-        // Limited by balance
-        assertEq(styz.maxWithdraw(user1), 50e18);
-        assertEq(styz.maxRedeem(user1), 50e18);
-        // Limited by max
-        assertEq(styz.maxWithdraw(user2), 100e18);
-        assertEq(styz.maxRedeem(user2), 100e18);
-    }
-
-    function test_DepositedPerBlock() public {
-        _deposit(user1, 100e18);
-        assertEq(styz.depositedPerBlock(block.number), 100e18);
-        _deposit(user2, 200e18);
-        assertEq(styz.depositedPerBlock(block.number), 300e18);
-        vm.roll(block.number + 1);
-        assertEq(styz.depositedPerBlock(block.number), 0);
-    }
-
-    function test_WithdrawnPerBlock() public {
-        _deposit(user1, 300e18);
-
-        (, uint256 assetsWithdrawn1) = _initiateRedeem(user1, 100e18);
-        assertEq(styz.withdrawnPerBlock(block.number), assetsWithdrawn1);
-
-        (, uint256 assetsWithdrawn2) = _initiateRedeem(user1, 200e18);
-        assertEq(styz.withdrawnPerBlock(block.number), assetsWithdrawn1 + assetsWithdrawn2);
-
-        vm.roll(block.number + 1);
-        assertEq(styz.withdrawnPerBlock(block.number), 0);
     }
 
     // Permit
@@ -823,8 +692,6 @@ contract StakedYuzuUSDInvariantTest is Test {
             "Staked Yuzu USD",
             "st-yzUSD",
             makeAddr("owner"),
-            type(uint256).max,
-            type(uint256).max,
             1 days
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -869,49 +736,5 @@ contract StakedYuzuUSDInvariantTest is Test {
         }
 
         assertEq(totalPendingOrderValue, _totalPendingOrderValue, "! totalPendingOrderValue == _totalPendingOrderValue");
-    }
-
-    function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view virtual {
-        address[] memory actors = handler.getActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            address actor = actors[i];
-            uint256 maxMint = styz.maxMint(actor);
-            if (maxMint > 1e27) continue;
-            uint256 previewMint = styz.previewMint(maxMint);
-            assertLe(previewMint, styz.maxDeposit(actor), "! previewMint(maxMint) <= maxDeposit");
-        }
-    }
-
-    function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view virtual {
-        address[] memory actors = handler.getActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            address actor = actors[i];
-            uint256 maxDeposit = styz.maxDeposit(actor);
-            if (maxDeposit > 1e27) continue;
-            uint256 previewDeposit = styz.previewDeposit(maxDeposit);
-            assertLe(previewDeposit, styz.maxMint(actor), "! previewDeposit(maxDeposit) <= maxMint");
-        }
-    }
-
-    function invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw() public view virtual {
-        address[] memory actors = handler.getActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            address actor = actors[i];
-            uint256 maxRedeem = styz.maxRedeem(actor);
-            if (maxRedeem > 1e27) continue;
-            uint256 previewRedeem = styz.previewRedeem(maxRedeem);
-            assertLe(previewRedeem, styz.maxWithdraw(actor), "! previewRedeem(maxRedeem) <= maxWithdraw");
-        }
-    }
-
-    function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view virtual {
-        address[] memory actors = handler.getActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            address actor = actors[i];
-            uint256 maxWithdraw = styz.maxWithdraw(actor);
-            if (maxWithdraw > 1e27) continue;
-            uint256 previewWithdraw = styz.previewWithdraw(maxWithdraw);
-            assertLe(previewWithdraw, styz.maxRedeem(actor), "! previewWithdraw(maxWithdraw) <= maxRedeem");
-        }
     }
 }
