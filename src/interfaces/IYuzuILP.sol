@@ -10,8 +10,7 @@ interface IYuzuILP is IYuzuProto {
         string memory __symbol,
         address _admin,
         address __treasury,
-        uint256 _maxDepositPerBlock,
-        uint256 _maxWithdrawPerBlock,
+        uint256 _supplyCap,
         uint256 _fillWindow
     ) external;
 
