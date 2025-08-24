@@ -210,6 +210,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     function _getYuzuIssuerStorage() private pure returns (YuzuIssuerStorage storage $) {
+        // slither-disable-next-line assembly
         assembly {
             $.slot := YuzuIssuerStorageLocation
         }

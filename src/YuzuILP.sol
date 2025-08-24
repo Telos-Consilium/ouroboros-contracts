@@ -87,13 +87,13 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
             return Math.ceilDiv(_maxMint, 10 ** _decimalsOffset());
         }
         
-        uint256 _totalAssets = _totalAssets(Math.Rounding.Floor);
-        (uint256 high, uint256 low) = Math.mul512(_totalAssets, _maxMint);
+        uint256 totalAssets_ = _totalAssets(Math.Rounding.Floor);
+        (uint256 high, uint256 low) = Math.mul512(totalAssets_, _maxMint);
         if (high >= _totalSupply) {
             return type(uint256).max;
         }
 
-        return Math.mulDiv(_totalAssets, _maxMint, _totalSupply, Math.Rounding.Floor);
+        return Math.mulDiv(totalAssets_, _maxMint, _totalSupply, Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-maxRedeem}
@@ -168,21 +168,18 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return poolSize + yieldSinceUpdate;
     }
 
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal override view virtual returns (uint256) {
-        return _convertToSharesMinted(assets, rounding);
-    }
-
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal override view virtual returns (uint256) {
-        return _convertToAssetsDeposited(shares, rounding);
-    }
+    // slither-disable-next-line dead-code
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal override view virtual returns (uint256) {}
+    // slither-disable-next-line dead-code
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal override view virtual returns (uint256) {}
 
     function _convertToSharesMinted(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality
         if (poolSize == 0) {
             return assets * 10 ** _decimalsOffset();
         }
-        uint256 _totalAssets = _totalAssets(Math.Rounding(1 - uint256(rounding)));
-        return Math.mulDiv(totalSupply(), assets, _totalAssets, rounding);
+        uint256 totalAsset_ = _totalAssets(Math.Rounding(1 - uint256(rounding)));
+        return Math.mulDiv(totalSupply(), assets, totalAsset_, rounding);
     }
 
     function _convertToSharesRedeemed(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
@@ -198,8 +195,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (totalSupply() == 0) {
             return Math.ceilDiv(shares, 10 ** _decimalsOffset());
         }
-        uint256 _totalAssets = _totalAssets(rounding);
-        return Math.mulDiv(_totalAssets, shares, totalSupply(), rounding);
+        uint256 totalAsset_ = _totalAssets(rounding);
+        return Math.mulDiv(totalAsset_, shares, totalSupply(), rounding);
     }
 
     function _convertToAssetsWithdrawn(uint256 shares, Math.Rounding rounding) internal view returns (uint256) {
@@ -239,5 +236,6 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
+    // slither-disable-next-line unused-state
     uint256[50] private __gap;
 }

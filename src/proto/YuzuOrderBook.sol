@@ -191,6 +191,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     function _getYuzuOrderBookStorage() private pure returns (YuzuOrderBookStorage storage $) {
+        // slither-disable-next-line assembly
         assembly {
             $.slot := YuzuOrderBookStorageLocation
         }

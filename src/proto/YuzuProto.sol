@@ -222,5 +222,6 @@ abstract contract YuzuProto is
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
+    // slither-disable-next-line unused-state
     uint256[50] private __gap;
 }
