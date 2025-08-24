@@ -43,9 +43,7 @@ abstract contract YuzuProto is
         uint256 _supplyCap,
         uint256 _fillWindow
     ) internal onlyInitializing {
-        __YuzuProto_init_unchained(
-            __asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow
-        );
+        __YuzuProto_init_unchained(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow);
     }
 
     function __YuzuProto_init_unchained(
@@ -111,7 +109,7 @@ abstract contract YuzuProto is
         return _treasury;
     }
 
-     /// @notice See {IERC4626-previewWithdraw}
+    /// @notice See {IERC4626-previewWithdraw}
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 tokens = previewDeposit(assets + fee);

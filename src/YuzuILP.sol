@@ -44,9 +44,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         uint256 _supplyCap,
         uint256 _fillWindow
     ) external initializer {
-        __YuzuProto_init(
-            __asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow
-        );
+        __YuzuProto_init(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow);
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
     }
 
@@ -82,11 +80,11 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     function maxDeposit(address receiver) public view override returns (uint256) {
         uint256 _maxMint = maxMint(receiver);
         uint256 _totalSupply = totalSupply();
-        
+
         if (_totalSupply == 0) {
             return Math.ceilDiv(_maxMint, 10 ** _decimalsOffset());
         }
-        
+
         uint256 totalAssets_ = _totalAssets(Math.Rounding.Floor);
         (uint256 high, uint256 low) = Math.mul512(totalAssets_, _maxMint);
         if (high >= _totalSupply) {
@@ -169,9 +167,21 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     // slither-disable-next-line dead-code
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal override view virtual returns (uint256) {}
+    function _convertToShares(uint256 assets, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {}
     // slither-disable-next-line dead-code
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal override view virtual returns (uint256) {}
+    function _convertToAssets(uint256 shares, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {}
 
     function _convertToSharesMinted(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality

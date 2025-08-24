@@ -9,8 +9,8 @@ import {Order} from "./IStakedYuzuUSDDefinitions.sol";
 interface IStakedYuzuUSD is IERC4626 {
     function initialize(
         IERC20 _asset,
-        string memory name_,
-        string memory symbol_,
+        string memory __name,
+        string memory __symbol,
         address _owner,
         uint256 _redeemDelay
     ) external;

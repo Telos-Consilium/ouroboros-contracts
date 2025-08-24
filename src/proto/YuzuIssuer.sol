@@ -20,10 +20,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         __YuzuIssuer_init_unchained(_supplyCap);
     }
 
-    function __YuzuIssuer_init_unchained(uint256 _supplyCap)
-        internal
-        onlyInitializing
-    {
+    function __YuzuIssuer_init_unchained(uint256 _supplyCap) internal onlyInitializing {
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
         $._supplyCap = _supplyCap;
     }
@@ -32,7 +29,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     function asset() public view virtual returns (address);
 
     /// @dev See {IERC20}
-    function __yuzu_totalSupply() internal virtual view returns (uint256);
+    function __yuzu_totalSupply() internal view virtual returns (uint256);
     function __yuzu_balanceOf(address account) internal view virtual returns (uint256);
     function __yuzu_mint(address account, uint256 amount) internal virtual;
     function __yuzu_burn(address account, uint256 amount) internal virtual;
@@ -55,7 +52,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     function convertToShares(uint256 assets) public view virtual returns (uint256) {
         return _convertToShares(assets, Math.Rounding.Floor);
     }
-    
+
     /// @notice See {IERC4626-convertToAssets}
     function convertToAssets(uint256 shares) public view virtual returns (uint256) {
         return _convertToAssets(shares, Math.Rounding.Floor);

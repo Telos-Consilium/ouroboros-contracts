@@ -457,7 +457,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
         proto.redeem(tokens + 1, user2, user1);
     }
-    
+
     function test_Redeem_Revert_ExceedsMaxRedeem_LiquidityBuffer() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
@@ -1448,7 +1448,7 @@ abstract contract YuzuProtoInvariantTest is Test {
     function invariantTest_TotalSupply_Le_SupplyCap() public view virtual {
         assertLe(proto.totalSupply(), proto.cap(), "! totalSupply <= supplyCap");
     }
-    
+
     function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view virtual {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {

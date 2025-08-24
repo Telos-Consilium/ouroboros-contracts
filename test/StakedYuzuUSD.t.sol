@@ -55,12 +55,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         // Deploy implementation and proxy-initialize
         StakedYuzuUSD implementation = new StakedYuzuUSD();
         bytes memory initData = abi.encodeWithSelector(
-            StakedYuzuUSD.initialize.selector,
-            IERC20(address(yzusd)),
-            "Staked Yuzu USD",
-            "st-yzUSD",
-            owner,
-            1 days
+            StakedYuzuUSD.initialize.selector, IERC20(address(yzusd)), "Staked Yuzu USD", "st-yzUSD", owner, 1 days
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         styz = StakedYuzuUSD(address(proxy));
@@ -118,12 +113,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function _packInitData(address _asset, address _owner) internal returns (bytes memory) {
         return abi.encodeWithSelector(
-            StakedYuzuUSD.initialize.selector,
-            IERC20(_asset),
-            "Staked Yuzu USD",
-            "st-yzUSD",
-            _owner,
-            1 days
+            StakedYuzuUSD.initialize.selector, IERC20(_asset), "Staked Yuzu USD", "st-yzUSD", _owner, 1 days
         );
     }
 

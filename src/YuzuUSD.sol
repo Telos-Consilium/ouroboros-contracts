@@ -35,16 +35,14 @@ contract YuzuUSD is YuzuProto {
         uint256 _supplyCap,
         uint256 _fillWindow
     ) external initializer {
-        __YuzuProto_init(
-            __asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow
-        );
+        __YuzuProto_init(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow);
     }
 
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal override view returns (uint256) {
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
         return assets * 10 ** _decimalsOffset();
     }
 
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal override view returns (uint256) {
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
         if (rounding == Math.Rounding.Floor) {
             return shares / 10 ** _decimalsOffset();
         } else {

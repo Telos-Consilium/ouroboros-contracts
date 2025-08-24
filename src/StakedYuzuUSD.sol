@@ -47,24 +47,24 @@ contract StakedYuzuUSD is
     /**
      * @notice Initializes the StakedYuzuUSD contract
      * @param _asset The underlying ERC-20 token for the vault
-     * @param name_ The name of the staked token
-     * @param symbol_ The symbol of the staked token
+     * @param __name The name of the staked token
+     * @param __symbol The symbol of the staked token
      * @param _owner The owner of the contract
      * @param _redeemDelay The delay in seconds before a redeem order can be finalized
      */
     // slither-disable-next-line pess-arbitrary-call-destination-tainted
     function initialize(
         IERC20 _asset,
-        string memory name_,
-        string memory symbol_,
+        string memory __name,
+        string memory __symbol,
         address _owner,
         uint256 _redeemDelay
     ) external initializer {
         __ERC4626_init(_asset);
-        __ERC20_init(name_, symbol_);
+        __ERC20_init(__name, __symbol);
         __Ownable_init(_owner);
         __Ownable2Step_init();
-        __EIP712_init(name_, "1");
+        __EIP712_init(__name, "1");
 
         if (address(_asset) == address(0)) {
             revert InvalidZeroAddress();
