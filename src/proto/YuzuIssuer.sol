@@ -154,7 +154,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     function withdrawCollateral(uint256 assets, address receiver) public virtual {
-        uint256 liquidityBuffer = _getLiquidityBufferSize();
+        uint256 liquidityBuffer = liquidityBufferSize();
         if (assets > liquidityBuffer) {
             revert ExceededLiquidityBuffer(assets, liquidityBuffer);
         }
@@ -168,7 +168,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     function _maxWithdraw(address) internal view returns (uint256) {
-        return _getLiquidityBufferSize();
+        return liquidityBufferSize();
     }
 
     function _maxRedeem(address owner) internal view returns (uint256) {
@@ -205,7 +205,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return supplyCap - totalSupply;
     }
 
-    function _getLiquidityBufferSize() internal view virtual returns (uint256) {
+    function liquidityBufferSize() public view virtual returns (uint256) {
         return IERC20(asset()).balanceOf(address(this));
     }
 

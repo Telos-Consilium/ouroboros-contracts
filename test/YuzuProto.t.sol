@@ -1461,7 +1461,7 @@ abstract contract YuzuProtoInvariantTest is Test {
     }
 
     function invariantTest_PreviewRedeemMaxRedeem_Le_LiquidityBuffer() public view virtual {
-        uint256 liquidityBuffer = asset.balanceOf(address(proto)) - proto.totalUnfinalizedOrderValue();
+        uint256 liquidityBuffer = proto.liquidityBufferSize();
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             address actor = actors[i];
