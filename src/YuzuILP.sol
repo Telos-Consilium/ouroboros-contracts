@@ -69,12 +69,12 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     /// @notice See {IERC4626-convertToShares}
-    function convertToShares(uint256 assets) public view override returns (uint256 shares) {
+    function convertToShares(uint256 assets) public view override returns (uint256) {
         return _convertToSharesMinted(assets, Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-convertToAssets}
-    function convertToAssets(uint256 shares) public view override returns (uint256 assets) {
+    function convertToAssets(uint256 shares) public view override returns (uint256) {
         return _convertToAssetsDeposited(shares, Math.Rounding.Floor);
     }
 

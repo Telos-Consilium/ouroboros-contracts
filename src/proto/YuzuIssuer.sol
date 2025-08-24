@@ -52,12 +52,12 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     /// @notice See {IERC4626-convertToShares}
-    function convertToShares(uint256 assets) public view virtual returns (uint256 shares) {
+    function convertToShares(uint256 assets) public view virtual returns (uint256) {
         return _convertToShares(assets, Math.Rounding.Floor);
     }
     
     /// @notice See {IERC4626-convertToAssets}
-    function convertToAssets(uint256 shares) public view virtual returns (uint256 assets) {
+    function convertToAssets(uint256 shares) public view virtual returns (uint256) {
         return _convertToAssets(shares, Math.Rounding.Floor);
     }
 

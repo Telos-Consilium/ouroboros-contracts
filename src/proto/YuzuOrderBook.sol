@@ -32,7 +32,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     /// @dev See {IERC4626}
     function asset() public view virtual returns (address);
 
-    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256 assets);
+    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256);
 
     /// @dev See {IERC20}
     function __yuzu_balanceOf(address account) internal view virtual returns (uint256);
