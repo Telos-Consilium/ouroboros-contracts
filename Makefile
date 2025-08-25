@@ -1,4 +1,4 @@
-.PHONY: install format-sol format-python format test coverage coverage-html build
+.PHONY: install format-sol format-python format test invariants-fail-on-revert coverage coverage-html slither build
 
 install:
 	forge install
