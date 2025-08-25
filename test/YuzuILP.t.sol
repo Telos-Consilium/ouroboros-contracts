@@ -285,8 +285,8 @@ contract YuzuILPHandler is YuzuProtoHandler {
         actualYieldRatePpm = bound(actualYieldRatePpm, int256(-1_000_000), int256(10_000_000)); // -100% to 1000%
         newYieldRatePpm = bound(newYieldRatePpm, 0, 1_000_000); // 0% to 100%
         vm.warp(block.timestamp + 1 days);
-        uint256 totalAssets = ilp.totalAssets();
-        uint256 newPoolSize = totalAssets * uint256(1e6 + actualYieldRatePpm) / 1e6;
+        uint256 newPoolSize = ilp.poolSize() * uint256(1e6 + actualYieldRatePpm) / 1e6;
+        newPoolSize = _bound(newPoolSize, 0, 1e36);
         vm.prank(admin);
         ilp.updatePool(newPoolSize, newYieldRatePpm);
     }
