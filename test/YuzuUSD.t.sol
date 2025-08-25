@@ -5,12 +5,11 @@ import {console2} from "forge-std/Test.sol";
 
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 
-import {YuzuProtoTest} from "./YuzuProto.t.sol";
+import {YuzuProtoTest, YuzuProtoInvariantTest} from "./YuzuProto.t.sol";
 
 contract YuzuUSDTest is YuzuProtoTest {
     function _deploy() internal override returns (address) {
-        YuzuUSD yzusd = new YuzuUSD();
-        return address(yzusd);
+        return address(new YuzuUSD());
     }
 
     // Preview Functions
@@ -38,10 +37,10 @@ contract YuzuUSDTest is YuzuProtoTest {
     function test_FillRedeemOrder_WithIncentive() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        int256 fee = -100_000; // -10%
+        int256 feePpm = -100_000; // -10%
 
         vm.prank(redeemManager);
-        proto.setRedeemOrderFee(fee);
+        proto.setRedeemOrderFee(feePpm);
 
         _deposit(user1, assets);
         (uint256 orderId,) = _createRedeemOrder(user1, tokens);
@@ -60,34 +59,37 @@ contract YuzuUSDTest is YuzuProtoTest {
         address receiver,
         address owner,
         uint256 tokens,
-        int256 fee
+        int256 feePpm
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
         vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
         tokens = bound(tokens, 1e12, 1_000_000e18);
-        fee = bound(fee, -1_000_000, 1_000_000); // -100% to 100%
+        feePpm = bound(feePpm, -1_000_000, 1_000_000); // -100% to 100%
 
         uint256 depositSize = proto.previewMint(tokens);
 
         asset.mint(caller, depositSize);
         _setMaxDepositPerBlock(depositSize);
         _setMaxWithdrawPerBlock(depositSize);
-        _setFees(0, fee);
+        _setFees(0, feePpm);
 
-        vm.prank(caller);
-        asset.approve(address(proto), depositSize);
+        _approveAssets(caller, address(proto), depositSize);
 
         vm.prank(caller);
         proto.mint(tokens, owner);
 
-        vm.prank(owner);
-        proto.approve(caller, tokens);
-
+        _approveTokens(owner, caller, tokens);
         _createRedeemOrderAndAssert(caller, tokens, receiver, owner);
 
         vm.warp(block.timestamp + proto.fillWindow());
 
         _fillRedeemOrderAndAssert(orderFiller, proto.orderCount() - 1);
+    }
+}
+
+contract YuzuUSDInvariantTest is YuzuProtoInvariantTest {
+    function _deploy() internal override returns (address) {
+        return address(new YuzuUSD());
     }
 }

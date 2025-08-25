@@ -3,6 +3,9 @@ pragma solidity ^0.8.30;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {CommonBase} from "forge-std/Base.sol";
+import {StdCheats} from "forge-std/StdCheats.sol";
+import {StdUtils} from "forge-std/StdUtils.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -65,21 +68,45 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz = StakedYuzuUSD(address(proxy));
 
         // Approvals for deposits/orders
-        vm.prank(user1);
-        yzusd.approve(address(styz), type(uint256).max);
-        vm.prank(user2);
-        yzusd.approve(address(styz), type(uint256).max);
+        _approveAssets(user1, address(styz), type(uint256).max);
+        _approveAssets(user2, address(styz), type(uint256).max);
     }
 
     // Helpers
-    function _deposit(address from, uint256 amount) internal returns (uint256 tokens) {
-        vm.prank(from);
-        return styz.deposit(amount, from);
+    function _approveAssets(address _owner, address spender, uint256 amount) internal {
+        vm.prank(_owner);
+        yzusd.approve(spender, amount);
     }
 
-    function _withdraw(address from, uint256 amount) internal returns (uint256 withdrawnAssets) {
-        vm.prank(from);
-        return styz.withdraw(amount, from, from);
+    function _approveShares(address _owner, address spender, uint256 tokens) internal {
+        vm.prank(_owner);
+        styz.approve(spender, tokens);
+    }
+
+    function _deposit(address caller, uint256 assets, address receiver) internal returns (uint256 tokens) {
+        vm.prank(caller);
+        return styz.deposit(assets, receiver);
+    }
+
+    function _deposit(address user, uint256 assets) internal returns (uint256 tokens) {
+        return _deposit(user, assets, user);
+    }
+
+    function _initiateRedeem(address caller, uint256 shares, address receiver, address _owner)
+        internal
+        returns (uint256 orderId, uint256 assets)
+    {
+        vm.prank(caller);
+        return styz.initiateRedeem(shares, receiver, _owner);
+    }
+
+    function _initiateRedeem(address user, uint256 shares) internal returns (uint256 orderId, uint256 assets) {
+        return _initiateRedeem(user, shares, user, user);
+    }
+
+    function _finalizeRedeem(address caller, uint256 orderId) internal {
+        vm.prank(caller);
+        styz.finalizeRedeem(orderId);
     }
 
     function _setMaxDepositPerBlock(uint256 maxDepositPerBlock) internal {
@@ -176,32 +203,22 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_InitiateRedeem() public {
-        address caller = user1;
-        address receiver = user1;
-        address _owner = user1;
-        uint256 mintedShares = _deposit(_owner, 100e18);
-        _initiateRedeemAndAssert(caller, mintedShares, receiver, _owner);
+        uint256 mintedShares = _deposit(user1, 100e18);
+        _initiateRedeemAndAssert(user1, mintedShares, user1, user1);
     }
 
     function test_InitiateRedeem_Zero() public {
-        address caller = user1;
-        address receiver = user1;
-        address _owner = user1;
-        uint256 shares = 0;
-        _initiateRedeemAndAssert(caller, shares, receiver, _owner);
+        _initiateRedeemAndAssert(user1, 0, user1, user1);
     }
 
     function test_InitiateRedeem_WithFee() public {
-        address caller = user1;
-        address receiver = user1;
-        address _owner = user1;
-        uint256 fee = 100_000; // 10%
+        uint256 feePpm = 100_000; // 10%
 
         vm.prank(owner);
-        styz.setRedeemFee(fee);
+        styz.setRedeemFee(feePpm);
 
-        uint256 mintedShares = _deposit(_owner, 100e18);
-        _initiateRedeemAndAssert(caller, mintedShares, receiver, _owner);
+        uint256 mintedShares = _deposit(user1, 100e18);
+        _initiateRedeemAndAssert(user1, mintedShares, user1, user1);
     }
 
     function test_InitiateRedeem_Revert_ExceedsMaxRedeem() public {
@@ -223,12 +240,14 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_InitiateRedeem_Revert_InsufficientAllowance() public {
-        uint256 mintedShares = _deposit(user1, 100e18);
-        vm.prank(user2);
+        address _owner = user1;
+        address sender = user2;
+        uint256 mintedShares = _deposit(_owner, 100e18);
+        vm.prank(sender);
         vm.expectRevert(
-            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, user2, 0, mintedShares)
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, sender, 0, mintedShares)
         );
-        styz.initiateRedeem(mintedShares, user2, user1);
+        styz.initiateRedeem(mintedShares, sender, _owner);
     }
 
     // Redeem Finalization
@@ -260,37 +279,28 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         address _owner = user1;
         address receiver = user2;
         uint256 mintedShares = _deposit(_owner, 100e18);
-        vm.prank(_owner);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, receiver, _owner);
+        (uint256 orderId,) = _initiateRedeem(_owner, mintedShares, receiver, _owner);
         vm.warp(block.timestamp + styz.redeemDelay());
         _finalizeRedeemAndAssert(receiver, orderId);
     }
 
     function test_FinalizeRedeem_ByController() public {
-        address controller = user1;
         address _owner = user2;
-        address receiver = makeAddr("receiver");
+        address controller = user1;
         uint256 mintedShares = _deposit(_owner, 100e18);
-        vm.prank(_owner);
-        styz.approve(controller, mintedShares);
-        vm.prank(controller);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, receiver, _owner);
+        _approveShares(_owner, controller, mintedShares);
+        (uint256 orderId,) = _initiateRedeem(controller, mintedShares, _owner, _owner);
         vm.warp(block.timestamp + styz.redeemDelay());
         _finalizeRedeemAndAssert(controller, orderId);
     }
 
     function test_FinalizeRedeem_Revert_ByOwner() public {
-        address controller = user1;
         address _owner = user2;
+        address controller = user1;
         address receiver = makeAddr("receiver");
         uint256 mintedShares = _deposit(_owner, 100e18);
-
-        vm.prank(_owner);
-        styz.approve(controller, mintedShares);
-
-        vm.prank(controller);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, receiver, _owner);
-
+        _approveShares(_owner, controller, mintedShares);
+        (uint256 orderId,) = _initiateRedeem(controller, mintedShares, receiver, _owner);
         vm.warp(block.timestamp + styz.redeemDelay());
 
         vm.prank(_owner);
@@ -305,24 +315,18 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_FinalizeRedeem_Revert_NotDue() public {
-        vm.startPrank(user1);
-        uint256 mintedShares = styz.deposit(200e18, user1);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
+        uint256 mintedShares = _deposit(user1, 200e18);
+        (uint256 orderId,) = _initiateRedeem(user1, mintedShares);
+        vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
         styz.finalizeRedeem(orderId);
-        vm.stopPrank();
     }
 
     function test_FinalizeRedeem_Revert_NotPending() public {
-        vm.startPrank(user1);
-        uint256 mintedShares = styz.deposit(200e18, user1);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
-        vm.stopPrank();
-
+        uint256 mintedShares = _deposit(user1, 200e18);
+        (uint256 orderId,) = _initiateRedeem(user1, mintedShares);
         vm.warp(block.timestamp + styz.redeemDelay());
-
-        vm.prank(user1);
-        styz.finalizeRedeem(orderId);
+        _finalizeRedeem(user1, orderId);
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
@@ -330,15 +334,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_FinalizeRedeem_Revert_NotFinalizer() public {
-        vm.startPrank(user1);
-        uint256 mintedShares = styz.deposit(200e18, user1);
-        (uint256 orderId,) = styz.initiateRedeem(mintedShares, user1, user1);
-        vm.stopPrank();
-
+        uint256 mintedShares = _deposit(user1, 200e18);
+        (uint256 orderId,) = _initiateRedeem(user1, mintedShares);
         vm.warp(block.timestamp + styz.redeemDelay());
-
-        vm.prank(user1);
-        styz.finalizeRedeem(orderId);
 
         vm.prank(user2);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderFinalizer.selector, user2, user1, user1));
@@ -351,12 +349,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         address receiver,
         address _owner,
         uint256 shares,
-        uint256 fee
+        uint256 feePpm
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && _owner != address(0));
         vm.assume(caller != address(styz) && receiver != address(styz) && _owner != address(styz));
         shares = bound(shares, 1e12, 1_000_000e18);
-        fee = bound(fee, 0, 1_000_000); // 0% to 100%
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
         uint256 depositSize = styz.previewMint(shares);
 
@@ -364,11 +362,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         _setMaxDepositPerBlock(depositSize);
         _setMaxWithdrawPerBlock(depositSize);
 
-        vm.startPrank(_owner);
-        yzusd.approve(address(styz), depositSize);
-        styz.deposit(depositSize, _owner);
-        styz.approve(caller, shares);
-        vm.stopPrank();
+        _approveAssets(_owner, address(styz), depositSize);
+        _deposit(_owner, depositSize, _owner);
+        _approveShares(_owner, caller, shares);
 
         _initiateRedeemAndAssert(caller, shares, receiver, _owner);
         vm.warp(block.timestamp + styz.redeemDelay());
@@ -507,7 +503,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Limited by max
         assertEq(styz.maxWithdraw(user1), 100e18);
-        assertEq(styz.maxRedeem(user1), 110e18);
+        assertEq(styz.maxRedeem(user1), 100e18);
     }
 
     function test_PreviewWithdraw_WithFee() public {
@@ -537,15 +533,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     // Misc
     function test_TotalAssets_WithCommitment() public {
         uint256 initialAssets = styz.totalAssets();
-
         uint256 depositAmount = 100e18;
-        vm.prank(user1);
-        uint256 mintedShares = styz.deposit(depositAmount, user1);
+        uint256 mintedShares = _deposit(user1, depositAmount);
         assertEq(styz.totalAssets(), initialAssets + depositAmount);
-
-        vm.prank(user1);
-        styz.initiateRedeem(mintedShares, user1, user1);
-
+        _initiateRedeem(user1, mintedShares);
         assertEq(styz.totalAssets(), initialAssets);
     }
 
@@ -577,9 +568,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         _setMaxWithdrawPerBlock(100e18);
         _deposit(user1, 100e18);
         _deposit(user2, 100e18);
-
-        vm.prank(user1);
-        styz.initiateRedeem(50e18, user2, user1);
+        _initiateRedeem(user1, 50e18, user2, user1);
 
         // Limited by balance
         assertEq(styz.maxWithdraw(user1), 50e18);
@@ -603,7 +592,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.depositedPerBlock(block.number), 100e18);
         _deposit(user2, 200e18);
         assertEq(styz.depositedPerBlock(block.number), 300e18);
-
         vm.roll(block.number + 1);
         assertEq(styz.depositedPerBlock(block.number), 0);
     }
@@ -611,12 +599,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     function test_WithdrawnPerBlock() public {
         _deposit(user1, 300e18);
 
-        vm.prank(user1);
-        (, uint256 assetsWithdrawn1) = styz.initiateRedeem(100e18, user1, user1);
+        (, uint256 assetsWithdrawn1) = _initiateRedeem(user1, 100e18);
         assertEq(styz.withdrawnPerBlock(block.number), assetsWithdrawn1);
 
-        vm.prank(user1);
-        (, uint256 assetsWithdrawn2) = styz.initiateRedeem(200e18, user1, user1);
+        (, uint256 assetsWithdrawn2) = _initiateRedeem(user1, 200e18);
         assertEq(styz.withdrawnPerBlock(block.number), assetsWithdrawn1 + assetsWithdrawn2);
 
         vm.roll(block.number + 1);
@@ -677,5 +663,255 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612ExpiredSignature.selector, deadline));
         styz.permit(_owner, spender, value, deadline, v, r, s);
+    }
+}
+
+contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
+    bool useGuardrails;
+
+    StakedYuzuUSD internal styz;
+    ERC20Mock internal yzusd;
+    address internal owner;
+
+    address[] public actors;
+    address internal caller;
+
+    uint256[] public activeOrderIds;
+
+    uint256 public donatedAssets;
+    uint256 public depositedAssets;
+    uint256 public mintedShares;
+    uint256 public withdrawnAssets;
+    uint256 public redeemedShares;
+
+    constructor(StakedYuzuUSD _styz) {
+        useGuardrails = vm.envOr("USE_GUARDRAILS", false);
+
+        styz = _styz;
+
+        yzusd = ERC20Mock(_styz.asset());
+        owner = _styz.owner();
+
+        actors.push(makeAddr("user1"));
+        actors.push(makeAddr("user2"));
+        actors.push(makeAddr("user3"));
+        actors.push(makeAddr("user4"));
+
+        for (uint256 i = 0; i < actors.length; i++) {
+            address _actor = actors[i];
+
+            vm.prank(_actor);
+            yzusd.approve(address(styz), type(uint256).max);
+            vm.prank(_actor);
+            styz.approve(address(styz), type(uint256).max);
+
+            for (uint256 j = 0; j < actors.length; j++) {
+                if (i != j) {
+                    vm.prank(_actor);
+                    yzusd.approve(actors[j], type(uint256).max);
+                    vm.prank(_actor);
+                    styz.approve(actors[j], type(uint256).max);
+                }
+            }
+        }
+    }
+
+    modifier useCaller(uint256 actorIndexSeed) {
+        caller = actors[_bound(actorIndexSeed, 0, actors.length - 1)];
+        vm.startPrank(caller);
+        _;
+        vm.stopPrank();
+    }
+
+    function _getActor(uint256 actorIndexSeed) internal view returns (address) {
+        return actors[_bound(actorIndexSeed, 0, actors.length - 1)];
+    }
+
+    function getActors() external view returns (address[] memory) {
+        return actors;
+    }
+
+    function getActiveOrderIds() external view returns (uint256[] memory) {
+        return activeOrderIds;
+    }
+
+    function donateAssets(uint256 assets) external {
+        assets = _bound(assets, 0, 1e27);
+        donatedAssets += assets;
+        yzusd.mint(address(styz), assets);
+    }
+
+    function deposit(uint256 assets, uint256 receiverIndexSeed, uint256 actorIndexSeed)
+        external
+        useCaller(actorIndexSeed)
+    {
+        address receiver = _getActor(receiverIndexSeed);
+        assets = _bound(assets, 0, styz.maxDeposit(receiver));
+        assets = _bound(assets, 0, 1e27);
+        yzusd.mint(caller, assets);
+        depositedAssets += assets;
+        mintedShares += styz.deposit(assets, receiver);
+    }
+
+    function mint(uint256 shares, uint256 receiverIndexSeed, uint256 actorIndexSeed)
+        external
+        useCaller(actorIndexSeed)
+    {
+        address receiver = _getActor(receiverIndexSeed);
+        shares = _bound(shares, 0, styz.maxMint(receiver));
+        shares = _bound(shares, 0, 1e27);
+        yzusd.mint(caller, styz.previewMint(shares));
+        mintedShares += shares;
+        depositedAssets += styz.mint(shares, receiver);
+    }
+
+    function initiateRedeem(uint256 shares, uint256 receiverIndexSeed, uint256 ownerIndexSeed, uint256 actorIndexSeed)
+        external
+        useCaller(actorIndexSeed)
+    {
+        address receiver = _getActor(receiverIndexSeed);
+        address _owner = _getActor(ownerIndexSeed);
+        shares = _bound(shares, 0, styz.maxRedeem(_owner));
+        redeemedShares += shares;
+        (uint256 orderId,) = styz.initiateRedeem(shares, receiver, _owner);
+        activeOrderIds.push(orderId);
+    }
+
+    function finalizeRedeem(uint256 orderIndex, uint256 callerIndex) external {
+        if (useGuardrails && activeOrderIds.length == 0) return;
+
+        orderIndex = _bound(orderIndex, 0, activeOrderIds.length - 1);
+        uint256 orderId = activeOrderIds[orderIndex];
+        activeOrderIds[orderIndex] = activeOrderIds[activeOrderIds.length - 1];
+        activeOrderIds.pop();
+        Order memory order = styz.getRedeemOrder(orderId);
+
+        if (callerIndex % 2 == 0) {
+            caller = order.receiver;
+        } else {
+            caller = order.controller;
+        }
+
+        withdrawnAssets += order.assets;
+        if (order.dueTime > block.timestamp) vm.warp(order.dueTime);
+
+        vm.prank(caller);
+        styz.finalizeRedeem(orderId);
+    }
+
+    function setRedeemFee(uint256 newFeePpm) external {
+        newFeePpm = _bound(newFeePpm, 0, 1_000_000); // 0 to 100%
+        vm.prank(owner);
+        styz.setRedeemFee(newFeePpm);
+    }
+}
+
+contract StakedYuzuUSDInvariantTest is Test {
+    StakedYuzuUSD public styz;
+    StakedYuzuUSDHandler public handler;
+    ERC20Mock public yzusd;
+
+    function setUp() public {
+        // Deploy mock asset
+        yzusd = new ERC20Mock();
+
+        // Deploy implementation and proxy-initialize
+        StakedYuzuUSD implementation = new StakedYuzuUSD();
+        bytes memory initData = abi.encodeWithSelector(
+            StakedYuzuUSD.initialize.selector,
+            IERC20(address(yzusd)),
+            "Staked Yuzu USD",
+            "st-yzUSD",
+            makeAddr("owner"),
+            type(uint256).max,
+            type(uint256).max,
+            1 days
+        );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        styz = StakedYuzuUSD(address(proxy));
+
+        handler = new StakedYuzuUSDHandler(styz);
+        targetContract(address(handler));
+    }
+
+    function invariantTest_ShareBalance_Zero() public view {
+        uint256 contractShareBalance = styz.balanceOf(address(styz));
+        assertEq(contractShareBalance, 0, "! contractShareBalance == 0");
+    }
+
+    function invariantTest_TotalSupply_Consistent() public view {
+        uint256 totalSupply = styz.totalSupply();
+        uint256 mintedShares = handler.mintedShares();
+        uint256 redeemedShares = handler.redeemedShares();
+        assertEq(totalSupply, mintedShares - redeemedShares, "! totalSupply == mintedShares - redeemedShares");
+    }
+
+    function invariantTest_AssetBalance_Consistent() public view {
+        uint256 contractAssetBalance = yzusd.balanceOf(address(styz));
+        uint256 donatedAssets = handler.donatedAssets();
+        uint256 depositedAssets = handler.depositedAssets();
+        uint256 withdrawnAssets = handler.withdrawnAssets();
+        assertEq(
+            contractAssetBalance,
+            donatedAssets + depositedAssets - withdrawnAssets,
+            "! contractAssetBalance == donatedAssets + depositedAssets - withdrawnAssets"
+        );
+    }
+
+    function invariantTest_PendingOrderValue_Consistent() public view {
+        uint256 totalPendingOrderValue = styz.totalPendingOrderValue();
+        uint256[] memory _activeOrderIds = handler.getActiveOrderIds();
+
+        uint256 _totalPendingOrderValue = 0;
+        for (uint256 i = 0; i < _activeOrderIds.length; i++) {
+            Order memory order = styz.getRedeemOrder(_activeOrderIds[i]);
+            _totalPendingOrderValue += order.assets;
+        }
+
+        assertEq(totalPendingOrderValue, _totalPendingOrderValue, "! totalPendingOrderValue == _totalPendingOrderValue");
+    }
+
+    function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view virtual {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            address actor = actors[i];
+            uint256 maxMint = styz.maxMint(actor);
+            if (maxMint > 1e27) continue;
+            uint256 previewMint = styz.previewMint(maxMint);
+            assertLe(previewMint, styz.maxDeposit(actor), "! previewMint(maxMint) <= maxDeposit");
+        }
+    }
+
+    function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view virtual {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            address actor = actors[i];
+            uint256 maxDeposit = styz.maxDeposit(actor);
+            if (maxDeposit > 1e27) continue;
+            uint256 previewDeposit = styz.previewDeposit(maxDeposit);
+            assertLe(previewDeposit, styz.maxMint(actor), "! previewDeposit(maxDeposit) <= maxMint");
+        }
+    }
+
+    function invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw() public view virtual {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            address actor = actors[i];
+            uint256 maxRedeem = styz.maxRedeem(actor);
+            if (maxRedeem > 1e27) continue;
+            uint256 previewRedeem = styz.previewRedeem(maxRedeem);
+            assertLe(previewRedeem, styz.maxWithdraw(actor), "! previewRedeem(maxRedeem) <= maxWithdraw");
+        }
+    }
+
+    function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view virtual {
+        address[] memory actors = handler.getActors();
+        for (uint256 i = 0; i < actors.length; i++) {
+            address actor = actors[i];
+            uint256 maxWithdraw = styz.maxWithdraw(actor);
+            if (maxWithdraw > 1e27) continue;
+            uint256 previewWithdraw = styz.previewWithdraw(maxWithdraw);
+            assertLe(previewWithdraw, styz.maxRedeem(actor), "! previewWithdraw(maxWithdraw) <= maxRedeem");
+        }
     }
 }

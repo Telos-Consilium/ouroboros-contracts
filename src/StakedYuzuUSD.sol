@@ -59,6 +59,7 @@ contract StakedYuzuUSD is
      * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      * @param _redeemDelay The delay in seconds before a redeem order can be finalized
      */
+    // slither-disable-next-line pess-arbitrary-call-destination-tainted
     function initialize(
         IERC20 _asset,
         string memory name_,
@@ -91,41 +92,38 @@ contract StakedYuzuUSD is
     /// @notice See {IERC4626-maxDeposit}
     function maxDeposit(address) public view override returns (uint256) {
         uint256 deposited = depositedPerBlock[block.number];
-        if (deposited >= maxDepositPerBlock) return 0;
+        if (deposited >= maxDepositPerBlock) {
+            return 0;
+        }
         return maxDepositPerBlock - deposited;
     }
 
     /// @notice See {IERC4626-maxMint}
     function maxMint(address receiver) public view override returns (uint256) {
         uint256 _maxDeposit = Math.min(maxDeposit(receiver), type(uint256).max - 10 ** _decimalsOffset());
-        return convertToShares(_maxDeposit);
+        return _convertToShares(_maxDeposit, Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address owner) public view override returns (uint256) {
+    function maxWithdraw(address _owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
-        if (withdrawn >= maxWithdrawPerBlock) return 0;
-        return Math.min(super.maxWithdraw(owner), maxWithdrawPerBlock - withdrawn);
+        if (withdrawn >= maxWithdrawPerBlock) {
+            return 0;
+        }
+        uint256 inheritedMaxRedeem = super.maxRedeem(_owner);
+        uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
+        return Math.min(previewRedeem(inheritedMaxRedeem), remainingAllowance);
     }
 
     /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address owner) public view override returns (uint256) {
+    function maxRedeem(address _owner) public view override returns (uint256) {
         uint256 withdrawn = withdrawnPerBlock[block.number];
-        if (withdrawn >= maxWithdrawPerBlock) return 0;
-
-        uint256 inheritedMaxRedeem = super.maxRedeem(owner);
-        if (inheritedMaxRedeem == 0) {
+        if (withdrawn >= maxWithdrawPerBlock) {
             return 0;
         }
-
+        uint256 inheritedMaxRedeem = super.maxRedeem(_owner);
         uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
-        /// @dev If redeeming the inherited max redeem would not exceed the remaining allowance, don't
-        /// calculate the asset value of the allowance to prevent a possible overflow in previewWithdraw.
-        if (previewRedeem(inheritedMaxRedeem) < remainingAllowance) {
-            return inheritedMaxRedeem;
-        } else {
-            return previewWithdraw(remainingAllowance);
-        }
+        return Math.min(_convertToShares(remainingAllowance, Math.Rounding.Floor), inheritedMaxRedeem);
     }
 
     /// @notice See {IERC4626-previewWithdraw}
@@ -144,7 +142,7 @@ contract StakedYuzuUSD is
      * @notice Withdraw function is disabled - instant withdrawals are not supported
      * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
-    function withdraw(uint256 assets, address receiver, address owner) public pure override returns (uint256) {
+    function withdraw(uint256, address, address) public pure override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
@@ -152,26 +150,26 @@ contract StakedYuzuUSD is
      * @notice Redeem function is disabled - instant redemptions are not supported
      * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
-    function redeem(uint256 shares, address receiver, address owner) public pure override returns (uint256) {
+    function redeem(uint256, address, address) public pure override returns (uint256) {
         revert RedeemNotSupported();
     }
 
     /// @notice Initiates a 2-step redemption of `shares`
     // slither-disable-next-line pess-unprotected-initialize
-    function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256) {
+    function initiateRedeem(uint256 shares, address receiver, address _owner) external returns (uint256, uint256) {
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
-        uint256 maxShares = maxRedeem(owner);
+        uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
-            revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
+            revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
         }
 
         uint256 assets = previewRedeem(shares);
         address caller = _msgSender();
-        uint256 orderId = _initiateRedeem(caller, receiver, owner, assets, shares);
+        uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares);
 
-        emit InitiatedRedeem(caller, receiver, owner, orderId, assets, shares);
+        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares);
 
         return (orderId, assets);
     }
@@ -244,7 +242,7 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC20Permit-permit}.
-    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
         virtual
     {
@@ -252,21 +250,21 @@ contract StakedYuzuUSD is
             revert ERC2612ExpiredSignature(deadline);
         }
 
-        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, _useNonce(owner), deadline));
+        bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, _useNonce(_owner), deadline));
 
         bytes32 hash = _hashTypedDataV4(structHash);
 
         address signer = ECDSA.recover(hash, v, r, s);
-        if (signer != owner) {
-            revert ERC2612InvalidSigner(signer, owner);
+        if (signer != _owner) {
+            revert ERC2612InvalidSigner(signer, _owner);
         }
 
-        _approve(owner, spender, value);
+        _approve(_owner, spender, value);
     }
 
     /// @notice See {IERC20Permit-nonces}
-    function nonces(address owner) public view virtual override(IERC20Permit, NoncesUpgradeable) returns (uint256) {
-        return super.nonces(owner);
+    function nonces(address _owner) public view virtual override(IERC20Permit, NoncesUpgradeable) returns (uint256) {
+        return super.nonces(_owner);
     }
 
     /// @notice See {IERC20Permit-DOMAIN_SEPARATOR}
@@ -281,7 +279,7 @@ contract StakedYuzuUSD is
     }
 
     // slither-disable-next-line pess-unprotected-initialize
-    function _initiateRedeem(address caller, address receiver, address owner, uint256 assets, uint256 shares)
+    function _initiateRedeem(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
         internal
         returns (uint256)
     {
@@ -292,7 +290,7 @@ contract StakedYuzuUSD is
         orders[orderId] = Order({
             assets: assets,
             shares: shares,
-            owner: owner,
+            owner: _owner,
             receiver: receiver,
             controller: caller,
             dueTime: SafeCast.toUint40(block.timestamp + redeemDelay),
@@ -300,10 +298,10 @@ contract StakedYuzuUSD is
         });
         orderCount++;
 
-        if (caller != owner) {
-            _spendAllowance(owner, caller, shares);
+        if (caller != _owner) {
+            _spendAllowance(_owner, caller, shares);
         }
-        _burn(owner, shares);
+        _burn(_owner, shares);
 
         return orderId;
     }

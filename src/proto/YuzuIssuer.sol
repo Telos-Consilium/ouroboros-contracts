@@ -19,12 +19,10 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     bytes32 private constant YuzuIssuerStorageLocation =
         0x542408f99cbd5a3e32919127cd9d8984eb4635c3ab0f9f17273c636c42e08d00;
 
-    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuIssuer_init(uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock) internal onlyInitializing {
         __YuzuIssuer_init_unchained(_maxDepositPerBlock, _maxWithdrawPerBlock);
     }
 
-    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuIssuer_init_unchained(uint256 _maxDepositPerBlock, uint256 _maxWithdrawPerBlock)
         internal
         onlyInitializing
@@ -36,6 +34,10 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
 
     /// @dev See {IERC4626}
     function asset() public view virtual returns (address);
+    function convertToShares(uint256 assets) public view virtual returns (uint256 shares);
+    function convertToAssets(uint256 shares) public view virtual returns (uint256 assets);
+    function maxWithdraw(address owner) public view virtual returns (uint256);
+    function maxRedeem(address owner) public view virtual returns (uint256);
     function previewDeposit(uint256 assets) public view virtual returns (uint256 tokens);
     function previewMint(uint256 tokens) public view virtual returns (uint256 assets);
     function previewWithdraw(uint256 assets) public view virtual returns (uint256 tokens);
@@ -52,16 +54,6 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return address(this);
     }
 
-    /// @notice See {IERC4626-convertToShares}
-    function convertToShares(uint256 assets) public view returns (uint256 shares) {
-        return previewDeposit(assets);
-    }
-
-    /// @notice See {IERC4626-convertToAssets}
-    function convertToAssets(uint256 shares) public view returns (uint256 assets) {
-        return previewMint(shares);
-    }
-
     /// @notice See {IERC4626-maxDeposit}
     function maxDeposit(address) public view virtual returns (uint256) {
         return _getRemainingDepositAllowance();
@@ -70,22 +62,6 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     /// @notice See {IERC4626-maxMint}
     function maxMint(address receiver) public view virtual returns (uint256) {
         return previewDeposit(maxDeposit(receiver));
-    }
-
-    /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address owner) public view virtual returns (uint256) {
-        uint256 remainingAllowance = _getRemainingWithdrawAllowance();
-        uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerAssets = previewRedeem(__yuzu_balanceOf(owner));
-        return Math.min(ownerAssets, Math.min(liquidityBuffer, remainingAllowance));
-    }
-
-    /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address owner) public view virtual returns (uint256) {
-        uint256 remainingAllowance = _getRemainingWithdrawAllowance();
-        uint256 liquidityBuffer = _getLiquidityBufferSize();
-        uint256 ownerTokens = __yuzu_balanceOf(owner);
-        return Math.min(ownerTokens, previewWithdraw(Math.min(liquidityBuffer, remainingAllowance)));
     }
 
     /// @notice See {IERC4626-deposit}
