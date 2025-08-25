@@ -14,6 +14,9 @@ format: format-sol format-python
 test:
 	forge test
 
+invariants-fail-on-revert:
+	FOUNDRY_INVARIANT_FAIL_ON_REVERT=true USE_GUARDRAILS=true forge test --match-test invariantTest_
+
 coverage:
 	forge coverage \
 		--ir-minimum \
