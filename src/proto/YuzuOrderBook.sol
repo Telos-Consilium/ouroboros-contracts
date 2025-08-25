@@ -89,7 +89,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
             revert OrderNotFilled(orderId);
         }
 
-        _finalizeRedeemOrder(caller, order);
+        _finalizeRedeemOrder(order);
 
         emit FinalizedRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
@@ -175,7 +175,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), order.assets);
     }
 
-    function _finalizeRedeemOrder(address caller, Order storage order) internal virtual {
+    function _finalizeRedeemOrder(Order storage order) internal virtual {
         order.status = OrderStatus.Finalized;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._totalUnfinalizedOrderValue -= order.assets;
