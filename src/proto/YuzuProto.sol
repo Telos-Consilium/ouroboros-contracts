@@ -101,6 +101,7 @@ abstract contract YuzuProto is
         _transfer(from, to, amount);
     }
 
+    /// @notice See {IERC4626-asset}
     function asset() public view override(YuzuIssuer, YuzuOrderBook) returns (address) {
         return _asset;
     }

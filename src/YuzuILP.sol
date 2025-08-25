@@ -87,7 +87,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
         uint256 totalAssets_ = _totalAssets(Math.Rounding.Floor);
         // slither-disable-next-line unused-return
-        (uint256 high, ) = Math.mul512(totalAssets_, _maxMint);
+        (uint256 high,) = Math.mul512(totalAssets_, _maxMint);
         if (high >= _totalSupply) {
             return type(uint256).max;
         }
