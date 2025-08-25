@@ -81,10 +81,10 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         uint256 _maxMint = maxMint(receiver);
         uint256 _totalSupply = totalSupply();
 
+        /// @dev _convertToAssetsDeposited(_maxMint, Math.Rounding.Floor) with an overflow check
         if (_totalSupply == 0) {
             return Math.ceilDiv(_maxMint, 10 ** _decimalsOffset());
         }
-
         uint256 totalAssets_ = _totalAssets(Math.Rounding.Floor);
         // slither-disable-next-line unused-return
         (uint256 high,) = Math.mul512(totalAssets_, _maxMint);
