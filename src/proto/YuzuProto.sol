@@ -139,11 +139,11 @@ abstract contract YuzuProto is
         }
     }
 
-    function fillRedeemOrder(uint256 orderId) public override onlyRole(ORDER_FILLER_ROLE) {
+    function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
         super.fillRedeemOrder(orderId);
     }
 
-    function withdrawCollateral(uint256 assets, address receiver) public override onlyRole(ADMIN_ROLE) {
+    function withdrawCollateral(uint256 assets, address receiver) public virtual override onlyRole(ADMIN_ROLE) {
         super.withdrawCollateral(assets, receiver);
     }
 

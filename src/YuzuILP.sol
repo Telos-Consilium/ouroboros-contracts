@@ -167,21 +167,9 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     // slither-disable-next-line dead-code
-    function _convertToShares(uint256 assets, Math.Rounding rounding)
-        internal
-        view
-        virtual
-        override
-        returns (uint256)
-    {}
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {}
     // slither-disable-next-line dead-code
-    function _convertToAssets(uint256 shares, Math.Rounding rounding)
-        internal
-        view
-        virtual
-        override
-        returns (uint256)
-    {}
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {}
 
     function _convertToSharesMinted(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
         // slither-disable-next-line incorrect-equality

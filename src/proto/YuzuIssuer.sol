@@ -164,11 +164,11 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return $._supplyCap;
     }
 
-    function _maxWithdraw(address) internal view returns (uint256) {
+    function _maxWithdraw(address) internal view virtual returns (uint256) {
         return liquidityBufferSize();
     }
 
-    function _maxRedeem(address owner) internal view returns (uint256) {
+    function _maxRedeem(address owner) internal view virtual returns (uint256) {
         return __yuzu_balanceOf(owner);
     }
 
@@ -193,8 +193,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     function _getRemainingMintAllowance() internal view virtual returns (uint256) {
-        YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
-        uint256 supplyCap = $._supplyCap;
+        uint256 supplyCap = cap();
         uint256 totalSupply = __yuzu_totalSupply();
         if (totalSupply >= supplyCap) {
             return 0;

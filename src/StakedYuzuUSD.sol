@@ -84,13 +84,13 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
+    function previewWithdraw(uint256 assets) public view override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         return super.previewWithdraw(assets + fee);
     }
 
     /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
+    function previewRedeem(uint256 shares) public view override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
         return assets - _feeOnTotal(assets, redeemFeePpm);
     }
@@ -187,7 +187,6 @@ contract StakedYuzuUSD is
     /// @notice See {IERC20Permit-permit}.
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
-        virtual
     {
         if (block.timestamp > deadline) {
             revert ERC2612ExpiredSignature(deadline);
@@ -206,13 +205,13 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC20Permit-nonces}
-    function nonces(address _owner) public view virtual override(IERC20Permit, NoncesUpgradeable) returns (uint256) {
+    function nonces(address _owner) public view override(IERC20Permit, NoncesUpgradeable) returns (uint256) {
         return super.nonces(_owner);
     }
 
     /// @notice See {IERC20Permit-DOMAIN_SEPARATOR}
     // solhint-disable-next-line func-name-mixedcase
-    function DOMAIN_SEPARATOR() external view virtual returns (bytes32) {
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparatorV4();
     }
 
