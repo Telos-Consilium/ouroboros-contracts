@@ -1070,12 +1070,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setRedeemOrderFee(1_000_001);
     }
 
-    // function test_SetRedeemOrderFee_Revert_ExceedsMinFee() public {
-    //     vm.prank(redeemManager);
-    //     vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, -1_000_001, 1_000_000));
-    //     proto.setRedeemOrderFee(-1_000_001);
-    // }
-
     function test_SetRedeemOrderFee_Revert_NotRedeemManager() public {
         vm.prank(user1);
         vm.expectRevert(
