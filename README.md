@@ -4,81 +4,114 @@
 
 ### YuzuUSD.sol
 
-YuzuUSD is a ERC‑20 token used throughout the Yuzu protocol and backed 1:1 by USDC.
+YuzuUSD is an ERC‑20 token used throughout the Yuzu protocol and backed 1:1 by USDC.
 
 ### StakedYuzuUSD.sol
 
-StakedYuzuUSD is an ERC‑4626 vault that allows users to stake yzUSD.
+StakedYuzuUSD is an ERC‑4626 vault that allows users to stake YuzuUSD.
 
 ### YuzuILP.sol
 
-YuzuILP is an ERC‑20 token representing deposits in the Yuzu Insurance Liquidity Pool.
+YuzuILP is an ERC‑20 token representing deposits in the Yuzu Insurance Liquidity Pool (ILP).
 
----
+## Mint and redemption mechanisms
 
-## Foundry
+### YuzuUSD and YuzuILP
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Tokens are minted with:
 
-Foundry consists of:
-
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```solidity
+function deposit(uint256 assets, address receiver) external returns (uint256 shares);
+function mint(uint256 tokens, address receiver) external returns (uint256 assets);
 ```
 
-### Test
+Tokens can be instantly redeemed with:
 
-```shell
-$ forge test
+```solidity
+function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
+function redeem(uint256 tokens, address receiver, address owner) external returns (uint256 assets);
 ```
 
-### Format
+Deposited assets are sent to an external treasury.
 
-```shell
-$ forge fmt
+When redeeming with `withdraw` or `redeem`, withdrawn assets are sourced from the contract's liquidity buffer, which the admin funds from the treasury.
+
+Users can also redeem tokens by creating redemption orders that are filled by the admin using external liquidity.
+
+Orders are created, filled, and finalized with:
+
+```solidity
+function createRedeemOrder(uint256 tokens, address receiver, address owner) external returns (uint256 orderId, uint256 assets);
+function fillRedeemOrder(uint256 orderId) external;
+function finalizeRedeemOrder(uint256 orderId) external;
 ```
 
-### Gas Snapshots
+If the admin fails to fill an order within a configurable period, the order managers (either the token owner or the order creator) may cancel the order with:
 
-```shell
-$ forge snapshot
+```solidity
+function cancelRedeemOrder(uint256 orderId) external;
 ```
 
-### Anvil
+### StakedYuzuUSD
 
-```shell
-$ anvil
+Tokens are minted with:
+
+```solidity
+function deposit(uint256 assets, address receiver) external returns (uint256 shares);
+function mint(uint256 tokens, address receiver) external returns (uint256 assets);
 ```
 
-### Deploy
+Redeems are performed in two steps with a configurable delay between them:
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+```solidity
+function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256);
+function finalizeRedeem(uint256 orderId) external;
 ```
 
-### Cast
+## Token value
 
-```shell
-$ cast <subcommand>
-```
+### YuzuUSD
 
-### Help
+#### Mint
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+YuzuUSD tokens are minted 1:1 for the underlying asset (after decimal adjustment).
+
+#### Redeem
+
+YuzuUSD tokens are redeemable 1:1 for the underlying asset, subject to a configurable fee or incentive.
+
+### YuzuILP
+
+YuzuILP tokens represent a share of the insurance liquidity pool (ILP). The ILP size is periodically updated by the admin, who also sets a yield rate when updating the pool.
+
+#### Mint
+
+Tokens are priced according to the share of the ILP they represent, including the yield accrued since the last pool-size update.
+
+#### Redeem
+
+Tokens are priced according to the share of the ILP they represent, excluding the yield accrued since the last pool-size update. In other words, yield accrued after the last update is forfeited when redeeming tokens.
+
+Excluding recently accrued yield prevents an exploiter from depositing assets immediately after an update and withdrawing them before the next update, thereby capturing most of the yield without bearing the pool's risk.
+
+A configurable fee or incentive may apply to redeems.
+
+### StakedYuzuUSD
+
+#### Mint
+
+Tokens are priced according to the share of YuzuUSD held by the contract that they represent.
+
+#### Redeem
+
+Redeem pricing follows the same rules as minting, and a configurable fee may apply.
+
+## Redemption fees
+
+### YuzuUSD and YuzuILP
+
+Instant redeems are subject to a configurable fee. Redeem orders can either be charged a fee or receive an incentive.
+
+### StakedYuzuUSD
+
+Redeems are subject to a configurable fee.
