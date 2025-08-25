@@ -1,3 +1,11 @@
 {
-    "filter_paths": "lib,test"
+    "include_paths": "src/",
+    "exclude_dependencies": true,
+    "exclude_optimization": false,
+    "exclude_informational": false,
+    "exclude_low": false,
+    "exclude_medium": false,
+    "exclude_high": false,
+    "disable_color": false,
+    "detectors_to_exclude": "timestamp,pess-public-vs-external,pess-magic-number,naming-convention,solc-version,pragma,unused-import,unimplemented-functions"
 }

@@ -13,11 +13,13 @@ interface IYuzuOrderBook is IYuzu {
         external
         returns (uint256 orderId, uint256 assets);
     function fillRedeemOrder(uint256 orderId) external;
+    function finalizeRedeemOrder(uint256 orderId) external;
     function cancelRedeemOrder(uint256 orderId) external;
 
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
 
     function fillWindow() external view returns (uint256);
     function totalPendingOrderSize() external view returns (uint256);
+    function totalUnfinalizedOrderValue() external view returns (uint256);
     function orderCount() external view returns (uint256);
 }

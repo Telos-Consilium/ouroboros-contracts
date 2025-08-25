@@ -12,16 +12,16 @@ struct Order {
     uint256 shares;
     address owner;
     address receiver;
+    address controller;
     uint40 dueTime;
     OrderStatus status;
 }
 
 interface IStakedYuzuUSDDefinitions {
-    // error InvalidZeroShares();
-    // error InvalidZeroAmount();
     error InvalidZeroAddress();
     error RedeemDelayTooHigh(uint256 provided, uint256 max);
     error FeeTooHigh(uint256 provided, uint256 max);
+    error UnauthorizedOrderFinalizer(address caller, address receiver, address controller);
     error OrderNotPending(uint256 orderId);
     error OrderNotDue(uint256 orderId);
     error InvalidAssetRescue(address token);
@@ -44,8 +44,6 @@ interface IStakedYuzuUSDDefinitions {
         uint256 assets,
         uint256 shares
     );
-    event UpdatedMaxDepositPerBlock(uint256 oldLimit, uint256 newLimit);
-    event UpdatedMaxWithdrawPerBlock(uint256 oldLimit, uint256 newLimit);
     event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
 }

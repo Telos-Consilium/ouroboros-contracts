@@ -3,8 +3,7 @@ pragma solidity ^0.8.30;
 
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {IYuzuOrderBookDefinitions, Order, OrderStatus} from "../interfaces/proto/IYuzuOrderBookDefinitions.sol";
 
@@ -12,6 +11,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     struct YuzuOrderBookStorage {
         uint256 _fillWindow;
         uint256 _totalPendingOrderSize;
+        uint256 _totalUnfinalizedOrderValue;
         uint256 _orderCount;
         mapping(uint256 => Order) _orders;
     }
@@ -20,12 +20,10 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     bytes32 private constant YuzuOrderBookStorageLocation =
         0x747f75a735bbbfd5f9552c4d2a106ffbc4ca977c3f429389a57413d9a643a500;
 
-    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuOrderBook_init(uint256 _fillWindow) internal onlyInitializing {
         __YuzuOrderBook_init_unchained(_fillWindow);
     }
 
-    // slither-disable-next-line pess-unprotected-initialize
     function __YuzuOrderBook_init_unchained(uint256 _fillWindow) internal onlyInitializing {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._fillWindow = _fillWindow;
@@ -34,14 +32,14 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     /// @dev See {IERC4626}
     function asset() public view virtual returns (address);
 
-    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256 assets);
-
     /// @dev See {IERC20}
-    function __yuzu_balanceOf(address account) public view virtual returns (uint256);
+    function __yuzu_balanceOf(address account) internal view virtual returns (uint256);
     function __yuzu_burn(address account, uint256 amount) internal virtual;
     function __yuzu_transfer(address from, address to, uint256 value) internal virtual;
 
     function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
+
+    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256);
 
     function maxRedeemOrder(address owner) public view virtual returns (uint256) {
         return __yuzu_balanceOf(owner);
@@ -79,13 +77,29 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         _fillRedeemOrder(caller, order);
 
         emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
+    }
+
+    function finalizeRedeemOrder(uint256 orderId) public virtual {
+        address caller = _msgSender();
+        Order storage order = _getOrder(orderId);
+        if (caller != order.owner && caller != order.controller) {
+            revert UnauthorizedOrderFinalizer(caller, order.owner, order.controller);
+        }
+        if (order.status != OrderStatus.Filled) {
+            revert OrderNotFilled(orderId);
+        }
+
+        _finalizeRedeemOrder(order);
+
+        emit FinalizedRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
     }
 
     function cancelRedeemOrder(uint256 orderId) public virtual {
+        address caller = _msgSender();
         Order storage order = _getOrder(orderId);
-        if (_msgSender() != order.owner) {
-            revert NotOrderOwner(_msgSender(), order.owner);
+        if (caller != order.owner && caller != order.controller) {
+            revert UnauthorizedOrderManager(caller, order.owner, order.controller);
         }
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
@@ -96,7 +110,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
 
         _cancelRedeemOrder(order);
 
-        emit CancelledRedeemOrder(orderId);
+        emit CancelledRedeemOrder(caller, orderId);
     }
 
     function fillWindow() public view returns (uint256) {
@@ -107,6 +121,11 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     function totalPendingOrderSize() public view returns (uint256) {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         return $._totalPendingOrderSize;
+    }
+
+    function totalUnfinalizedOrderValue() public view returns (uint256) {
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        return $._totalUnfinalizedOrderValue;
     }
 
     function orderCount() public view returns (uint256) {
@@ -132,6 +151,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
             tokens: tokens,
             owner: owner,
             receiver: receiver,
+            controller: caller,
             dueTime: SafeCast.toUint40(block.timestamp + $._fillWindow),
             status: OrderStatus.Pending
         });
@@ -149,9 +169,18 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         order.status = OrderStatus.Filled;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._totalPendingOrderSize -= order.tokens;
+        $._totalUnfinalizedOrderValue += order.assets;
 
         __yuzu_burn(address(this), order.tokens);
-        SafeERC20.safeTransferFrom(IERC20(asset()), caller, order.receiver, order.assets);
+        SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), order.assets);
+    }
+
+    function _finalizeRedeemOrder(Order storage order) internal virtual {
+        order.status = OrderStatus.Finalized;
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        $._totalUnfinalizedOrderValue -= order.assets;
+
+        SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
     }
 
     function _cancelRedeemOrder(Order storage order) internal virtual {
@@ -162,6 +191,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     function _getYuzuOrderBookStorage() private pure returns (YuzuOrderBookStorage storage $) {
+        // slither-disable-next-line assembly
         assembly {
             $.slot := YuzuOrderBookStorageLocation
         }
