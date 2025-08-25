@@ -10,7 +10,6 @@ interface IYuzuIssuerDefinitions is IYuzuDefinitions {
     error ExceededMaxRedeem(address owner, uint256 token, uint256 max);
     error ExceededLiquidityBuffer(uint256 requested, uint256 buffer);
 
-    event UpdatedMaxDepositPerBlock(uint256 oldLimit, uint256 newLimit);
-    event UpdatedMaxWithdrawPerBlock(uint256 oldLimit, uint256 newLimit);
+    event UpdatedSupplyCap(uint256 oldCap, uint256 newCap);
     event WithdrawnCollateral(address indexed receiver, uint256 assets);
 }

@@ -18,8 +18,6 @@ struct Order {
 }
 
 interface IStakedYuzuUSDDefinitions {
-    // error InvalidZeroShares();
-    // error InvalidZeroAmount();
     error InvalidZeroAddress();
     error RedeemDelayTooHigh(uint256 provided, uint256 max);
     error FeeTooHigh(uint256 provided, uint256 max);
@@ -46,8 +44,6 @@ interface IStakedYuzuUSDDefinitions {
         uint256 assets,
         uint256 shares
     );
-    event UpdatedMaxDepositPerBlock(uint256 oldLimit, uint256 newLimit);
-    event UpdatedMaxWithdrawPerBlock(uint256 oldLimit, uint256 newLimit);
     event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
 }

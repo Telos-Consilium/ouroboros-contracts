@@ -32,14 +32,14 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     /// @dev See {IERC4626}
     function asset() public view virtual returns (address);
 
-    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256 assets);
-
     /// @dev See {IERC20}
-    function __yuzu_balanceOf(address account) public view virtual returns (uint256);
+    function __yuzu_balanceOf(address account) internal view virtual returns (uint256);
     function __yuzu_burn(address account, uint256 amount) internal virtual;
     function __yuzu_transfer(address from, address to, uint256 value) internal virtual;
 
     function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
+
+    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256);
 
     function maxRedeemOrder(address owner) public view virtual returns (uint256) {
         return __yuzu_balanceOf(owner);
@@ -89,7 +89,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
             revert OrderNotFilled(orderId);
         }
 
-        _finalizeRedeemOrder(caller, order);
+        _finalizeRedeemOrder(order);
 
         emit FinalizedRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
@@ -175,7 +175,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), order.assets);
     }
 
-    function _finalizeRedeemOrder(address caller, Order storage order) internal virtual {
+    function _finalizeRedeemOrder(Order storage order) internal virtual {
         order.status = OrderStatus.Finalized;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._totalUnfinalizedOrderValue -= order.assets;
@@ -191,6 +191,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     function _getYuzuOrderBookStorage() private pure returns (YuzuOrderBookStorage storage $) {
+        // slither-disable-next-line assembly
         assembly {
             $.slot := YuzuOrderBookStorageLocation
         }

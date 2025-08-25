@@ -70,8 +70,6 @@ contract YuzuUSDTest is YuzuProtoTest {
         uint256 depositSize = proto.previewMint(tokens);
 
         asset.mint(caller, depositSize);
-        _setMaxDepositPerBlock(depositSize);
-        _setMaxWithdrawPerBlock(depositSize);
         _setFees(0, feePpm);
 
         _approveAssets(caller, address(proto), depositSize);

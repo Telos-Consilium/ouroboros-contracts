@@ -5,8 +5,6 @@ import {IYuzuIssuer} from "./IYuzuIssuer.sol";
 import {IYuzuOrderBook} from "./IYuzuOrderBook.sol";
 
 interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
-    function totalAssets() external view returns (uint256);
-
     function rescueTokens(address token, address to, uint256 amount) external;
 
     function redeemFeePpm() external view returns (uint256);
@@ -15,7 +13,6 @@ interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
     function setTreasury(address newTreasury) external;
     function setRedeemFee(uint256 newFeePpm) external;
     function setRedeemOrderFee(int256 newFeePpm) external;
-    function setMaxDepositPerBlock(uint256 newMax) external;
-    function setMaxWithdrawPerBlock(uint256 newMax) external;
     function setFillWindow(uint256 newWindow) external;
+    function setSupplyCap(uint256 newCap) external;
 }

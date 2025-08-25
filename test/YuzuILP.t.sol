@@ -180,8 +180,6 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         uint256 depositSize = ilp.previewMint(shares);
 
         asset.mint(caller, depositSize);
-        _setMaxDepositPerBlock(depositSize);
-        _setMaxWithdrawPerBlock(depositSize);
         _setFees(0, feePpm);
 
         _approveAssets(caller, address(ilp), depositSize);
@@ -287,8 +285,8 @@ contract YuzuILPHandler is YuzuProtoHandler {
         actualYieldRatePpm = bound(actualYieldRatePpm, int256(-1_000_000), int256(10_000_000)); // -100% to 1000%
         newYieldRatePpm = bound(newYieldRatePpm, 0, 1_000_000); // 0% to 100%
         vm.warp(block.timestamp + 1 days);
-        uint256 totalAssets = ilp.totalAssets();
-        uint256 newPoolSize = totalAssets * uint256(1e6 + actualYieldRatePpm) / 1e6;
+        uint256 newPoolSize = ilp.poolSize() * uint256(1e6 + actualYieldRatePpm) / 1e6;
+        newPoolSize = _bound(newPoolSize, 0, 1e36);
         vm.prank(admin);
         ilp.updatePool(newPoolSize, newYieldRatePpm);
     }
@@ -315,24 +313,5 @@ contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
 
         handler = new YuzuILPHandler(ilp, admin);
         targetContract(address(handler));
-    }
-
-    function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view override {
-        if (ilp.poolSize() > 1e15) return;
-        super.invariantTest_PreviewMintMaxMint_Le_MaxDeposit();
-    }
-
-    function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view override {
-        if (ilp.poolSize() > 1e15) return;
-        super.invariantTest_PreviewDepositMaxDeposit_Le_MaxMint();
-    }
-
-    function invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw() public view override {
-        if (ilp.poolSize() > 1e15) return;
-        super.invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw();
-    }
-
-    function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view override {
-        return;
     }
 }

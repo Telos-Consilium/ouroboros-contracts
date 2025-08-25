@@ -86,8 +86,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
             "PROTO",
             admin,
             treasury,
-            type(uint256).max, // maxDepositPerBlock
-            type(uint256).max, // maxWithdrawPerBlock
+            type(uint256).max, // supplyCap
             1 days // fillWindow
         );
         ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
@@ -166,14 +165,9 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.finalizeRedeemOrder(orderId);
     }
 
-    function _setMaxDepositPerBlock(uint256 maxDepositPerBlock) internal {
+    function _setSupplyCap(uint256 cap) internal {
         vm.prank(limitManager);
-        proto.setMaxDepositPerBlock(maxDepositPerBlock);
-    }
-
-    function _setMaxWithdrawPerBlock(uint256 maxWithdrawPerBlock) internal {
-        vm.prank(limitManager);
-        proto.setMaxWithdrawPerBlock(maxWithdrawPerBlock);
+        proto.setSupplyCap(cap);
     }
 
     function _setFees(uint256 redeemFeePpm, int256 orderFeePpm) internal {
@@ -194,8 +188,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.name(), "Proto Token");
         assertEq(proto.symbol(), "PROTO");
         assertEq(proto.treasury(), treasury);
-        assertEq(proto.maxDepositPerBlock(), type(uint256).max);
-        assertEq(proto.maxWithdrawPerBlock(), type(uint256).max);
+        assertEq(proto.cap(), type(uint256).max);
         assertEq(proto.fillWindow(), 1 days);
 
         assertEq(proto.getRoleAdmin(ADMIN_ROLE), proto.DEFAULT_ADMIN_ROLE());
@@ -215,8 +208,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
             "PROTO",
             _admin,
             _treasury,
-            type(uint256).max, // maxDepositPerBlock
-            type(uint256).max, // maxWithdrawPerBlock
+            type(uint256).max, // supplyCap
             1 days // fillWindow
         );
     }
@@ -251,12 +243,12 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     // Max Functions
     function test_MaxDeposit_MaxMint() public {
-        _setMaxDepositPerBlock(0);
+        _setSupplyCap(0);
 
         assertEq(proto.maxDeposit(user1), 0);
         assertEq(proto.maxMint(user1), 0);
 
-        _setMaxDepositPerBlock(100e6);
+        _setSupplyCap(100e18);
 
         assertEq(proto.maxDeposit(user1), 100e6);
         assertEq(proto.maxMint(user1), 100e18);
@@ -265,16 +257,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_MaxWithdraw_MaxRedeem() public {
         vm.prank(redeemManager);
         proto.setRedeemFee(100_000); // 10%
-
-        _setMaxWithdrawPerBlock(0);
-
-        // Limited by max, balance, and buffer
-        assertEq(proto.maxWithdraw(user1), 0);
-        assertEq(proto.maxRedeem(user1), 0);
-        // Limited by balance
-        assertEq(proto.maxRedeemOrder(user1), 0);
-
-        _setMaxWithdrawPerBlock(100e6);
 
         // Limited by balance and buffer
         assertEq(proto.maxWithdraw(user1), 0);
@@ -292,25 +274,9 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         _deposit(user1, 300e6);
 
-        // Limited by max
-        assertEq(proto.maxWithdraw(user1), 100e6);
-        assertEq(proto.maxRedeem(user1), 100e18);
-        // Limited by balance
-        assertEq(proto.maxRedeemOrder(user1), 300e18);
-
-        _setMaxWithdrawPerBlock(500e6);
-
         // Limited by buffer
         assertEq(proto.maxWithdraw(user1), 200e6);
         assertEq(proto.maxRedeem(user1), 200e18);
-        // Limited by balance
-        assertEq(proto.maxRedeemOrder(user1), 300e18);
-
-        asset.mint(address(proto), 400e6);
-
-        // Limited by balance
-        assertEq(proto.maxWithdraw(user1), 272_727272);
-        assertEq(proto.maxRedeem(user1), 300e18);
         // Limited by balance
         assertEq(proto.maxRedeemOrder(user1), 300e18);
     }
@@ -345,7 +311,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_Deposit_Revert_ExceedsMaxDeposit() public {
         uint256 assets = 100e6;
-        _setMaxDepositPerBlock(assets);
+        uint256 tokens = 100e18;
+        _setSupplyCap(tokens);
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxDeposit.selector, user2, assets + 1, assets));
         proto.deposit(assets + 1, user2);
@@ -382,7 +349,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_Mint_Revert_ExceedsMaxMint() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setMaxDepositPerBlock(assets);
+        _setSupplyCap(tokens);
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxMint.selector, user2, tokens + 1, tokens));
         proto.mint(tokens + 1, user2);
@@ -431,7 +398,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function test_Withdraw_Revert_ExceedsMaxWithdraw() public {
         uint256 assets = 100e6;
-        _setMaxWithdrawPerBlock(assets);
         _setBalances(user1, assets, assets);
 
         vm.prank(user1);
@@ -482,11 +448,20 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         _redeemAndAssert(user1, tokens, user2, user1);
     }
 
-    function test_Redeem_Revert_ExceedsMaxRedeem() public {
+    function test_Redeem_Revert_ExceedsMaxRedeem_Balance() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setMaxWithdrawPerBlock(assets);
-        _setBalances(user1, assets, assets);
+        _setBalances(user1, assets, assets + 1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
+        proto.redeem(tokens + 1, user2, user1);
+    }
+
+    function test_Redeem_Revert_ExceedsMaxRedeem_LiquidityBuffer() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _setBalances(user1, assets + 1, assets);
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
@@ -567,8 +542,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function test_CreateRedeemOrder_Revert_ExceedsMaxRedeemOrder() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setMaxWithdrawPerBlock(assets);
-        _setBalances(user1, assets, assets);
+        _deposit(user1, assets);
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, tokens + 1, tokens));
         proto.createRedeemOrder(tokens + 1, user2, user1);
@@ -634,19 +608,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         (uint256 orderId,) = _createRedeemOrder(user1, tokens);
         _fillRedeemOrderAndAssert(orderFiller, orderId);
     }
-
-    // function test_FillRedeemOrder_WithIncentive() public {
-    //     uint256 assets = 100e6;
-    //     uint256 tokens = 100e18;
-    //     int256 feePpm = -100_000; // -10%
-
-    //     vm.prank(redeemManager);
-    //     proto.setRedeemOrderFee(feePpm);
-
-    //     _deposit(user1, assets);
-    //     (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-    //     _fillRedeemOrderAndAssert(orderFiller, orderId);
-    // }
 
     function test_FillRedeemOrder_PastDue() public {
         uint256 assets = 100e6;
@@ -923,8 +884,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 mintSize = proto.previewDeposit(assets);
 
         asset.mint(caller, assets);
-        _setMaxDepositPerBlock(assets);
-        _setMaxWithdrawPerBlock(assets);
         _setFees(feePpm, 0);
 
         vm.prank(admin);
@@ -949,8 +908,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         uint256 depositSize = proto.previewMint(tokens);
 
         asset.mint(caller, depositSize);
-        _setMaxDepositPerBlock(depositSize);
-        _setMaxWithdrawPerBlock(depositSize);
         _setFees(feePpm, 0);
 
         vm.prank(admin);
@@ -1127,36 +1084,20 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setRedeemOrderFee(100_000);
     }
 
-    function test_SetMaxDepositPerBlock() public {
+    function test_SetSupplyCap() public {
         vm.prank(limitManager);
         vm.expectEmit();
-        emit UpdatedMaxDepositPerBlock(type(uint256).max, 200e6);
-        proto.setMaxDepositPerBlock(200e6);
-        assertEq(proto.maxDepositPerBlock(), 200e6);
+        emit UpdatedSupplyCap(type(uint256).max, 200e6);
+        proto.setSupplyCap(200e6);
+        assertEq(proto.cap(), 200e6);
     }
 
-    function test_SetMaxDepositPerBlock_Revert_NotLimitManager() public {
+    function test_SetSupplyCap_Revert_NotLimitManager() public {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
         );
-        proto.setMaxDepositPerBlock(200e6);
-    }
-
-    function test_SetMaxWithdrawPerBlock() public {
-        vm.prank(limitManager);
-        vm.expectEmit();
-        emit UpdatedMaxWithdrawPerBlock(type(uint256).max, 200e6);
-        proto.setMaxWithdrawPerBlock(200e6);
-        assertEq(proto.maxWithdrawPerBlock(), 200e6);
-    }
-
-    function test_SetMaxWithdrawPerBlock_Revert_NotLimitManager() public {
-        vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
-        );
-        proto.setMaxWithdrawPerBlock(200e6);
+        proto.setSupplyCap(200e6);
     }
 
     function test_SetFillWindow() public {
@@ -1176,58 +1117,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Misc
-    function test_DepositedPerBlock() public {
-        _deposit(user1, 100e6);
-        assertEq(proto.depositedPerBlock(block.number), 100e6);
-
-        _deposit(user2, 200e6);
-        assertEq(proto.depositedPerBlock(block.number), 300e6);
-    }
-
-    function test_WithdrawnPerBlock() public {
-        _deposit(user1, 300e6);
-        asset.mint(address(proto), 300e6);
-
-        _withdraw(user1, 100e6, user2, user1);
-        assertEq(proto.withdrawnPerBlock(block.number), 100e6);
-
-        _withdraw(user1, 200e6, user2, user1);
-        assertEq(proto.withdrawnPerBlock(block.number), 300e6);
-    }
-
-    function test_MaxDeposit_MaxMint_AcrossBlocks() public {
-        _setMaxDepositPerBlock(100e6);
-
-        asset.mint(address(proto), 200e6);
-        _deposit(user1, 50e6);
-
-        assertEq(proto.maxDeposit(user1), 50e6);
-        assertEq(proto.maxMint(user1), 50e18);
-
-        vm.roll(block.number + 1);
-
-        assertEq(proto.maxDeposit(user1), 100e6);
-        assertEq(proto.maxMint(user1), 100e18);
-    }
-
-    function test_MaxWithdraw_MaxRedeem_AcrossBlocks() public {
-        _setMaxWithdrawPerBlock(100e6);
-
-        asset.mint(address(proto), 200e6);
-        _deposit(user1, 300e6);
-        _withdraw(user1, 50e6, user2, user1);
-
-        assertEq(proto.maxWithdraw(user1), 50e6);
-        assertEq(proto.maxRedeem(user1), 50e18);
-        assertEq(proto.maxRedeemOrder(user1), 250e18);
-
-        vm.roll(block.number + 1);
-
-        assertEq(proto.maxWithdraw(user1), 100e6);
-        assertEq(proto.maxRedeem(user1), 100e18);
-        assertEq(proto.maxRedeemOrder(user1), 250e18);
-    }
-
     function test_MintRedeem_AsTreasury() public {
         vm.prank(admin);
         proto.setTreasury(address(proto));
@@ -1494,8 +1383,7 @@ abstract contract YuzuProtoInvariantTest is Test {
             "PROTO",
             admin,
             _treasury,
-            type(uint256).max, // maxDepositPerBlock
-            type(uint256).max, // maxWithdrawPerBlock
+            type(uint256).max, // supplyCap
             1 days // fillWindow
         );
         ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
@@ -1557,20 +1445,11 @@ abstract contract YuzuProtoInvariantTest is Test {
         assertLe(unfinalizedOrderValue, contractAssetBalance, "! unfinalizedOrderValue <= contractAssetBalance");
     }
 
-    function invariantTest_PreviewMintMaxMint_Le_MaxDeposit() public view virtual {
-        if (proto.totalAssets() < 1e6) return;
-        address[] memory actors = handler.getActors();
-        for (uint256 i = 0; i < actors.length; i++) {
-            address actor = actors[i];
-            uint256 maxMint = proto.maxMint(actor);
-            if (maxMint < 1e12 || maxMint > 1e27) continue;
-            uint256 previewMint = proto.previewMint(maxMint);
-            assertLe(previewMint, proto.maxDeposit(actor), "! previewMint(maxMint) <= maxDeposit");
-        }
+    function invariantTest_TotalSupply_Le_SupplyCap() public view virtual {
+        assertLe(proto.totalSupply(), proto.cap(), "! totalSupply <= supplyCap");
     }
 
     function invariantTest_PreviewDepositMaxDeposit_Le_MaxMint() public view virtual {
-        if (proto.totalAssets() < 1e6) return;
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             address actor = actors[i];
@@ -1581,27 +1460,26 @@ abstract contract YuzuProtoInvariantTest is Test {
         }
     }
 
-    function invariantTest_PreviewRedeemMaxRedeem_Le_MaxWithdraw() public view virtual {
-        if (proto.totalAssets() < 1e6) return;
+    function invariantTest_PreviewRedeemMaxRedeem_Le_LiquidityBuffer() public view virtual {
+        uint256 liquidityBuffer = proto.liquidityBufferSize();
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             address actor = actors[i];
             uint256 maxRedeem = proto.maxRedeem(actor);
-            if (maxRedeem < 1e12 || maxRedeem > 1e27) continue;
             uint256 previewRedeem = proto.previewRedeem(maxRedeem);
-            assertLe(previewRedeem, proto.maxWithdraw(actor), "! previewRedeem(maxRedeem) <= maxWithdraw");
+            assertLe(previewRedeem, liquidityBuffer, "! previewRedeem(maxRedeem) <= liquidityBuffer");
         }
     }
 
-    function invariantTest_PreviewWithdrawMaxWithdraw_Le_MaxRedeem() public view virtual {
-        if (proto.totalAssets() < 1e6) return;
+    function invariantTest_PreviewWithdrawMaxWithdraw_Le_TokenBalance() public view virtual {
         address[] memory actors = handler.getActors();
         for (uint256 i = 0; i < actors.length; i++) {
             address actor = actors[i];
             uint256 maxWithdraw = proto.maxWithdraw(actor);
             if (maxWithdraw < 1e6 || maxWithdraw > 1e15) continue;
             uint256 previewWithdraw = proto.previewWithdraw(maxWithdraw);
-            assertLe(previewWithdraw, proto.maxRedeem(actor), "! previewWithdraw(maxWithdraw) <= maxRedeem");
+            uint256 tokenBalance = proto.balanceOf(actor);
+            assertLe(previewWithdraw, tokenBalance, "! previewWithdraw(maxWithdraw) <= tokenBalance");
         }
     }
 }

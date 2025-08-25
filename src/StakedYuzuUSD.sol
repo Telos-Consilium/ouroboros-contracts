@@ -31,11 +31,6 @@ contract StakedYuzuUSD is
     error ERC2612ExpiredSignature(uint256 deadline);
     error ERC2612InvalidSigner(address signer, address owner);
 
-    mapping(uint256 => uint256) public depositedPerBlock;
-    mapping(uint256 => uint256) public withdrawnPerBlock;
-    uint256 public maxDepositPerBlock;
-    uint256 public maxWithdrawPerBlock;
-
     uint256 public redeemDelay;
     uint256 public redeemFeePpm;
 
@@ -52,35 +47,29 @@ contract StakedYuzuUSD is
     /**
      * @notice Initializes the StakedYuzuUSD contract
      * @param _asset The underlying ERC-20 token for the vault
-     * @param name_ The name of the staked token
-     * @param symbol_ The symbol of the staked token
+     * @param __name The name of the staked token
+     * @param __symbol The symbol of the staked token
      * @param _owner The owner of the contract
-     * @param _maxDepositPerBlock Maximum assets that can be deposited per block
-     * @param _maxWithdrawPerBlock Maximum assets that can be withdrawn per block
      * @param _redeemDelay The delay in seconds before a redeem order can be finalized
      */
     // slither-disable-next-line pess-arbitrary-call-destination-tainted
     function initialize(
         IERC20 _asset,
-        string memory name_,
-        string memory symbol_,
+        string memory __name,
+        string memory __symbol,
         address _owner,
-        uint256 _maxDepositPerBlock,
-        uint256 _maxWithdrawPerBlock,
         uint256 _redeemDelay
     ) external initializer {
         __ERC4626_init(_asset);
-        __ERC20_init(name_, symbol_);
+        __ERC20_init(__name, __symbol);
         __Ownable_init(_owner);
         __Ownable2Step_init();
-        __EIP712_init(name_, "1");
+        __EIP712_init(__name, "1");
 
         if (address(_asset) == address(0)) {
             revert InvalidZeroAddress();
         }
 
-        maxDepositPerBlock = _maxDepositPerBlock;
-        maxWithdrawPerBlock = _maxWithdrawPerBlock;
         redeemDelay = _redeemDelay;
     }
 
@@ -89,51 +78,19 @@ contract StakedYuzuUSD is
         return super.totalAssets() - totalPendingOrderValue;
     }
 
-    /// @notice See {IERC4626-maxDeposit}
-    function maxDeposit(address) public view override returns (uint256) {
-        uint256 deposited = depositedPerBlock[block.number];
-        if (deposited >= maxDepositPerBlock) {
-            return 0;
-        }
-        return maxDepositPerBlock - deposited;
-    }
-
-    /// @notice See {IERC4626-maxMint}
-    function maxMint(address receiver) public view override returns (uint256) {
-        uint256 _maxDeposit = Math.min(maxDeposit(receiver), type(uint256).max - 10 ** _decimalsOffset());
-        return _convertToShares(_maxDeposit, Math.Rounding.Floor);
-    }
-
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address _owner) public view override returns (uint256) {
-        uint256 withdrawn = withdrawnPerBlock[block.number];
-        if (withdrawn >= maxWithdrawPerBlock) {
-            return 0;
-        }
-        uint256 inheritedMaxRedeem = super.maxRedeem(_owner);
-        uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
-        return Math.min(previewRedeem(inheritedMaxRedeem), remainingAllowance);
-    }
-
-    /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address _owner) public view override returns (uint256) {
-        uint256 withdrawn = withdrawnPerBlock[block.number];
-        if (withdrawn >= maxWithdrawPerBlock) {
-            return 0;
-        }
-        uint256 inheritedMaxRedeem = super.maxRedeem(_owner);
-        uint256 remainingAllowance = maxWithdrawPerBlock - withdrawn;
-        return Math.min(_convertToShares(remainingAllowance, Math.Rounding.Floor), inheritedMaxRedeem);
+        return previewRedeem(super.maxRedeem(_owner));
     }
 
     /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
+    function previewWithdraw(uint256 assets) public view override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         return super.previewWithdraw(assets + fee);
     }
 
     /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
+    function previewRedeem(uint256 shares) public view override returns (uint256) {
         uint256 assets = super.previewRedeem(shares);
         return assets - _feeOnTotal(assets, redeemFeePpm);
     }
@@ -207,20 +164,6 @@ contract StakedYuzuUSD is
         return orders[orderId];
     }
 
-    /// @notice Sets the maximum deposit per block to `newMax`
-    function setMaxDepositPerBlock(uint256 newMax) external onlyOwner {
-        uint256 oldMax = maxDepositPerBlock;
-        maxDepositPerBlock = newMax;
-        emit UpdatedMaxDepositPerBlock(oldMax, newMax);
-    }
-
-    /// @notice Sets the maximum withdrawal per block to `newMax`
-    function setMaxWithdrawPerBlock(uint256 newMax) external onlyOwner {
-        uint256 oldMax = maxWithdrawPerBlock;
-        maxWithdrawPerBlock = newMax;
-        emit UpdatedMaxWithdrawPerBlock(oldMax, newMax);
-    }
-
     /// @notice Sets the redemption delay to `newDelay`
     function setRedeemDelay(uint256 newDelay) external onlyOwner {
         if (newDelay > type(uint32).max) {
@@ -244,7 +187,6 @@ contract StakedYuzuUSD is
     /// @notice See {IERC20Permit-permit}.
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
-        virtual
     {
         if (block.timestamp > deadline) {
             revert ERC2612ExpiredSignature(deadline);
@@ -263,19 +205,14 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC20Permit-nonces}
-    function nonces(address _owner) public view virtual override(IERC20Permit, NoncesUpgradeable) returns (uint256) {
+    function nonces(address _owner) public view override(IERC20Permit, NoncesUpgradeable) returns (uint256) {
         return super.nonces(_owner);
     }
 
     /// @notice See {IERC20Permit-DOMAIN_SEPARATOR}
     // solhint-disable-next-line func-name-mixedcase
-    function DOMAIN_SEPARATOR() external view virtual returns (bytes32) {
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparatorV4();
-    }
-
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        depositedPerBlock[block.number] += assets;
-        super._deposit(caller, receiver, assets, shares);
     }
 
     // slither-disable-next-line pess-unprotected-initialize
@@ -283,7 +220,6 @@ contract StakedYuzuUSD is
         internal
         returns (uint256)
     {
-        withdrawnPerBlock[block.number] += assets;
         totalPendingOrderValue += assets;
 
         uint256 orderId = orderCount;
@@ -327,5 +263,6 @@ contract StakedYuzuUSD is
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
+    // slither-disable-next-line unused-state
     uint256[50] private __gap;
 }
