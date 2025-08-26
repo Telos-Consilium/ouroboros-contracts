@@ -127,17 +127,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     /// @notice Preview the amount of assets to receive when redeeming `shares` through an order after fees
     function previewRedeemOrder(uint256 shares) public view override returns (uint256) {
         uint256 assets = _convertToAssetsWithdrawn(shares, Math.Rounding.Floor);
-        int256 _redeemOrderFeePpm = redeemOrderFeePpm;
-
-        if (_redeemOrderFeePpm >= 0) {
-            /// @dev Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(_redeemOrderFeePpm));
-            return assets - fee;
-        } else {
-            /// @dev Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-_redeemOrderFeePpm));
-            return assets + incentive;
-        }
+        return _applyFeeOrIncentiveOnTotal(assets, redeemOrderFeePpm);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
@@ -208,13 +198,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
     /// @dev Returns the yield accrued since the last pool update.
     function _yieldSinceUpdate(Math.Rounding rounding) internal view returns (uint256) {
-        uint256 elapsedTime = _timeSinceUpdate();
-        // slither-disable-next-line incorrect-equality
-        if (elapsedTime == 0) {
-            return 0;
-        }
-        uint256 yieldSinceUpdate = Math.mulDiv(poolSize * dailyLinearYieldRatePpm, elapsedTime, 1e6 days, rounding);
-        return yieldSinceUpdate;
+        return Math.mulDiv(poolSize * dailyLinearYieldRatePpm, _timeSinceUpdate(), 1e6 days, rounding);
     }
 
     /**
@@ -222,7 +206,6 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
      * would have accrued yield making it worth {assets} now.
      */
     function _discountYield(uint256 assets, Math.Rounding rounding) internal view returns (uint256) {
-        // slither-disable-next-line incorrect-equality
         return Math.mulDiv(assets, 1e6 days, 1e6 days + dailyLinearYieldRatePpm * _timeSinceUpdate(), rounding);
     }
 
