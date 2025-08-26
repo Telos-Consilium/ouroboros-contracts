@@ -202,6 +202,7 @@ abstract contract YuzuProto is
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
     }
 
+    /// @dev Applies a fee or incentive to an amount `assets` that already includes fees.
     function _applyFeeOrIncentiveOnTotal(uint256 assets, int256 feePpm) internal pure returns (uint256) {
         if (feePpm >= 0) {
             /// @dev Positive fee - reduce assets returned
