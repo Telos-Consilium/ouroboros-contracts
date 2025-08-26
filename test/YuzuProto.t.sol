@@ -13,6 +13,7 @@ import {ERC20PermitUpgradeable} from
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IAccessControlDefaultAdminRules} from
     "@openzeppelin/contracts/access/extensions/IAccessControlDefaultAdminRules.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
@@ -1110,6 +1111,37 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setFillWindow(2 days);
     }
 
+    function test_Pause_Unpause() public {
+        vm.prank(admin);
+        vm.expectEmit();
+        emit PausableUpgradeable.Paused(admin);
+        proto.pause();
+        assertTrue(proto.paused());
+
+        vm.prank(admin);
+        vm.expectEmit();
+        emit PausableUpgradeable.Unpaused(admin);
+        proto.unpause();
+        assertFalse(proto.paused());
+    }
+
+    function test_Pause_Unpause_Revert_NotAdmin() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        proto.pause();
+
+        vm.prank(admin);
+        proto.pause();
+
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        proto.unpause();
+    }
+
     // Misc
     function test_MintRedeem_AsTreasury() public {
         vm.prank(admin);
@@ -1120,6 +1152,48 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         _withdraw(user1, 100e6);
         assertEq(asset.balanceOf(address(proto)), 0);
+    }
+
+    function test_MintRedeem_Revert_Paused() public {
+        _setBalances(user1, 100e6, 100e6);
+
+        vm.prank(admin);
+        proto.pause();
+
+        vm.startPrank(user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        proto.deposit(100e6, user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        proto.mint(100e18, user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        proto.withdraw(100e6, user1, user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        proto.redeem(100e18, user1, user1);
+        vm.stopPrank();
+    }
+
+    function test_RedeemOrder_Revert_Paused() public {
+        _deposit(user1, 200e6);
+        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
+
+        vm.warp(block.timestamp + proto.fillWindow());
+
+        vm.prank(admin);
+        proto.pause();
+
+        vm.startPrank(user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        proto.createRedeemOrder(100e18, user1, user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        proto.cancelRedeemOrder(orderId);
+        vm.stopPrank();
+
+        vm.prank(orderFiller);
+        proto.fillRedeemOrder(orderId);
+
+        vm.prank(user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        proto.finalizeRedeemOrder(orderId);
     }
 }
 
