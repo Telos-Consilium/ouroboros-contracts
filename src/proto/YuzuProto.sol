@@ -127,17 +127,7 @@ abstract contract YuzuProto is
     /// @notice Preview the amount of assets to receive when redeeming `tokens` with an order after fees
     function previewRedeemOrder(uint256 tokens) public view virtual override returns (uint256) {
         uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
-        int256 _redeemOrderFeePpm = redeemOrderFeePpm;
-
-        if (_redeemOrderFeePpm >= 0) {
-            /// @dev Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(_redeemOrderFeePpm));
-            return assets - fee;
-        } else {
-            /// @dev Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-_redeemOrderFeePpm));
-            return assets + incentive;
-        }
+        return _applyFeeOrIncentiveOnTotal(assets, redeemOrderFeePpm);
     }
 
     function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
@@ -210,6 +200,18 @@ abstract contract YuzuProto is
     /// @dev Calculates the fee part of an amount `assets` that already includes fees.
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
+    }
+
+    function _applyFeeOrIncentiveOnTotal(uint256 assets, int256 feePpm) internal pure returns (uint256) {
+        if (feePpm >= 0) {
+            /// @dev Positive fee - reduce assets returned
+            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(feePpm));
+            return assets - fee;
+        } else {
+            /// @dev Negative fee (incentive) - increase assets returned
+            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-feePpm));
+            return assets + incentive;
+        }
     }
 
     function _decimalsOffset() internal view virtual returns (uint8) {

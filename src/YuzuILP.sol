@@ -127,17 +127,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     /// @notice Preview the amount of assets to receive when redeeming `shares` through an order after fees
     function previewRedeemOrder(uint256 shares) public view override returns (uint256) {
         uint256 assets = _convertToAssetsWithdrawn(shares, Math.Rounding.Floor);
-        int256 _redeemOrderFeePpm = redeemOrderFeePpm;
-
-        if (_redeemOrderFeePpm >= 0) {
-            /// @dev Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(_redeemOrderFeePpm));
-            return assets - fee;
-        } else {
-            /// @dev Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-_redeemOrderFeePpm));
-            return assets + incentive;
-        }
+        return _applyFeeOrIncentiveOnTotal(assets, redeemOrderFeePpm);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
