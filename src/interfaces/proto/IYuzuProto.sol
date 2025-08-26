@@ -15,4 +15,8 @@ interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
     function setRedeemOrderFee(int256 newFeePpm) external;
     function setFillWindow(uint256 newWindow) external;
     function setSupplyCap(uint256 newCap) external;
+
+    function pause() external;
+    function unpause() external;
+    function paused() external view returns (bool);
 }

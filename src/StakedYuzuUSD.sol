@@ -227,7 +227,6 @@ contract StakedYuzuUSD is
         return _domainSeparatorV4();
     }
 
-    // slither-disable-next-line dead-code
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
         internal
         override

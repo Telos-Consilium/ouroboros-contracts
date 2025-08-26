@@ -15,6 +15,7 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -422,6 +423,33 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.setRedeemDelay(uint256(type(uint32).max) + 1);
     }
 
+    function test_Pause_Unpause() public {
+        vm.prank(owner);
+        vm.expectEmit();
+        emit PausableUpgradeable.Paused(owner);
+        styz.pause();
+        assertTrue(styz.paused());
+
+        vm.prank(owner);
+        vm.expectEmit();
+        emit PausableUpgradeable.Unpaused(owner);
+        styz.unpause();
+        assertFalse(styz.paused());
+    }
+
+    function test_Pause_Unpause_Revert_NotAdmin() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
+        styz.pause();
+
+        vm.prank(owner);
+        styz.pause();
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
+        styz.unpause();
+    }
+
     // ERC-4626 Override
     function test_PreviewWithdraw_WithFee() public {
         _deposit(user1, 200e18);
@@ -466,6 +494,34 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.maxRedeem(user1), mintedShares);
         assertEq(styz.previewRedeem(1e18), 2e18 - 1);
+    }
+
+    function test_Mint_Revert_Paused() public {
+        vm.prank(owner);
+        styz.pause();
+
+        vm.startPrank(user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        styz.deposit(100e18, user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        styz.mint(100e18, user1);
+    }
+
+    function test_Redeem_Revert_Paused() public {
+        _deposit(user1, 200e18);
+        (uint256 orderId,) = _initiateRedeem(user1, 100e18);
+
+        vm.warp(block.timestamp + styz.redeemDelay());
+
+        vm.prank(owner);
+        styz.pause();
+
+        vm.startPrank(user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        styz.initiateRedeem(100e18, user1, user1);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        styz.finalizeRedeem(orderId);
+        vm.stopPrank();
     }
 
     // Permit
