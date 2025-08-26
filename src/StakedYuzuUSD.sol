@@ -8,6 +8,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 
@@ -20,6 +21,7 @@ import {IStakedYuzuUSDDefinitions, Order, OrderStatus} from "./interfaces/IStake
 contract StakedYuzuUSD is
     ERC4626Upgradeable,
     Ownable2StepUpgradeable,
+    PausableUpgradeable,
     EIP712Upgradeable,
     NoncesUpgradeable,
     IStakedYuzuUSDDefinitions,
@@ -184,6 +186,16 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
     }
 
+    /// @notice Pauses all minting and redeeming functions
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpauses all minting and redeeming functions
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     /// @notice See {IERC20Permit-permit}.
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
@@ -215,9 +227,29 @@ contract StakedYuzuUSD is
         return _domainSeparatorV4();
     }
 
+    // slither-disable-next-line dead-code
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
+        internal
+        override
+        whenNotPaused
+    {
+        super._deposit(caller, receiver, assets, shares);
+    }
+
+    // slither-disable-next-line dead-code
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
+        internal
+        virtual
+        override
+        whenNotPaused
+    {
+        super._withdraw(caller, receiver, _owner, assets, shares);
+    }
+
     // slither-disable-next-line pess-unprotected-initialize
     function _initiateRedeem(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
         internal
+        whenNotPaused
         returns (uint256)
     {
         totalPendingOrderValue += assets;
@@ -242,7 +274,7 @@ contract StakedYuzuUSD is
         return orderId;
     }
 
-    function _finalizeRedeem(Order storage order) internal {
+    function _finalizeRedeem(Order storage order) internal whenNotPaused {
         order.status = OrderStatus.Executed;
         totalPendingOrderValue -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
