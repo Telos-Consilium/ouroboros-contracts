@@ -9,11 +9,12 @@ import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {IYuzuProtoDefinitions} from "../interfaces/proto/IYuzuProtoDefinitions.sol";
 
 import {YuzuIssuer} from "./YuzuIssuer.sol";
-import {YuzuOrderBook} from "./YuzuOrderBook.sol";
+import {YuzuOrderBook, Order} from "./YuzuOrderBook.sol";
 
 abstract contract YuzuProto is
     ERC20Upgradeable,
@@ -21,6 +22,7 @@ abstract contract YuzuProto is
     YuzuIssuer,
     YuzuOrderBook,
     AccessControlDefaultAdminRulesUpgradeable,
+    PausableUpgradeable,
     IYuzuProtoDefinitions
 {
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -177,6 +179,16 @@ abstract contract YuzuProto is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
+    /// @notice Pauses all minting and redeeming functions
+    function pause() external onlyRole(ADMIN_ROLE) {
+        _pause();
+    }
+
+    /// @notice Unpauses all minting and redeeming functions
+    function unpause() external onlyRole(ADMIN_ROLE) {
+        _unpause();
+    }
+
     // slither-disable-next-line pess-strange-setter
     function setSupplyCap(uint256 newCap) external onlyRole(LIMIT_MANAGER_ROLE) {
         _setSupplyCap(newCap);
@@ -190,6 +202,42 @@ abstract contract YuzuProto is
     /// @dev Returns the assets available for withdrawal.
     function liquidityBufferSize() public view virtual override returns (uint256) {
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
+    }
+
+    function _deposit(address caller, address receiver, uint256 assets, uint256 tokens)
+        internal
+        virtual
+        override
+        whenNotPaused
+    {
+        super._deposit(caller, receiver, assets, tokens);
+    }
+
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 tokens)
+        internal
+        virtual
+        override
+        whenNotPaused
+    {
+        super._withdraw(caller, receiver, _owner, assets, tokens);
+    }
+
+    function _createRedeemOrder(address caller, address receiver, address _owner, uint256 tokens, uint256 assets)
+        internal
+        virtual
+        override
+        whenNotPaused
+        returns (uint256)
+    {
+        return super._createRedeemOrder(caller, receiver, _owner, tokens, assets);
+    }
+
+    function _finalizeRedeemOrder(Order storage order) internal virtual override whenNotPaused {
+        super._finalizeRedeemOrder(order);
+    }
+
+    function _cancelRedeemOrder(Order storage order) internal virtual override whenNotPaused {
+        super._cancelRedeemOrder(order);
     }
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
