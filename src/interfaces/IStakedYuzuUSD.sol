@@ -38,4 +38,8 @@ interface IStakedYuzuUSD is IERC4626 {
 
     function setRedeemDelay(uint256 newDelay) external;
     function setRedeemFee(uint256 newFee) external;
+
+    function pause() external;
+    function unpause() external;
+    function paused() external view returns (bool);
 }
