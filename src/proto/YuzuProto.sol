@@ -115,7 +115,7 @@ abstract contract YuzuProto is
     /// @notice See {IERC4626-previewWithdraw}
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
-        uint256 tokens = previewDeposit(assets + fee);
+        uint256 tokens = _convertToShares(assets + fee, Math.Rounding.Ceil);
         return tokens;
     }
 
