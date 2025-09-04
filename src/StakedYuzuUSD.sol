@@ -168,8 +168,8 @@ contract StakedYuzuUSD is
 
     /// @notice Sets the redemption delay to `newDelay`
     function setRedeemDelay(uint256 newDelay) external onlyOwner {
-        if (newDelay > type(uint32).max) {
-            revert RedeemDelayTooHigh(newDelay, type(uint32).max);
+        if (newDelay > 365 days) {
+            revert RedeemDelayTooHigh(newDelay, 365 days);
         }
         uint256 oldDelay = redeemDelay;
         redeemDelay = newDelay;

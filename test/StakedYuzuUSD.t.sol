@@ -417,10 +417,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_SetRedeemDelay_Revert_TooHigh() public {
         vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(RedeemDelayTooHigh.selector, uint256(type(uint32).max) + 1, type(uint32).max)
-        );
-        styz.setRedeemDelay(uint256(type(uint32).max) + 1);
+        vm.expectRevert(abi.encodeWithSelector(RedeemDelayTooHigh.selector, 365 days + 1, 365 days));
+        styz.setRedeemDelay(365 days + 1);
     }
 
     function test_Pause_Unpause() public {

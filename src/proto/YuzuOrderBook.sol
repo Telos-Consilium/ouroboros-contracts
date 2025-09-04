@@ -203,8 +203,8 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     }
 
     function _setFillWindow(uint256 newWindow) internal {
-        if (newWindow > type(uint32).max) {
-            revert FillWindowTooHigh(newWindow, type(uint32).max);
+        if (newWindow > 365 days) {
+            revert FillWindowTooHigh(newWindow, 365 days);
         }
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         uint256 oldWindow = $._fillWindow;

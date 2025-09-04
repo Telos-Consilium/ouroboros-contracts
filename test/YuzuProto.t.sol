@@ -1111,6 +1111,12 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(proto.fillWindow(), 2 days);
     }
 
+    function test_SetFillWindow_Revert_TooHigh() public {
+        vm.prank(redeemManager);
+        vm.expectRevert(abi.encodeWithSelector(FillWindowTooHigh.selector, 365 days + 1, 365 days));
+        proto.setFillWindow(365 days + 1);
+    }
+
     function test_SetFillWindow_Revert_NotRedeemManager() public {
         vm.prank(user1);
         vm.expectRevert(
