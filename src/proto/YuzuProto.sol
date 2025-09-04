@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -32,6 +33,8 @@ abstract contract YuzuProto is
 
     address internal _asset;
     address internal _treasury;
+
+    uint8 private _underlyingDecimals;
 
     uint256 public redeemFeePpm;
     int256 public redeemOrderFeePpm;
@@ -74,6 +77,24 @@ abstract contract YuzuProto is
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
+
+        (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(IERC20(__asset));
+        _underlyingDecimals = success ? assetDecimals : 18;
+    }
+
+    /// @dev Attempts to fetch the asset decimals. A return value of false indicates that the attempt failed in some way.
+    function _tryGetAssetDecimals(IERC20 asset_) private view returns (bool ok, uint8 assetDecimals) {
+        // slither-disable-next-line pess-arbitrary-call-destination-tainted,low-level-calls
+        (bool success, bytes memory encodedDecimals) =
+            address(asset_).staticcall(abi.encodeCall(IERC20Metadata.decimals, ()));
+        if (success && encodedDecimals.length >= 32) {
+            uint256 returnedDecimals = abi.decode(encodedDecimals, (uint256));
+            if (returnedDecimals <= type(uint8).max) {
+                // slither-disable-next-line pess-dubious-typecast
+                return (true, uint8(returnedDecimals));
+            }
+        }
+        return (false, 0);
     }
 
     function __yuzu_totalSupply() internal view override(YuzuIssuer) returns (uint256) {
@@ -101,6 +122,10 @@ abstract contract YuzuProto is
 
     function __yuzu_transfer(address from, address to, uint256 amount) internal override(YuzuOrderBook) {
         _transfer(from, to, amount);
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return _underlyingDecimals + _decimalsOffset();
     }
 
     /// @notice See {IERC4626-asset}
