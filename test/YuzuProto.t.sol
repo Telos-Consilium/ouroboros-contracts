@@ -931,6 +931,14 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         assertEq(asset.balanceOf(address(proto)), 50e6);
     }
 
+    function test_WithdrawCollateral_Max() public {
+        asset.mint(address(proto), 100e6);
+        vm.prank(admin);
+        proto.withdrawCollateral(type(uint256).max, admin);
+        assertEq(asset.balanceOf(admin), 100e6);
+        assertEq(asset.balanceOf(address(proto)), 0);
+    }
+
     function test_WithdrawCollateral_Revert_ExceedsLiquidityBuffer() public {
         asset.mint(address(proto), 100e6);
         vm.prank(admin);

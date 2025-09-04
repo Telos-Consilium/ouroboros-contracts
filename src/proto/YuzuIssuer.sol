@@ -152,7 +152,9 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
 
     function withdrawCollateral(uint256 assets, address receiver) public virtual {
         uint256 liquidityBuffer = liquidityBufferSize();
-        if (assets > liquidityBuffer) {
+        if (assets == type(uint256).max) {
+            assets = liquidityBuffer;
+        } else if (assets > liquidityBuffer) {
             revert ExceededLiquidityBuffer(assets, liquidityBuffer);
         }
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
