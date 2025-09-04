@@ -66,6 +66,7 @@ contract StakedYuzuUSD is
         __ERC20_init(__name, __symbol);
         __Ownable_init(_owner);
         __Ownable2Step_init();
+        __Pausable_init();
         __EIP712_init(__name, "1");
 
         if (address(_asset) == address(0)) {
