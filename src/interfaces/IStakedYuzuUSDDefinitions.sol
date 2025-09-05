@@ -27,6 +27,7 @@ interface IStakedYuzuUSDDefinitions {
     error InvalidAssetRescue(address token);
     error WithdrawNotSupported();
     error RedeemNotSupported();
+    error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
 
     event InitiatedRedeem(
         address indexed sender,

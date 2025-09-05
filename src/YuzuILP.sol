@@ -98,6 +98,9 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
     /// @notice See {IERC4626-maxRedeem}
     function maxRedeem(address _owner) public view override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
         return Math.min(_convertToSharesRedeemed(_maxWithdraw(_owner), Math.Rounding.Floor), _maxRedeem(_owner));
     }
 

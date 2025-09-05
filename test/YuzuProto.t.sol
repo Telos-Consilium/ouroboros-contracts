@@ -1205,13 +1205,13 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.pause();
 
         vm.startPrank(user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxDeposit.selector, user1, 100e6, 0));
         proto.deposit(100e6, user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxMint.selector, user1, 100e18, 0));
         proto.mint(100e18, user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, 100e6, 0));
         proto.withdraw(100e6, user1, user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, 100e18, 0));
         proto.redeem(100e18, user1, user1);
         vm.stopPrank();
     }
@@ -1226,7 +1226,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.pause();
 
         vm.startPrank(user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, 100e18, 0));
         proto.createRedeemOrder(100e18, user1, user1);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         proto.cancelRedeemOrder(orderId);

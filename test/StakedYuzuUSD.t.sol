@@ -194,14 +194,10 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         _initiateRedeemAndAssert(user1, mintedShares, user1, user1);
     }
 
-    function test_InitiateRedeem_Revert_ExceedsMaxRedeem() public {
+    function test_InitiateRedeem_Revert_ExceedsMaxRedeemOrder() public {
         uint256 mintedShares = _deposit(user1, 100e18);
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, mintedShares + 1, mintedShares
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, mintedShares + 1, mintedShares));
         styz.initiateRedeem(mintedShares + 1, user1, user1);
     }
 
@@ -483,14 +479,14 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.totalAssets(), initialAssets);
     }
 
-    function test_PreviewRedeem_WithAccruedAssets() public {
+    function test_PreviewRedeemOrder_WithAccruedAssets() public {
         uint256 depositAmount = 100e18;
         uint256 mintedShares = _deposit(user1, depositAmount);
 
         // Double the value of the shares
         yzusd.mint(address(styz), depositAmount);
 
-        assertEq(styz.maxRedeem(user1), mintedShares);
+        assertEq(styz.maxRedeemOrder(user1), mintedShares);
         assertEq(styz.previewRedeem(1e18), 2e18 - 1);
     }
 
@@ -499,9 +495,9 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.pause();
 
         vm.startPrank(user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector, user1, 100e18, 0));
         styz.deposit(100e18, user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxMint.selector, user1, 100e18, 0));
         styz.mint(100e18, user1);
     }
 
@@ -515,7 +511,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.pause();
 
         vm.startPrank(user1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, 100e18, 0));
         styz.initiateRedeem(100e18, user1, user1);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         styz.finalizeRedeem(orderId);
@@ -684,7 +680,7 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
     {
         address receiver = _getActor(receiverIndexSeed);
         address _owner = _getActor(ownerIndexSeed);
-        shares = _bound(shares, 0, styz.maxRedeem(_owner));
+        shares = _bound(shares, 0, styz.maxRedeemOrder(_owner));
         redeemedShares += shares;
         (uint256 orderId,) = styz.initiateRedeem(shares, receiver, _owner);
         activeOrderIds.push(orderId);

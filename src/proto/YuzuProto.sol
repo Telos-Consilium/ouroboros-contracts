@@ -142,6 +142,46 @@ abstract contract YuzuProto is
         return _treasury;
     }
 
+    /// @notice See {IERC4626-maxDeposit}
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxDeposit(receiver);
+    }
+
+    /// @notice See {IERC4626-maxMint}
+    function maxMint(address receiver) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxMint(receiver);
+    }
+
+    /// @notice See {IERC4626-maxWithdraw}
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxWithdraw(_owner);
+    }
+
+    /// @notice See {IERC4626-maxRedeem}
+    function maxRedeem(address _owner) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxRedeem(_owner);
+    }
+
+    /// @notice Returns the maximum amount of shares that can be redeemed by `_owner` in a single order
+    function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxRedeemOrder(_owner);
+    }
+
     /// @notice See {IERC4626-previewWithdraw}
     function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
@@ -237,34 +277,6 @@ abstract contract YuzuProto is
     /// @dev Returns the assets available for withdrawal.
     function liquidityBufferSize() public view virtual override returns (uint256) {
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
-    }
-
-    function _deposit(address caller, address receiver, uint256 assets, uint256 tokens)
-        internal
-        virtual
-        override
-        whenNotPaused
-    {
-        super._deposit(caller, receiver, assets, tokens);
-    }
-
-    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 tokens)
-        internal
-        virtual
-        override
-        whenNotPaused
-    {
-        super._withdraw(caller, receiver, _owner, assets, tokens);
-    }
-
-    function _createRedeemOrder(address caller, address receiver, address _owner, uint256 tokens, uint256 assets)
-        internal
-        virtual
-        override
-        whenNotPaused
-        returns (uint256)
-    {
-        return super._createRedeemOrder(caller, receiver, _owner, tokens, assets);
     }
 
     function _finalizeRedeemOrder(Order storage order) internal virtual override whenNotPaused {

@@ -81,9 +81,38 @@ contract StakedYuzuUSD is
         return super.totalAssets() - totalPendingOrderValue;
     }
 
+    /// @notice See {IERC4626-maxDeposit}
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxDeposit(receiver);
+    }
+
+    /// @notice See {IERC4626-maxMint}
+    function maxMint(address receiver) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxMint(receiver);
+    }
+
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address _owner) public view override returns (uint256) {
-        return previewRedeem(super.maxRedeem(_owner));
+        return 0;
+    }
+
+    /// @notice See {IERC4626-maxRedeem}
+    function maxRedeem(address _owner) public view virtual override returns (uint256) {
+        return 0;
+    }
+
+    /// @notice Returns the maximum amount of shares that can be redeemed by `_owner` in a single order
+    function maxRedeemOrder(address _owner) public view virtual returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxRedeem(_owner);
     }
 
     /// @notice See {IERC4626-previewWithdraw}
@@ -120,9 +149,9 @@ contract StakedYuzuUSD is
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
-        uint256 maxShares = maxRedeem(_owner);
+        uint256 maxShares = maxRedeemOrder(_owner);
         if (shares > maxShares) {
-            revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+            revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
         }
 
         uint256 assets = previewRedeem(shares);
@@ -228,28 +257,9 @@ contract StakedYuzuUSD is
         return _domainSeparatorV4();
     }
 
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
-        internal
-        override
-        whenNotPaused
-    {
-        super._deposit(caller, receiver, assets, shares);
-    }
-
-    // slither-disable-next-line dead-code
-    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
-        internal
-        virtual
-        override
-        whenNotPaused
-    {
-        super._withdraw(caller, receiver, _owner, assets, shares);
-    }
-
     // slither-disable-next-line pess-unprotected-initialize
     function _initiateRedeem(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
         internal
-        whenNotPaused
         returns (uint256)
     {
         totalPendingOrderValue += assets;

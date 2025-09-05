@@ -24,6 +24,7 @@ interface IStakedYuzuUSD is IERC4626 {
     function maxMint(address receiver) external view returns (uint256);
     function maxWithdraw(address owner) external view returns (uint256);
     function maxRedeem(address owner) external view returns (uint256);
+    function maxRedeemOrder(address owner) external view returns (uint256);
 
     function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256);
     function finalizeRedeem(uint256 orderId) external;
