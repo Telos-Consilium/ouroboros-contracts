@@ -162,7 +162,9 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
-        return super.maxWithdraw(_owner);
+        uint256 maxAssets = _maxWithdraw(_owner);
+        uint256 fee = _feeOnTotal(maxAssets, redeemFeePpm);
+        return Math.min(previewRedeem(_maxRedeem(_owner)), maxAssets - fee);
     }
 
     /// @notice See {IERC4626-maxRedeem}

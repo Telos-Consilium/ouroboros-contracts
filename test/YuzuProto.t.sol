@@ -796,7 +796,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
 
     function test_MaxWithdraw_MaxRedeem() public {
         vm.prank(redeemManager);
-        proto.setRedeemFee(100_000); // 10%
+        proto.setRedeemFee(250_000); // 25%
 
         // Limited by balance and buffer
         assertEq(proto.maxWithdraw(user1), 0);
@@ -811,7 +811,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         _deposit(user1, 300e6);
 
         // Limited by buffer
-        assertEq(proto.maxWithdraw(user1), 200e6);
+        assertEq(proto.maxWithdraw(user1), 160e6);
         assertEq(proto.maxRedeem(user1), 200e18);
     }
 
@@ -828,13 +828,13 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
 
     function test_Withdraw_WithFee() public {
         uint256 assets = 100e6;
-        uint256 feePpm = 100_000; // 10%
+        uint256 feePpm = 250_000; // 25%
 
         vm.prank(redeemManager);
         proto.setRedeemFee(feePpm);
 
-        _setBalances(user1, assets + assets / 10, assets);
-        _withdrawAndAssert(user1, assets, user2, user1);
+        _setBalances(user1, assets, assets);
+        _withdrawAndAssert(user1, 80e6, user2, user1);
     }
 
     function test_Withdraw_Revert_ExceedsMaxWithdraw() public {
@@ -844,6 +844,20 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, assets + 1, assets));
         proto.withdraw(assets + 1, user2, user1);
+    }
+
+    function test_Withdraw_Revert_ExceedsMaxWithdraw_LiquidityBuffer() public {
+        uint256 assets = 100e6;
+        uint256 liquidityBuffer = 50e6;
+        uint256 feePpm = 250_000; // 25%
+
+        vm.prank(redeemManager);
+        proto.setRedeemFee(feePpm);
+        _setBalances(user1, assets, liquidityBuffer);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, liquidityBuffer, 40e6));
+        proto.withdraw(liquidityBuffer, user2, user1);
     }
 
     // Redeem
@@ -938,6 +952,15 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
 
         uint256 redeemableTokens = proto.maxRedeem(owner);
         _redeemAndAssert(caller, redeemableTokens, receiver, owner);
+    }
+
+    // Misc
+    function test_Preview_FeeRounding() public {
+        _setFees(300_000, 0);
+        assertEq(proto.previewWithdraw(1), 2e12);
+        assertEq(proto.previewWithdraw(9), 12e12);
+        assertEq(proto.previewRedeem(1e12), 0);
+        assertEq(proto.previewRedeem(9e12), 6);
     }
 }
 
@@ -1232,6 +1255,13 @@ abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
         vm.prank(user1);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         proto.finalizeRedeemOrder(orderId);
+    }
+
+    // Misc
+    function test_Preview_FeeRounding() public {
+        _setFees(0, 300_000);
+        assertEq(proto.previewRedeemOrder(1e12), 0);
+        assertEq(proto.previewRedeemOrder(9e12), 6);
     }
 }
 
