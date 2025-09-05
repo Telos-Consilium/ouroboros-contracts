@@ -24,6 +24,7 @@ struct Order {
 interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error InvalidZeroAddress();
     error FillWindowTooHigh(uint256 provided, uint256 max);
+    error UnderMinRedeemOrder(uint256 tokens, uint256 min);
     error UnauthorizedOrderManager(address account, address owner, address controller);
     error UnauthorizedOrderFinalizer(address account, address receiver, address controller);
     error OrderNotPending(uint256 orderId);
@@ -32,6 +33,7 @@ interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
 
     event UpdatedFillWindow(uint256 oldWindow, uint256 newWindow);
+    event UpdatedMinRedeemOrder(uint256 oldMin, uint256 newMin);
     event CreatedRedeemOrder(
         address indexed sender,
         address indexed receiver,

@@ -13,6 +13,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         uint256 _totalPendingOrderSize;
         uint256 _totalUnfinalizedOrderValue;
         uint256 _orderCount;
+        uint256 _minRedeemOrder;
         mapping(uint256 => Order) _orders;
     }
 
@@ -20,13 +21,14 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     bytes32 private constant YuzuOrderBookStorageLocation =
         0x747f75a735bbbfd5f9552c4d2a106ffbc4ca977c3f429389a57413d9a643a500;
 
-    function __YuzuOrderBook_init(uint256 _fillWindow) internal onlyInitializing {
-        __YuzuOrderBook_init_unchained(_fillWindow);
+    function __YuzuOrderBook_init(uint256 _fillWindow, uint256 _minRedeemOrder) internal onlyInitializing {
+        __YuzuOrderBook_init_unchained(_fillWindow, _minRedeemOrder);
     }
 
-    function __YuzuOrderBook_init_unchained(uint256 _fillWindow) internal onlyInitializing {
+    function __YuzuOrderBook_init_unchained(uint256 _fillWindow, uint256 _minRedeemOrder) internal onlyInitializing {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._fillWindow = _fillWindow;
+        $._minRedeemOrder = _minRedeemOrder;
     }
 
     /// @dev See {IERC4626}
@@ -56,6 +58,10 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         uint256 maxTokens = maxRedeemOrder(owner);
         if (tokens > maxTokens) {
             revert ExceededMaxRedeemOrder(owner, tokens, maxTokens);
+        }
+        uint256 minTokens = minRedeemOrder();
+        if (tokens < minTokens) {
+            revert UnderMinRedeemOrder(tokens, minTokens);
         }
 
         uint256 assets = previewRedeemOrder(tokens);
@@ -116,6 +122,11 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     function fillWindow() public view returns (uint256) {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         return $._fillWindow;
+    }
+
+    function minRedeemOrder() public view returns (uint256) {
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        return $._minRedeemOrder;
     }
 
     function totalPendingOrderSize() public view returns (uint256) {
@@ -210,5 +221,12 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         uint256 oldWindow = $._fillWindow;
         $._fillWindow = newWindow;
         emit UpdatedFillWindow(oldWindow, newWindow);
+    }
+
+    function _setMinRedeemOrder(uint256 newMin) internal {
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        uint256 oldMin = $._minRedeemOrder;
+        $._minRedeemOrder = newMin;
+        emit UpdatedMinRedeemOrder(oldMin, newMin);
     }
 }

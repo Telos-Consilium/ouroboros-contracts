@@ -46,9 +46,12 @@ abstract contract YuzuProto is
         address _admin,
         address __treasury,
         uint256 _supplyCap,
-        uint256 _fillWindow
+        uint256 _fillWindow,
+        uint256 _minRedeemOrder
     ) internal onlyInitializing {
-        __YuzuProto_init_unchained(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow);
+        __YuzuProto_init_unchained(
+            __asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow, _minRedeemOrder
+        );
     }
 
     function __YuzuProto_init_unchained(
@@ -58,12 +61,13 @@ abstract contract YuzuProto is
         address _admin,
         address __treasury,
         uint256 _supplyCap,
-        uint256 _fillWindow
+        uint256 _fillWindow,
+        uint256 _minRedeemOrder
     ) internal onlyInitializing {
         __ERC20_init(__name, __symbol);
         __ERC20Permit_init(__name);
         __YuzuIssuer_init(_supplyCap);
-        __YuzuOrderBook_init(_fillWindow);
+        __YuzuOrderBook_init(_fillWindow, _minRedeemOrder);
         __AccessControlDefaultAdminRules_init(0, _admin);
         __Pausable_init();
 
@@ -223,6 +227,11 @@ abstract contract YuzuProto is
     // slither-disable-next-line pess-strange-setter
     function setFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {
         _setFillWindow(newWindow);
+    }
+
+    // slither-disable-next-line pess-strange-setter
+    function setMinRedeemOrder(uint256 newValue) external onlyRole(REDEEM_MANAGER_ROLE) {
+        _setMinRedeemOrder(newValue);
     }
 
     /// @dev Returns the assets available for withdrawal.

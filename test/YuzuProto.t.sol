@@ -88,7 +88,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
             admin,
             treasury,
             type(uint256).max, // supplyCap
-            1 days // fillWindow
+            1 days, // fillWindow
+            0 // minRedeemOrder
         );
         ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
         proto = YuzuProto(address(proxy));
@@ -210,7 +211,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
             _admin,
             _treasury,
             type(uint256).max, // supplyCap
-            1 days // fillWindow
+            1 days, // fillWindow
+            0 // minRedeemOrder
         );
     }
 
@@ -547,6 +549,18 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, tokens + 1, tokens));
         proto.createRedeemOrder(tokens + 1, user2, user1);
+    }
+
+    function test_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
+        uint256 minOrder = 50e18;
+
+        vm.prank(redeemManager);
+        proto.setMinRedeemOrder(minOrder);
+
+        _deposit(user1, 100e6);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinRedeemOrder.selector, minOrder - 1, minOrder));
+        proto.createRedeemOrder(minOrder - 1, user1, user1);
     }
 
     function test_CreateRedeemOrder_Revert_ZeroReceiver() public {
@@ -1125,6 +1139,22 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setFillWindow(2 days);
     }
 
+    function test_setMinRedeemOrder() public {
+        vm.prank(redeemManager);
+        vm.expectEmit();
+        emit UpdatedMinRedeemOrder(0, 100e18);
+        proto.setMinRedeemOrder(100e18);
+        assertEq(proto.minRedeemOrder(), 100e18);
+    }
+
+    function test_setMinRedeemOrder_Revert_NotRedeemManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, REDEEM_MANAGER_ROLE)
+        );
+        proto.setMinRedeemOrder(100e18);
+    }
+
     function test_Pause_Unpause() public {
         vm.prank(admin);
         vm.expectEmit();
@@ -1466,7 +1496,8 @@ abstract contract YuzuProtoInvariantTest is Test {
             admin,
             _treasury,
             type(uint256).max, // supplyCap
-            1 days // fillWindow
+            1 days, // fillWindow
+            0 // minRedeemOrder
         );
         ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
         proto = YuzuProto(address(proxy));

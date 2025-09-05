@@ -42,9 +42,10 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         address _admin,
         address __treasury,
         uint256 _supplyCap,
-        uint256 _fillWindow
+        uint256 _fillWindow,
+        uint256 _minRedeemOrder
     ) external initializer {
-        __YuzuProto_init(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow);
+        __YuzuProto_init(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow, _minRedeemOrder);
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
     }
 
