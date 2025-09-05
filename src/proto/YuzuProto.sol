@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -37,7 +36,7 @@ abstract contract YuzuProto is
     uint8 private _underlyingDecimals;
 
     uint256 public redeemFeePpm;
-    int256 public redeemOrderFeePpm;
+    uint256 public redeemOrderFeePpm;
 
     function __YuzuProto_init(
         address __asset,
@@ -197,9 +196,9 @@ abstract contract YuzuProto is
     }
 
     /// @notice Preview the amount of assets to receive when redeeming `tokens` with an order after fees
-    function previewRedeemOrder(uint256 tokens) public view virtual override returns (uint256) {
-        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
-        return _applyFeeOrIncentiveOnTotal(assets, redeemOrderFeePpm);
+    function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
+        (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
+        return assets;
     }
 
     function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
@@ -240,11 +239,11 @@ abstract contract YuzuProto is
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    function setRedeemOrderFee(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemOrderFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
-            revert FeeTooHigh(SafeCast.toUint256(newFeePpm), 1e6);
+            revert FeeTooHigh(newFeePpm, 1e6);
         }
-        int256 oldFee = redeemOrderFeePpm;
+        uint256 oldFee = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
@@ -279,12 +278,31 @@ abstract contract YuzuProto is
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
     }
 
+    function _previewRedeemOrder(uint256 shares, uint256 feePpm) public virtual override view returns (uint256, uint256) {
+        uint256 assets = _convertToAssets(shares, Math.Rounding.Floor);
+        uint256 fee = _feeOnTotal(assets, feePpm);
+        return (assets - fee, fee);
+    }
+
     function _finalizeRedeemOrder(Order storage order) internal virtual override whenNotPaused {
         super._finalizeRedeemOrder(order);
     }
 
     function _cancelRedeemOrder(Order storage order) internal virtual override whenNotPaused {
         super._cancelRedeemOrder(order);
+    }
+
+    function _newRedeemOrder(address caller, address receiver, address _owner, uint256 tokens)
+        internal
+        view
+        virtual
+        override
+        returns (Order memory)
+    {
+        Order memory order = super._newRedeemOrder(caller, receiver, _owner, tokens);
+        // slither-disable-next-line pess-dubious-typecast
+        order.feePpm = uint24(redeemOrderFeePpm);
+        return order;
     }
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
@@ -295,19 +313,6 @@ abstract contract YuzuProto is
     /// @dev Calculates the fee part of an amount `assets` that already includes fees.
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
-    }
-
-    /// @dev Applies a fee or incentive to an amount `assets` that already includes fees.
-    function _applyFeeOrIncentiveOnTotal(uint256 assets, int256 feePpm) internal pure returns (uint256) {
-        if (feePpm >= 0) {
-            /// @dev Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(feePpm));
-            return assets - fee;
-        } else {
-            /// @dev Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-feePpm));
-            return assets + incentive;
-        }
     }
 
     function _decimalsOffset() internal view virtual returns (uint8) {

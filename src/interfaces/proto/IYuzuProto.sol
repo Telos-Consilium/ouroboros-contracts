@@ -9,7 +9,7 @@ interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
 
     function minRedeemOrder() external view returns (uint256);
     function redeemFeePpm() external view returns (uint256);
-    function redeemOrderFeePpm() external view returns (int256);
+    function redeemOrderFeePpm() external view returns (uint256);
 
     function setTreasury(address newTreasury) external;
     function setSupplyCap(uint256 newCap) external;

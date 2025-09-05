@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import {YuzuProto} from "./proto/YuzuProto.sol";
 

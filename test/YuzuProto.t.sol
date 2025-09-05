@@ -47,12 +47,12 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     uint256 public user1key;
     uint256 public user2key;
 
-    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 private constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
+    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
 
-    bytes32 private constant PERMIT_TYPEHASH =
+    bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     function _deploy() internal virtual returns (address);
@@ -142,13 +142,13 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     function _createRedeemOrder(address caller, uint256 tokens, address receiver, address owner)
         internal
-        returns (uint256 orderId, uint256 assets)
+        returns (uint256 orderId)
     {
         vm.prank(caller);
         return proto.createRedeemOrder(tokens, receiver, owner);
     }
 
-    function _createRedeemOrder(address user, uint256 tokens) internal returns (uint256 orderId, uint256 assets) {
+    function _createRedeemOrder(address user, uint256 tokens) internal returns (uint256 orderId) {
         return _createRedeemOrder(user, tokens, user, user);
     }
 
@@ -172,7 +172,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setSupplyCap(cap);
     }
 
-    function _setFees(uint256 redeemFeePpm, int256 orderFeePpm) internal {
+    function _setFees(uint256 redeemFeePpm, uint256 orderFeePpm) internal {
         vm.startPrank(redeemManager);
         if (redeemFeePpm > 0) proto.setRedeemFee(redeemFeePpm);
         if (orderFeePpm != 0) proto.setRedeemOrderFee(orderFeePpm);
@@ -184,6 +184,201 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         if (protoBalance > 0) asset.mint(address(proto), protoBalance);
     }
 
+    // Initialization
+    function _packInitData(address _asset, address _admin, address _treasury) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(
+            YuzuILP.initialize.selector,
+            address(_asset),
+            "Proto Token",
+            "PROTO",
+            _admin,
+            _treasury,
+            type(uint256).max, // supplyCap
+            1 days, // fillWindow
+            0 // minRedeemOrder
+        );
+    }
+
+    // Deposit
+    function _depositAndAssert(address caller, uint256 assets, address receiver) public {
+        uint256 expectedTokens = proto.previewDeposit(assets);
+
+        uint256 callerAssetsBefore = asset.balanceOf(caller);
+        uint256 receiverTokensBefore = proto.balanceOf(receiver);
+        uint256 tokenSupplyBefore = proto.totalSupply();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit Deposit(caller, receiver, assets, expectedTokens);
+        uint256 mintedTokens = proto.deposit(assets, receiver);
+
+        assertEq(mintedTokens, expectedTokens);
+
+        assertEq(asset.balanceOf(caller), callerAssetsBefore - assets);
+        assertEq(proto.balanceOf(receiver), receiverTokensBefore + mintedTokens);
+        assertEq(proto.totalSupply(), tokenSupplyBefore + mintedTokens);
+    }
+
+    // Mint
+    function _mintAndAssert(address caller, uint256 tokens, address receiver) public {
+        uint256 expectedAssets = proto.previewMint(tokens);
+
+        uint256 callerAssetsBefore = asset.balanceOf(caller);
+        uint256 receiverTokensBefore = proto.balanceOf(receiver);
+        uint256 tokenSupplyBefore = proto.totalSupply();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit Deposit(caller, receiver, expectedAssets, tokens);
+        uint256 depositedAssets = proto.mint(tokens, receiver);
+
+        assertEq(depositedAssets, expectedAssets);
+
+        assertEq(asset.balanceOf(caller), callerAssetsBefore - depositedAssets);
+        assertEq(proto.balanceOf(receiver), receiverTokensBefore + tokens);
+        assertEq(proto.totalSupply(), tokenSupplyBefore + tokens);
+    }
+
+    // Withdraw
+    function _withdrawAndAssert(address caller, uint256 assets, address receiver, address owner) internal {
+        uint256 expectedTokens = proto.previewWithdraw(assets);
+
+        uint256 ownerTokensBefore = proto.balanceOf(owner);
+        uint256 receiverAssetsBefore = asset.balanceOf(receiver);
+        uint256 tokenSupplyBefore = proto.totalSupply();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit Withdraw(caller, receiver, owner, assets, expectedTokens);
+        uint256 redeemedTokens = proto.withdraw(assets, receiver, owner);
+
+        assertEq(redeemedTokens, expectedTokens);
+
+        assertEq(proto.balanceOf(owner), ownerTokensBefore - redeemedTokens);
+        assertEq(asset.balanceOf(receiver), receiverAssetsBefore + assets);
+        assertEq(proto.totalSupply(), tokenSupplyBefore - redeemedTokens);
+    }
+
+    // Redeem
+    function _redeemAndAssert(address caller, uint256 tokens, address receiver, address owner) internal {
+        uint256 expectedAssets = proto.previewRedeem(tokens);
+
+        uint256 ownerTokensBefore = proto.balanceOf(owner);
+        uint256 receiverAssetsBefore = asset.balanceOf(receiver);
+        uint256 tokenSupplyBefore = proto.totalSupply();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit Withdraw(caller, receiver, owner, expectedAssets, tokens);
+        uint256 withdrawnAssets = proto.redeem(tokens, receiver, owner);
+
+        assertEq(withdrawnAssets, expectedAssets);
+
+        assertEq(proto.balanceOf(owner), ownerTokensBefore - tokens);
+        assertEq(asset.balanceOf(receiver), receiverAssetsBefore + withdrawnAssets);
+        assertEq(proto.totalSupply(), tokenSupplyBefore - tokens);
+    }
+
+    // Redeem Orders
+    function _createRedeemOrderAndAssert(address caller, uint256 tokens, address receiver, address owner) internal {
+        uint256 expectedOrderId = proto.orderCount();
+
+        uint256 ownerTokensBefore = proto.balanceOf(owner);
+        uint256 contractTokensBefore = proto.balanceOf(address(proto));
+        uint256 tokenSupplyBefore = proto.totalSupply();
+        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
+        uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit CreatedRedeemOrder(caller, receiver, owner, expectedOrderId, tokens);
+        uint256 orderId = proto.createRedeemOrder(tokens, receiver, owner);
+
+        assertEq(orderId, expectedOrderId);
+        assertEq(proto.orderCount(), expectedOrderId + 1);
+
+        assertEq(proto.balanceOf(owner), ownerTokensBefore - tokens);
+        assertEq(proto.balanceOf(address(proto)), contractTokensBefore + tokens);
+        assertEq(proto.totalSupply(), tokenSupplyBefore);
+        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore + tokens);
+        assertEq(proto.totalUnfinalizedOrderValue(), unfinalizedOrderValue);
+
+        Order memory order = proto.getRedeemOrder(orderId);
+        assertEq(order.assets, 0);
+        assertEq(order.tokens, tokens);
+        assertEq(order.owner, owner);
+        assertEq(order.receiver, receiver);
+        assertEq(order.dueTime, block.timestamp + proto.fillWindow());
+        assertEq(uint256(order.status), uint256(OrderStatus.Pending));
+    }
+
+    function _fillRedeemOrderAndAssert(address caller, uint256 orderId) internal {
+        Order memory order = proto.getRedeemOrder(orderId);
+
+        uint256 expectedAssets = proto.previewRedeemOrder(order.tokens);
+        uint256 contractAssetsBefore = asset.balanceOf(address(proto));
+        uint256 tokensSupplyBefore = proto.totalSupply();
+        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
+        uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, expectedAssets, order.tokens);
+        proto.fillRedeemOrder(orderId);
+
+        Order memory orderAfter = proto.getRedeemOrder(orderId);
+        assertEq(uint256(orderAfter.status), uint256(OrderStatus.Filled));
+
+        assertEq(asset.balanceOf(address(proto)), contractAssetsBefore + expectedAssets);
+        assertEq(proto.totalSupply(), tokensSupplyBefore - order.tokens);
+        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore - order.tokens);
+        assertEq(proto.totalUnfinalizedOrderValue(), unfinalizedOrderValue + expectedAssets);
+    }
+
+    function _finalizeRedeemOrderAndAssert(address caller, uint256 orderId) internal {
+        Order memory order = proto.getRedeemOrder(orderId);
+
+        uint256 contractAssetsBefore = asset.balanceOf(address(proto));
+        uint256 receiverAssetsBefore = asset.balanceOf(order.receiver);
+        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
+        uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit FinalizedRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
+        vm.expectEmit();
+        emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
+        proto.finalizeRedeemOrder(orderId);
+
+        Order memory orderAfter = proto.getRedeemOrder(orderId);
+        assertEq(uint256(orderAfter.status), uint256(OrderStatus.Finalized));
+
+        assertEq(asset.balanceOf(address(proto)), contractAssetsBefore - order.assets);
+        assertEq(asset.balanceOf(order.receiver), receiverAssetsBefore + order.assets);
+        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore);
+        assertEq(proto.totalUnfinalizedOrderValue(), unfinalizedOrderValue - order.assets);
+    }
+
+    function _cancelRedeemOrderAndAssert(address caller, uint256 orderId) internal {
+        Order memory order = proto.getRedeemOrder(orderId);
+
+        uint256 ownerTokensBefore = proto.balanceOf(order.owner);
+        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
+
+        vm.prank(caller);
+        vm.expectEmit();
+        emit CancelledRedeemOrder(caller, orderId);
+        proto.cancelRedeemOrder(orderId);
+
+        Order memory orderAfter = proto.getRedeemOrder(orderId);
+        assertEq(uint256(orderAfter.status), uint256(OrderStatus.Cancelled));
+
+        assertEq(proto.balanceOf(order.owner), ownerTokensBefore + order.tokens);
+        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore - order.tokens);
+    }
+}
+
+abstract contract YuzuProtoTest_Common is YuzuProtoTest {
     // Initialization
     function test_Initialize() public {
         assertEq(proto.asset(), address(asset));
@@ -200,20 +395,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         assertTrue(proto.hasRole(proto.DEFAULT_ADMIN_ROLE(), admin));
         assertTrue(proto.hasRole(ADMIN_ROLE, admin));
-    }
-
-    function _packInitData(address _asset, address _admin, address _treasury) internal returns (bytes memory) {
-        return abi.encodeWithSelector(
-            YuzuILP.initialize.selector,
-            address(_asset),
-            "Proto Token",
-            "PROTO",
-            _admin,
-            _treasury,
-            type(uint256).max, // supplyCap
-            1 days, // fillWindow
-            0 // minRedeemOrder
-        );
     }
 
     function test_Initialize_Revert_ZeroAddress() public {
@@ -244,66 +425,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         );
     }
 
-    // Max Functions
-    function test_MaxDeposit_MaxMint() public {
-        _setSupplyCap(0);
-
-        assertEq(proto.maxDeposit(user1), 0);
-        assertEq(proto.maxMint(user1), 0);
-
-        _setSupplyCap(100e18);
-
-        assertEq(proto.maxDeposit(user1), 100e6);
-        assertEq(proto.maxMint(user1), 100e18);
-    }
-
-    function test_MaxWithdraw_MaxRedeem() public {
-        vm.prank(redeemManager);
-        proto.setRedeemFee(100_000); // 10%
-
-        // Limited by balance and buffer
-        assertEq(proto.maxWithdraw(user1), 0);
-        assertEq(proto.maxRedeem(user1), 0);
-        // Limited by balance
-        assertEq(proto.maxRedeemOrder(user1), 0);
-
-        asset.mint(address(proto), 200e6);
-
-        // Limited by balance
-        assertEq(proto.maxWithdraw(user1), 0);
-        assertEq(proto.maxRedeem(user1), 0);
-        // Limited by balance
-        assertEq(proto.maxRedeemOrder(user1), 0);
-
-        _deposit(user1, 300e6);
-
-        // Limited by buffer
-        assertEq(proto.maxWithdraw(user1), 200e6);
-        assertEq(proto.maxRedeem(user1), 200e18);
-        // Limited by balance
-        assertEq(proto.maxRedeemOrder(user1), 300e18);
-    }
-
     // Deposit
-    function _depositAndAssert(address caller, uint256 assets, address receiver) public {
-        uint256 expectedTokens = proto.previewDeposit(assets);
-
-        uint256 callerAssetsBefore = asset.balanceOf(caller);
-        uint256 receiverTokensBefore = proto.balanceOf(receiver);
-        uint256 tokenSupplyBefore = proto.totalSupply();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit Deposit(caller, receiver, assets, expectedTokens);
-        uint256 mintedTokens = proto.deposit(assets, receiver);
-
-        assertEq(mintedTokens, expectedTokens);
-
-        assertEq(asset.balanceOf(caller), callerAssetsBefore - assets);
-        assertEq(proto.balanceOf(receiver), receiverTokensBefore + mintedTokens);
-        assertEq(proto.totalSupply(), tokenSupplyBefore + mintedTokens);
-    }
-
     function test_Deposit() public {
         _depositAndAssert(user1, 100e6, user2);
     }
@@ -322,25 +444,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Mint
-    function _mintAndAssert(address caller, uint256 tokens, address receiver) public {
-        uint256 expectedAssets = proto.previewMint(tokens);
-
-        uint256 callerAssetsBefore = asset.balanceOf(caller);
-        uint256 receiverTokensBefore = proto.balanceOf(receiver);
-        uint256 tokenSupplyBefore = proto.totalSupply();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit Deposit(caller, receiver, expectedAssets, tokens);
-        uint256 depositedAssets = proto.mint(tokens, receiver);
-
-        assertEq(depositedAssets, expectedAssets);
-
-        assertEq(asset.balanceOf(caller), callerAssetsBefore - depositedAssets);
-        assertEq(proto.balanceOf(receiver), receiverTokensBefore + tokens);
-        assertEq(proto.totalSupply(), tokenSupplyBefore + tokens);
-    }
-
     function test_Mint() public {
         _mintAndAssert(user1, 100e18, user2);
     }
@@ -350,7 +453,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     function test_Mint_Revert_ExceedsMaxMint() public {
-        uint256 assets = 100e6;
         uint256 tokens = 100e18;
         _setSupplyCap(tokens);
         vm.prank(user1);
@@ -358,479 +460,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.mint(tokens + 1, user2);
     }
 
-    // Withdraw
-    function _withdrawAndAssert(address caller, uint256 assets, address receiver, address owner) internal {
-        uint256 expectedTokens = proto.previewWithdraw(assets);
-
-        uint256 ownerTokensBefore = proto.balanceOf(owner);
-        uint256 receiverAssetsBefore = asset.balanceOf(receiver);
-        uint256 tokenSupplyBefore = proto.totalSupply();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit Withdraw(caller, receiver, owner, assets, expectedTokens);
-        uint256 redeemedTokens = proto.withdraw(assets, receiver, owner);
-
-        assertEq(redeemedTokens, expectedTokens);
-
-        assertEq(proto.balanceOf(owner), ownerTokensBefore - redeemedTokens);
-        assertEq(asset.balanceOf(receiver), receiverAssetsBefore + assets);
-        assertEq(proto.totalSupply(), tokenSupplyBefore - redeemedTokens);
-    }
-
-    function test_Withdraw() public {
-        uint256 assets = 100e6;
-        _setBalances(user1, assets, assets);
-        _withdrawAndAssert(user1, assets, user2, user1);
-    }
-
-    function test_Withdraw_Zero() public {
-        _withdrawAndAssert(user1, 0, user2, user1);
-    }
-
-    function test_Withdraw_WithFee() public {
-        uint256 assets = 100e6;
-        uint256 feePpm = 100_000; // 10%
-
-        vm.prank(redeemManager);
-        proto.setRedeemFee(feePpm);
-
-        _setBalances(user1, assets + assets / 10, assets);
-        _withdrawAndAssert(user1, assets, user2, user1);
-    }
-
-    function test_Withdraw_Revert_ExceedsMaxWithdraw() public {
-        uint256 assets = 100e6;
-        _setBalances(user1, assets, assets);
-
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, assets + 1, assets));
-        proto.withdraw(assets + 1, user2, user1);
-    }
-
-    // Redeem
-    function _redeemAndAssert(address caller, uint256 tokens, address receiver, address owner) internal {
-        uint256 expectedAssets = proto.previewRedeem(tokens);
-
-        uint256 ownerTokensBefore = proto.balanceOf(owner);
-        uint256 receiverAssetsBefore = asset.balanceOf(receiver);
-        uint256 tokenSupplyBefore = proto.totalSupply();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit Withdraw(caller, receiver, owner, expectedAssets, tokens);
-        uint256 withdrawnAssets = proto.redeem(tokens, receiver, owner);
-
-        assertEq(withdrawnAssets, expectedAssets);
-
-        assertEq(proto.balanceOf(owner), ownerTokensBefore - tokens);
-        assertEq(asset.balanceOf(receiver), receiverAssetsBefore + withdrawnAssets);
-        assertEq(proto.totalSupply(), tokenSupplyBefore - tokens);
-    }
-
-    function test_Redeem() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets);
-        _redeemAndAssert(user1, tokens, user2, user1);
-    }
-
-    function test_Redeem_Zero() public {
-        _redeemAndAssert(user1, 0, user2, user1);
-    }
-
-    function test_Redeem_WithFee() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        uint256 feePpm = 100_000; // 10%
-
-        vm.prank(redeemManager);
-        proto.setRedeemFee(feePpm);
-
-        _setBalances(user1, assets, assets);
-        _redeemAndAssert(user1, tokens, user2, user1);
-    }
-
-    function test_Redeem_Revert_ExceedsMaxRedeem_Balance() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets + 1);
-
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
-        proto.redeem(tokens + 1, user2, user1);
-    }
-
-    function test_Redeem_Revert_ExceedsMaxRedeem_LiquidityBuffer() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _setBalances(user1, assets + 1, assets);
-
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
-        proto.redeem(tokens + 1, user2, user1);
-    }
-
-    // Redeem Orders
-    function _createRedeemOrderAndAssert(address caller, uint256 tokens, address receiver, address owner) internal {
-        uint256 expectedAssets = proto.previewRedeemOrder(tokens);
-        uint256 expectedOrderId = proto.orderCount();
-
-        uint256 ownerTokensBefore = proto.balanceOf(owner);
-        uint256 contractTokensBefore = proto.balanceOf(address(proto));
-        uint256 tokenSupplyBefore = proto.totalSupply();
-        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
-        uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit CreatedRedeemOrder(caller, receiver, owner, expectedOrderId, expectedAssets, tokens);
-        (uint256 orderId, uint256 assets) = proto.createRedeemOrder(tokens, receiver, owner);
-
-        assertEq(assets, expectedAssets);
-        assertEq(orderId, expectedOrderId);
-        assertEq(proto.orderCount(), expectedOrderId + 1);
-
-        assertEq(proto.balanceOf(owner), ownerTokensBefore - tokens);
-        assertEq(proto.balanceOf(address(proto)), contractTokensBefore + tokens);
-        assertEq(proto.totalSupply(), tokenSupplyBefore);
-        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore + tokens);
-        assertEq(proto.totalUnfinalizedOrderValue(), unfinalizedOrderValue);
-
-        Order memory order = proto.getRedeemOrder(orderId);
-        assertEq(order.assets, expectedAssets);
-        assertEq(order.tokens, tokens);
-        assertEq(order.owner, owner);
-        assertEq(order.receiver, receiver);
-        assertEq(order.dueTime, block.timestamp + proto.fillWindow());
-        assertEq(uint256(order.status), uint256(OrderStatus.Pending));
-    }
-
-    function test_CreateRedeemOrder() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        _createRedeemOrderAndAssert(user1, tokens, user2, user1);
-    }
-
-    function test_CreateRedeemOrder_Zero() public {
-        _createRedeemOrderAndAssert(user1, 0, user2, user1);
-    }
-
-    function test_CreateRedeemOrder_WithFee() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        int256 feePpm = 100_000; // 10%
-
-        vm.prank(redeemManager);
-        proto.setRedeemOrderFee(feePpm);
-
-        _deposit(user1, assets);
-        _createRedeemOrderAndAssert(user1, tokens, user2, user1);
-    }
-
-    function test_CreateRedeemOrder_WithIncentive() public {
-        address owner = user1;
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        int256 feePpm = -100_000; // -10%
-
-        vm.prank(redeemManager);
-        proto.setRedeemOrderFee(feePpm);
-
-        _deposit(owner, assets);
-        _createRedeemOrderAndAssert(user1, tokens, user2, user1);
-    }
-
-    function test_CreateRedeemOrder_Revert_ExceedsMaxRedeemOrder() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, tokens + 1, tokens));
-        proto.createRedeemOrder(tokens + 1, user2, user1);
-    }
-
-    function test_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
-        uint256 minOrder = 50e18;
-
-        vm.prank(redeemManager);
-        proto.setMinRedeemOrder(minOrder);
-
-        _deposit(user1, 100e6);
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(UnderMinRedeemOrder.selector, minOrder - 1, minOrder));
-        proto.createRedeemOrder(minOrder - 1, user1, user1);
-    }
-
-    function test_CreateRedeemOrder_Revert_ZeroReceiver() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets);
-        vm.prank(user1);
-        vm.expectRevert(InvalidZeroAddress.selector);
-        proto.createRedeemOrder(tokens, address(0), user1);
-    }
-
-    function test_CreateRedeemOrder_Revert_InsufficientAllowance() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets);
-        vm.prank(user2);
-        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, user2, 0, tokens));
-        proto.createRedeemOrder(tokens, user2, user1);
-    }
-
-    function _fillRedeemOrderAndAssert(address caller, uint256 orderId) internal {
-        Order memory order = proto.getRedeemOrder(orderId);
-
-        uint256 contractAssetsBefore = asset.balanceOf(address(proto));
-        uint256 tokensSupplyBefore = proto.totalSupply();
-        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
-        uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
-        proto.fillRedeemOrder(orderId);
-
-        Order memory orderAfter = proto.getRedeemOrder(orderId);
-        assertEq(uint256(orderAfter.status), uint256(OrderStatus.Filled));
-
-        assertEq(asset.balanceOf(address(proto)), contractAssetsBefore + order.assets);
-        assertEq(proto.totalSupply(), tokensSupplyBefore - order.tokens);
-        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore - order.tokens);
-        assertEq(proto.totalUnfinalizedOrderValue(), unfinalizedOrderValue + order.assets);
-    }
-
-    function test_FillRedeemOrder() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-        _fillRedeemOrderAndAssert(orderFiller, orderId);
-    }
-
-    function test_FillRedeemOrder_WithFee() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        int256 feePpm = 100_000; // 10%
-
-        vm.prank(redeemManager);
-        proto.setRedeemOrderFee(feePpm);
-
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-        _fillRedeemOrderAndAssert(orderFiller, orderId);
-    }
-
-    function test_FillRedeemOrder_PastDue() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-        vm.warp(block.timestamp + proto.fillWindow());
-        _fillRedeemOrderAndAssert(orderFiller, orderId);
-    }
-
-    function test_FillRedeemOrder_Revert_AlreadyFilled() public {
-        _deposit(user1, 100e6);
-        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
-        _fillRedeemOrder(orderId);
-
-        vm.prank(orderFiller);
-        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
-        proto.fillRedeemOrder(orderId);
-    }
-
-    function test_FillRedeemOrder_Revert_Cancelled() public {
-        _deposit(user1, 100e6);
-        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
-        vm.warp(block.timestamp + proto.fillWindow());
-        _cancelRedeemOrder(user1, orderId);
-
-        vm.prank(orderFiller);
-        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
-        proto.fillRedeemOrder(orderId);
-    }
-
-    function test_FillRedeemOrder_Revert_NotFiller() public {
-        _deposit(user1, 100e6);
-        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
-
-        vm.prank(user2);
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user2, ORDER_FILLER_ROLE)
-        );
-        proto.fillRedeemOrder(orderId);
-    }
-
-    function _finalizeRedeemOrderAndAssert(address caller, uint256 orderId) internal {
-        Order memory order = proto.getRedeemOrder(orderId);
-
-        uint256 contractAssetsBefore = asset.balanceOf(address(proto));
-        uint256 receiverAssetsBefore = asset.balanceOf(order.receiver);
-        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
-        uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit FinalizedRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
-        vm.expectEmit();
-        emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
-        proto.finalizeRedeemOrder(orderId);
-
-        Order memory orderAfter = proto.getRedeemOrder(orderId);
-        assertEq(uint256(orderAfter.status), uint256(OrderStatus.Finalized));
-
-        assertEq(asset.balanceOf(address(proto)), contractAssetsBefore - order.assets);
-        assertEq(asset.balanceOf(order.receiver), receiverAssetsBefore + order.assets);
-        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore);
-        assertEq(proto.totalUnfinalizedOrderValue(), unfinalizedOrderValue - order.assets);
-    }
-
-    function test_FinalizeRedeemOrder_ByReceiver() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-        _fillRedeemOrder(orderId);
-        _finalizeRedeemOrderAndAssert(user1, orderId);
-    }
-
-    function test_FinalizeRedeemOrder_ByController() public {
-        address receiver = user1;
-        address controller = user2;
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(receiver, assets);
-        _approveTokens(receiver, controller, tokens);
-        (uint256 orderId,) = _createRedeemOrder(controller, tokens, receiver, receiver);
-        _fillRedeemOrder(orderId);
-        _finalizeRedeemOrderAndAssert(receiver, orderId);
-    }
-
-    function test_FinalizeRedeemOrder_Revert_AlreadyFilled() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-        _fillRedeemOrder(orderId);
-        _finalizeRedeemOrder(orderId);
-
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(OrderNotFilled.selector, orderId));
-        proto.finalizeRedeemOrder(orderId);
-    }
-
-    function test_FinalizeRedeemOrder_Revert_NotFilled() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(OrderNotFilled.selector, orderId));
-        proto.finalizeRedeemOrder(orderId);
-    }
-
-    function test_FinalizeRedeemOrder_Revert_NotManager() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-        _fillRedeemOrder(orderId);
-
-        vm.prank(user2);
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderFinalizer.selector, user2, user1, user1));
-        proto.finalizeRedeemOrder(orderId);
-    }
-
-    function _cancelRedeemOrderAndAssert(address caller, uint256 orderId) internal {
-        Order memory order = proto.getRedeemOrder(orderId);
-
-        uint256 ownerTokensBefore = proto.balanceOf(order.owner);
-        uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
-
-        vm.prank(caller);
-        vm.expectEmit();
-        emit CancelledRedeemOrder(caller, orderId);
-        proto.cancelRedeemOrder(orderId);
-
-        Order memory orderAfter = proto.getRedeemOrder(orderId);
-        assertEq(uint256(orderAfter.status), uint256(OrderStatus.Cancelled));
-
-        assertEq(proto.balanceOf(order.owner), ownerTokensBefore + order.tokens);
-        assertEq(proto.totalPendingOrderSize(), pendingOrderSizeBefore - order.tokens);
-    }
-
-    function test_CancelRedeemOrder_ByOwner() public {
-        address owner = user1;
-        address controller = user2;
-        address receiver = makeAddr("receiver");
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(owner, assets);
-        _approveTokens(owner, controller, tokens);
-        (uint256 orderId,) = _createRedeemOrder(controller, tokens, receiver, owner);
-
-        vm.warp(block.timestamp + proto.fillWindow());
-
-        _cancelRedeemOrderAndAssert(owner, orderId);
-    }
-
-    function test_CancelRedeemOrder_ByController() public {
-        address controller = user1;
-        address owner = user2;
-        address receiver = makeAddr("receiver");
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(owner, assets);
-        _approveTokens(owner, controller, tokens);
-        (uint256 orderId,) = _createRedeemOrder(controller, tokens, receiver, owner);
-
-        vm.warp(block.timestamp + proto.fillWindow());
-
-        _cancelRedeemOrderAndAssert(controller, orderId);
-    }
-
-    function test_CancelRedeemOrder_Revert_NotDue() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
-        proto.cancelRedeemOrder(orderId);
-    }
-
-    function test_CancelRedeemOrder_Revert_AlreadyCancelled() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-
-        vm.warp(block.timestamp + proto.fillWindow());
-
-        _cancelRedeemOrder(user1, orderId);
-
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
-        proto.cancelRedeemOrder(orderId);
-    }
-
-    function test_CancelRedeemOrder_Revert_NotManager() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-
-        vm.prank(user2);
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderManager.selector, user2, user1, user1));
-        proto.cancelRedeemOrder(orderId);
-    }
-
+    // EIP-2612 Permit
     function test_Permit() public {
         address owner = user1;
         uint256 ownerPrivateKey = user1key;
@@ -884,56 +514,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612ExpiredSignature.selector, deadline));
         proto.permit(owner, spender, value, deadline, v, r, s);
-    }
-
-    // Fuzz
-    function testFuzz_Deposit_Withdraw(address caller, address receiver, address owner, uint256 assets, uint256 feePpm)
-        public
-    {
-        vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
-        vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
-
-        assets = bound(assets, 0, 1_000_000e6);
-        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
-
-        uint256 mintSize = proto.previewDeposit(assets);
-
-        asset.mint(caller, assets);
-        _setFees(feePpm, 0);
-
-        vm.prank(admin);
-        proto.setTreasury(address(proto));
-
-        _approveAssets(caller, address(proto), assets);
-        _depositAndAssert(caller, assets, owner);
-        _approveTokens(owner, caller, mintSize);
-
-        uint256 withdrawableAssets = proto.maxWithdraw(owner);
-        _withdrawAndAssert(caller, withdrawableAssets, receiver, owner);
-    }
-
-    function testFuzz_Mint_Redeem(address caller, address receiver, address owner, uint256 tokens, uint256 feePpm)
-        public
-    {
-        vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
-        vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
-        tokens = bound(tokens, 1e12, 1_000_000e18);
-        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
-
-        uint256 depositSize = proto.previewMint(tokens);
-
-        asset.mint(caller, depositSize);
-        _setFees(feePpm, 0);
-
-        vm.prank(admin);
-        proto.setTreasury(address(proto));
-
-        _approveAssets(caller, address(proto), depositSize);
-        _mintAndAssert(caller, tokens, owner);
-        _approveTokens(owner, caller, tokens);
-
-        uint256 redeemableTokens = proto.maxRedeem(owner);
-        _redeemAndAssert(caller, redeemableTokens, receiver, owner);
     }
 
     // Admin Functions
@@ -1079,12 +659,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         emit UpdatedRedeemOrderFee(0, 1_000_000);
         proto.setRedeemOrderFee(1_000_000);
         assertEq(proto.redeemOrderFeePpm(), 1_000_000);
-
-        vm.prank(redeemManager);
-        vm.expectEmit();
-        emit UpdatedRedeemOrderFee(1_000_000, -1_000_000);
-        proto.setRedeemOrderFee(-1_000_000);
-        assertEq(proto.redeemOrderFeePpm(), -1_000_000);
     }
 
     function test_SetRedeemOrderFee_Revert_ExceedsMaxFee() public {
@@ -1187,17 +761,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Misc
-    function test_MintRedeem_AsTreasury() public {
-        vm.prank(admin);
-        proto.setTreasury(address(proto));
-
-        _deposit(user1, 100e6);
-        assertEq(asset.balanceOf(address(proto)), 100e6);
-
-        _withdraw(user1, 100e6);
-        assertEq(asset.balanceOf(address(proto)), 0);
-    }
-
     function test_MintRedeem_Revert_Paused() public {
         _setBalances(user1, 100e6, 100e6);
 
@@ -1215,10 +778,441 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.redeem(100e18, user1, user1);
         vm.stopPrank();
     }
+}
+
+abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
+    // Max Functions
+    function test_MaxDeposit_MaxMint() public {
+        _setSupplyCap(0);
+
+        assertEq(proto.maxDeposit(user1), 0);
+        assertEq(proto.maxMint(user1), 0);
+
+        _setSupplyCap(100e18);
+
+        assertEq(proto.maxDeposit(user1), 100e6);
+        assertEq(proto.maxMint(user1), 100e18);
+    }
+
+    function test_MaxWithdraw_MaxRedeem() public {
+        vm.prank(redeemManager);
+        proto.setRedeemFee(100_000); // 10%
+
+        // Limited by balance and buffer
+        assertEq(proto.maxWithdraw(user1), 0);
+        assertEq(proto.maxRedeem(user1), 0);
+
+        asset.mint(address(proto), 200e6);
+
+        // Limited by balance
+        assertEq(proto.maxWithdraw(user1), 0);
+        assertEq(proto.maxRedeem(user1), 0);
+
+        _deposit(user1, 300e6);
+
+        // Limited by buffer
+        assertEq(proto.maxWithdraw(user1), 200e6);
+        assertEq(proto.maxRedeem(user1), 200e18);
+    }
+
+    // Withdraw
+    function test_Withdraw() public {
+        uint256 assets = 100e6;
+        _setBalances(user1, assets, assets);
+        _withdrawAndAssert(user1, assets, user2, user1);
+    }
+
+    function test_Withdraw_Zero() public {
+        _withdrawAndAssert(user1, 0, user2, user1);
+    }
+
+    function test_Withdraw_WithFee() public {
+        uint256 assets = 100e6;
+        uint256 feePpm = 100_000; // 10%
+
+        vm.prank(redeemManager);
+        proto.setRedeemFee(feePpm);
+
+        _setBalances(user1, assets + assets / 10, assets);
+        _withdrawAndAssert(user1, assets, user2, user1);
+    }
+
+    function test_Withdraw_Revert_ExceedsMaxWithdraw() public {
+        uint256 assets = 100e6;
+        _setBalances(user1, assets, assets);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, assets + 1, assets));
+        proto.withdraw(assets + 1, user2, user1);
+    }
+
+    // Redeem
+    function test_Redeem() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _setBalances(user1, assets, assets);
+        _redeemAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_Redeem_Zero() public {
+        _redeemAndAssert(user1, 0, user2, user1);
+    }
+
+    function test_Redeem_WithFee() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        uint256 feePpm = 100_000; // 10%
+
+        vm.prank(redeemManager);
+        proto.setRedeemFee(feePpm);
+
+        _setBalances(user1, assets, assets);
+        _redeemAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_Redeem_Revert_ExceedsMaxRedeem_Balance() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _setBalances(user1, assets, assets + 1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
+        proto.redeem(tokens + 1, user2, user1);
+    }
+
+    function test_Redeem_Revert_ExceedsMaxRedeem_LiquidityBuffer() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _setBalances(user1, assets + 1, assets);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
+        proto.redeem(tokens + 1, user2, user1);
+    }
+
+    // Fuzz
+    function testFuzz_Deposit_Withdraw(address caller, address receiver, address owner, uint256 assets, uint256 feePpm)
+        public
+    {
+        vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
+        vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+
+        assets = bound(assets, 0, 1_000_000e6);
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
+
+        uint256 mintSize = proto.previewDeposit(assets);
+
+        asset.mint(caller, assets);
+        _setFees(feePpm, 0);
+
+        vm.prank(admin);
+        proto.setTreasury(address(proto));
+
+        _approveAssets(caller, address(proto), assets);
+        _depositAndAssert(caller, assets, owner);
+        _approveTokens(owner, caller, mintSize);
+
+        uint256 withdrawableAssets = proto.maxWithdraw(owner);
+        _withdrawAndAssert(caller, withdrawableAssets, receiver, owner);
+    }
+
+    function testFuzz_Mint_Redeem(address caller, address receiver, address owner, uint256 tokens, uint256 feePpm)
+        public
+    {
+        vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
+        vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        tokens = bound(tokens, 1e12, 1_000_000e18);
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
+
+        uint256 depositSize = proto.previewMint(tokens);
+
+        asset.mint(caller, depositSize);
+        _setFees(feePpm, 0);
+
+        vm.prank(admin);
+        proto.setTreasury(address(proto));
+
+        _approveAssets(caller, address(proto), depositSize);
+        _mintAndAssert(caller, tokens, owner);
+        _approveTokens(owner, caller, tokens);
+
+        uint256 redeemableTokens = proto.maxRedeem(owner);
+        _redeemAndAssert(caller, redeemableTokens, receiver, owner);
+    }
+}
+
+abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
+    // Max Functions
+    function test_MaxWithdraw_MaxRedeem() public {
+        vm.prank(redeemManager);
+        proto.setRedeemFee(100_000); // 10%
+
+        // Limited by balance
+        assertEq(proto.maxRedeemOrder(user1), 0);
+
+        asset.mint(address(proto), 200e6);
+
+        // Limited by balance
+        assertEq(proto.maxRedeemOrder(user1), 0);
+
+        _deposit(user1, 300e6);
+
+        // Limited by balance
+        assertEq(proto.maxRedeemOrder(user1), 300e18);
+    }
+
+    // Redeem Orders
+    function test_CreateRedeemOrder() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        _createRedeemOrderAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_CreateRedeemOrder_Zero() public {
+        _createRedeemOrderAndAssert(user1, 0, user2, user1);
+    }
+
+    function test_CreateRedeemOrder_WithFee() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        uint256 feePpm = 100_000; // 10%
+
+        vm.prank(redeemManager);
+        proto.setRedeemOrderFee(feePpm);
+
+        _deposit(user1, assets);
+        _createRedeemOrderAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_CreateRedeemOrder_Revert_ExceedsMaxRedeemOrder() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, tokens + 1, tokens));
+        proto.createRedeemOrder(tokens + 1, user2, user1);
+    }
+
+    function test_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
+        uint256 minOrder = 50e18;
+
+        vm.prank(redeemManager);
+        proto.setMinRedeemOrder(minOrder);
+
+        _deposit(user1, 100e6);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinRedeemOrder.selector, minOrder - 1, minOrder));
+        proto.createRedeemOrder(minOrder - 1, user1, user1);
+    }
+
+    function test_CreateRedeemOrder_Revert_ZeroReceiver() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _setBalances(user1, assets, assets);
+        vm.prank(user1);
+        vm.expectRevert(InvalidZeroAddress.selector);
+        proto.createRedeemOrder(tokens, address(0), user1);
+    }
+
+    function test_CreateRedeemOrder_Revert_InsufficientAllowance() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _setBalances(user1, assets, assets);
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, user2, 0, tokens));
+        proto.createRedeemOrder(tokens, user2, user1);
+    }
+
+    function test_FillRedeemOrder() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+        _fillRedeemOrderAndAssert(orderFiller, orderId);
+    }
+
+    function test_FillRedeemOrder_WithFee() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        uint256 feePpm = 100_000; // 10%
+
+        vm.prank(redeemManager);
+        proto.setRedeemOrderFee(feePpm);
+
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+        _fillRedeemOrderAndAssert(orderFiller, orderId);
+    }
+
+    function test_FillRedeemOrder_PastDue() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+        vm.warp(block.timestamp + proto.fillWindow());
+        _fillRedeemOrderAndAssert(orderFiller, orderId);
+    }
+
+    function test_FillRedeemOrder_Revert_AlreadyFilled() public {
+        _deposit(user1, 100e6);
+        uint256 orderId = _createRedeemOrder(user1, 100e18);
+        _fillRedeemOrder(orderId);
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        proto.fillRedeemOrder(orderId);
+    }
+
+    function test_FillRedeemOrder_Revert_Cancelled() public {
+        _deposit(user1, 100e6);
+        uint256 orderId = _createRedeemOrder(user1, 100e18);
+        vm.warp(block.timestamp + proto.fillWindow());
+        _cancelRedeemOrder(user1, orderId);
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        proto.fillRedeemOrder(orderId);
+    }
+
+    function test_FillRedeemOrder_Revert_NotFiller() public {
+        _deposit(user1, 100e6);
+        uint256 orderId = _createRedeemOrder(user1, 100e18);
+
+        vm.prank(user2);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user2, ORDER_FILLER_ROLE)
+        );
+        proto.fillRedeemOrder(orderId);
+    }
+
+    function test_FinalizeRedeemOrder_ByReceiver() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+        _fillRedeemOrder(orderId);
+        _finalizeRedeemOrderAndAssert(user1, orderId);
+    }
+
+    function test_FinalizeRedeemOrder_ByController() public {
+        address receiver = user1;
+        address controller = user2;
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(receiver, assets);
+        _approveTokens(receiver, controller, tokens);
+        uint256 orderId = _createRedeemOrder(controller, tokens, receiver, receiver);
+        _fillRedeemOrder(orderId);
+        _finalizeRedeemOrderAndAssert(receiver, orderId);
+    }
+
+    function test_FinalizeRedeemOrder_Revert_AlreadyFilled() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+        _fillRedeemOrder(orderId);
+        _finalizeRedeemOrder(orderId);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotFilled.selector, orderId));
+        proto.finalizeRedeemOrder(orderId);
+    }
+
+    function test_FinalizeRedeemOrder_Revert_NotFilled() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotFilled.selector, orderId));
+        proto.finalizeRedeemOrder(orderId);
+    }
+
+    function test_FinalizeRedeemOrder_Revert_NotManager() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+        _fillRedeemOrder(orderId);
+
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderFinalizer.selector, user2, user1, user1));
+        proto.finalizeRedeemOrder(orderId);
+    }
+
+    function test_CancelRedeemOrder_ByOwner() public {
+        address owner = user1;
+        address controller = user2;
+        address receiver = makeAddr("receiver");
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(owner, assets);
+        _approveTokens(owner, controller, tokens);
+        uint256 orderId = _createRedeemOrder(controller, tokens, receiver, owner);
+
+        vm.warp(block.timestamp + proto.fillWindow());
+
+        _cancelRedeemOrderAndAssert(owner, orderId);
+    }
+
+    function test_CancelRedeemOrder_ByController() public {
+        address controller = user1;
+        address owner = user2;
+        address receiver = makeAddr("receiver");
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(owner, assets);
+        _approveTokens(owner, controller, tokens);
+        uint256 orderId = _createRedeemOrder(controller, tokens, receiver, owner);
+
+        vm.warp(block.timestamp + proto.fillWindow());
+
+        _cancelRedeemOrderAndAssert(controller, orderId);
+    }
+
+    function test_CancelRedeemOrder_Revert_NotDue() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotDue.selector, orderId));
+        proto.cancelRedeemOrder(orderId);
+    }
+
+    function test_CancelRedeemOrder_Revert_AlreadyCancelled() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+
+        vm.warp(block.timestamp + proto.fillWindow());
+
+        _cancelRedeemOrder(user1, orderId);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        proto.cancelRedeemOrder(orderId);
+    }
+
+    function test_CancelRedeemOrder_Revert_NotManager() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(user1, assets);
+        uint256 orderId = _createRedeemOrder(user1, tokens);
+
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedOrderManager.selector, user2, user1, user1));
+        proto.cancelRedeemOrder(orderId);
+    }
 
     function test_RedeemOrder_Revert_Paused() public {
         _deposit(user1, 200e6);
-        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
+        uint256 orderId = _createRedeemOrder(user1, 100e18);
 
         vm.warp(block.timestamp + proto.fillWindow());
 
@@ -1386,7 +1380,7 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         if (useGuardrails && _maxRedeem < 1e12) return;
         tokens = _bound(tokens, 1e12, _maxRedeem);
         redeemedTokens += tokens;
-        (uint256 orderId,) = proto.createRedeemOrder(tokens, receiver, owner);
+        uint256 orderId = proto.createRedeemOrder(tokens, receiver, owner);
         activeOrderIds.push(orderId);
     }
 
@@ -1457,8 +1451,8 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         proto.setRedeemFee(newFeePpm);
     }
 
-    function setRedeemOrderFee(int256 newFeePpm) external {
-        newFeePpm = _bound(newFeePpm, -1_000_000, 1_000_000); // -100% to 100%
+    function setRedeemOrderFee(uint256 newFeePpm) external {
+        newFeePpm = _bound(newFeePpm, 0, 1_000_000); // 0% to 100%
         vm.prank(admin);
         proto.setRedeemOrderFee(newFeePpm);
     }

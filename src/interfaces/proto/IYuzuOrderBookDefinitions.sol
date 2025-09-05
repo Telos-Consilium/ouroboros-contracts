@@ -19,6 +19,7 @@ struct Order {
     address controller;
     uint40 dueTime;
     OrderStatus status;
+    uint24 feePpm;
 }
 
 interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
@@ -35,12 +36,7 @@ interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     event UpdatedFillWindow(uint256 oldWindow, uint256 newWindow);
     event UpdatedMinRedeemOrder(uint256 oldMin, uint256 newMin);
     event CreatedRedeemOrder(
-        address indexed sender,
-        address indexed receiver,
-        address indexed owner,
-        uint256 orderId,
-        uint256 assets,
-        uint256 tokens
+        address indexed sender, address indexed receiver, address indexed owner, uint256 orderId, uint256 tokens
     );
     event FilledRedeemOrder(
         address indexed sender,

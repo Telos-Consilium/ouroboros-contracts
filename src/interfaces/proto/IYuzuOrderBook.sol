@@ -9,9 +9,7 @@ interface IYuzuOrderBook is IYuzu {
 
     function maxRedeemOrder(address owner) external view returns (uint256);
 
-    function createRedeemOrder(uint256 tokens, address receiver, address owner)
-        external
-        returns (uint256 orderId, uint256 assets);
+    function createRedeemOrder(uint256 tokens, address receiver, address owner) external returns (uint256 orderId);
     function fillRedeemOrder(uint256 orderId) external;
     function finalizeRedeemOrder(uint256 orderId) external;
     function cancelRedeemOrder(uint256 orderId) external;
