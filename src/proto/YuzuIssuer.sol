@@ -152,6 +152,19 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return assets;
     }
 
+    /// @notice Redeems tokens and reverts if slippage is exceeded
+    function redeemWithSlippage(uint256 tokens, address receiver, address owner, uint256 minAssets)
+        public
+        virtual
+        returns (uint256)
+    {
+        uint256 assets = redeem(tokens, receiver, owner);
+        if (assets < minAssets) {
+            revert ExceededMaxSlippage(assets, minAssets);
+        }
+        return assets;
+    }
+
     function withdrawCollateral(uint256 assets, address receiver) public virtual {
         uint256 liquidityBuffer = liquidityBufferSize();
         if (assets == type(uint256).max) {

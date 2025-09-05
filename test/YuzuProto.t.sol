@@ -924,6 +924,21 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.redeem(tokens + 1, user2, user1);
     }
 
+    function test_Redeem_Revert_ExceededMaxSlippage() public {
+        _setBalances(user1, 100e6, 200e6);
+        uint256 tokens = 100e18;
+        uint256 minAssets = proto.previewRedeem(tokens);
+
+        vm.prank(redeemManager);
+        proto.setRedeemFee(100_000); // 10%
+
+        uint256 actualAssets = proto.previewRedeem(tokens);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxSlippage.selector, actualAssets, minAssets));
+        proto.redeemWithSlippage(tokens, user1, user1, minAssets);
+    }
+
     // Fuzz
     function testFuzz_Deposit_Withdraw(address caller, address receiver, address owner, uint256 assets, uint256 feePpm)
         public

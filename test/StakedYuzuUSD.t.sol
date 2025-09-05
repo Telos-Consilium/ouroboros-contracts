@@ -230,6 +230,20 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.initiateRedeem(mintedShares, address(0), user1);
     }
 
+    function test_InitiateRedeem_Revert_ExceededMaxSlippage() public {
+        uint256 mintedShares = _deposit(user1, 100e18);
+        uint256 minAssets = styz.previewRedeem(mintedShares);
+
+        vm.prank(owner);
+        styz.setRedeemFee(100_000); // 10%
+
+        uint256 actualAssets = styz.previewRedeem(mintedShares);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxSlippage.selector, actualAssets, minAssets));
+        styz.initiateRedeemWithSlippage(mintedShares, user1, user1, minAssets);
+    }
+
     function test_InitiateRedeem_Revert_InsufficientAllowance() public {
         address _owner = user1;
         address sender = user2;

@@ -28,6 +28,7 @@ interface IStakedYuzuUSDDefinitions {
     error WithdrawNotSupported();
     error RedeemNotSupported();
     error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
+    error ExceededMaxSlippage(uint256 assets, uint256 min);
 
     event InitiatedRedeem(
         address indexed sender,

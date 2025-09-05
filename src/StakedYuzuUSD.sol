@@ -152,7 +152,7 @@ contract StakedYuzuUSD is
 
     /// @notice Initiates a 2-step redemption of `shares`
     // slither-disable-next-line pess-unprotected-initialize
-    function initiateRedeem(uint256 shares, address receiver, address _owner) external returns (uint256, uint256) {
+    function initiateRedeem(uint256 shares, address receiver, address _owner) public returns (uint256, uint256) {
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -167,6 +167,19 @@ contract StakedYuzuUSD is
 
         emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares);
 
+        return (orderId, assets);
+    }
+
+    /// @notice Initiates a 2-step redemption of `shares` and reverts if slippage is exceeded
+    // slither-disable-next-line pess-unprotected-initialize
+    function initiateRedeemWithSlippage(uint256 shares, address receiver, address _owner, uint256 minAssets)
+        external
+        returns (uint256, uint256)
+    {
+        (uint256 orderId, uint256 assets) = initiateRedeem(shares, receiver, _owner);
+        if (assets < minAssets) {
+            revert ExceededMaxSlippage(assets, minAssets);
+        }
         return (orderId, assets);
     }
 
