@@ -52,7 +52,14 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     /// @notice Updates the pool parameters including size and yield rate
-    function updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external onlyRole(POOL_MANAGER_ROLE) {
+    function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
+        external
+        whenPaused
+        onlyRole(POOL_MANAGER_ROLE)
+    {
+        if (currentPoolSize != poolSize) {
+            revert InvalidCurrentPoolSize(currentPoolSize, poolSize);
+        }
         if (newDailyLinearYieldRatePpm > 1e6) {
             revert InvalidYield(newDailyLinearYieldRatePpm);
         }
@@ -61,7 +68,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         dailyLinearYieldRatePpm = newDailyLinearYieldRatePpm;
         lastPoolUpdateTimestamp = block.timestamp;
 
-        emit UpdatedPool(newPoolSize, newDailyLinearYieldRatePpm);
+        emit UpdatedPool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
     }
 
     /// @notice See {IERC4626-totalAssets}

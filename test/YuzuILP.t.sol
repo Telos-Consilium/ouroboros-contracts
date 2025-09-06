@@ -3,6 +3,8 @@ pragma solidity ^0.8.30;
 
 import {console2} from "forge-std/Test.sol";
 
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+
 import {IYuzuILPDefinitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 
@@ -39,9 +41,22 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
     }
 
     // Helpers
+    function _pause() internal {
+        vm.prank(admin);
+        ilp.pause();
+    }
+
+    function _unpause() internal {
+        vm.prank(admin);
+        ilp.unpause();
+    }
+
     function _updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) internal {
+        _pause();
+        uint256 currentPoolSize = ilp.poolSize();
         vm.prank(poolManager);
-        ilp.updatePool(newPoolSize, newDailyLinearYieldRatePpm);
+        ilp.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+        _unpause();
     }
 
     // Preview Functions
@@ -169,8 +184,11 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
 
     // Admin Functions
     function test_UpdatePool() public {
+        _pause();
         vm.prank(poolManager);
-        ilp.updatePool(100e6, 100_000);
+        vm.expectEmit();
+        emit UpdatedPool(0, 100e6, 100_000);
+        ilp.updatePool(0, 100e6, 100_000);
 
         assertEq(ilp.poolSize(), 100e6);
         assertEq(ilp.dailyLinearYieldRatePpm(), 100_000);
@@ -179,10 +197,24 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
         assertEq(ilp.totalAssets(), 100e6);
     }
 
+    function test_UpdatePool_Revert_NotPaused() public {
+        vm.prank(poolManager);
+        vm.expectRevert(PausableUpgradeable.ExpectedPause.selector);
+        ilp.updatePool(0, 100e6, 1e6 + 1);
+    }
+
+    function test_UpdatePool_Revert_InvalidCurrentPoolSize() public {
+        _pause();
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(InvalidCurrentPoolSize.selector, 1, 0));
+        ilp.updatePool(1, 100e6, 1e6 + 1);
+    }
+
     function test_UpdatePool_Revert_InvalidYield() public {
+        _pause();
         vm.prank(poolManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidYield.selector, 1e6 + 1));
-        ilp.updatePool(100e6, 1e6 + 1);
+        ilp.updatePool(0, 100e6, 1e6 + 1);
     }
 
     // Total Assets
@@ -248,8 +280,11 @@ contract YuzuILPHandler is YuzuProtoHandler {
 
         if (useGuardrails && order.assets > poolSize) {
             uint256 yieldRatePpm = ilp.dailyLinearYieldRatePpm();
-            vm.prank(admin);
-            ilp.updatePool(order.assets, yieldRatePpm);
+            vm.startPrank(admin);
+            ilp.pause();
+            ilp.updatePool(poolSize, order.assets, yieldRatePpm);
+            ilp.unpause();
+            vm.stopPrank();
         }
 
         asset.mint(admin, order.assets);
@@ -261,10 +296,14 @@ contract YuzuILPHandler is YuzuProtoHandler {
         actualYieldRatePpm = bound(actualYieldRatePpm, int256(-1_000_000), int256(10_000_000)); // -100% to 1000%
         newYieldRatePpm = bound(newYieldRatePpm, 0, 1_000_000); // 0% to 100%
         vm.warp(block.timestamp + 1 days);
-        uint256 newPoolSize = ilp.poolSize() * uint256(1e6 + actualYieldRatePpm) / 1e6;
+        uint256 currentPoolSize = ilp.poolSize();
+        uint256 newPoolSize = currentPoolSize * uint256(1e6 + actualYieldRatePpm) / 1e6;
         newPoolSize = _bound(newPoolSize, 0, 1e36);
-        vm.prank(admin);
-        ilp.updatePool(newPoolSize, newYieldRatePpm);
+        vm.startPrank(admin);
+        ilp.pause();
+        ilp.updatePool(currentPoolSize, newPoolSize, newYieldRatePpm);
+        ilp.unpause();
+        vm.stopPrank();
     }
 }
 
