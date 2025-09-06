@@ -10,6 +10,7 @@ interface IYuzuILP is IYuzuProto {
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
         uint256 _fillWindow
     ) external;

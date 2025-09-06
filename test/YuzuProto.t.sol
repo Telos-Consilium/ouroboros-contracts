@@ -7,6 +7,8 @@ import {CommonBase} from "forge-std/Base.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -38,6 +40,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     address public admin;
     address public treasury;
+    address public feeReceiver;
     address public limitManager;
     address public redeemManager;
     address public orderFiller;
@@ -60,6 +63,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     function setUp() public virtual {
         admin = makeAddr("admin");
         treasury = makeAddr("treasury");
+        feeReceiver = makeAddr("feeReceiver");
         limitManager = makeAddr("limitManager");
         redeemManager = makeAddr("redeemManager");
         orderFiller = makeAddr("orderFiller");
@@ -87,6 +91,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
             "PROTO",
             admin,
             treasury,
+            feeReceiver,
             type(uint256).max, // supplyCap
             1 days, // fillWindow
             0 // minRedeemOrder
@@ -185,7 +190,11 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     }
 
     // Initialization
-    function _packInitData(address _asset, address _admin, address _treasury) internal pure returns (bytes memory) {
+    function _packInitData(address _asset, address _admin, address _treasury, address _feeReceiver)
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encodeWithSelector(
             YuzuILP.initialize.selector,
             address(_asset),
@@ -193,6 +202,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
             "PROTO",
             _admin,
             _treasury,
+            _feeReceiver,
             type(uint256).max, // supplyCap
             1 days, // fillWindow
             0 // minRedeemOrder
@@ -242,9 +252,11 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     // Withdraw
     function _withdrawAndAssert(address caller, uint256 assets, address receiver, address owner) internal {
         uint256 expectedTokens = proto.previewWithdraw(assets);
+        uint256 expectedFee = Math.ceilDiv(assets * proto.redeemFeePpm(), 1_000_000);
 
         uint256 ownerTokensBefore = proto.balanceOf(owner);
         uint256 receiverAssetsBefore = asset.balanceOf(receiver);
+        uint256 feeReceiverAssetsBefore = asset.balanceOf(feeReceiver);
         uint256 tokenSupplyBefore = proto.totalSupply();
 
         vm.prank(caller);
@@ -256,15 +268,18 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         assertEq(proto.balanceOf(owner), ownerTokensBefore - redeemedTokens);
         assertEq(asset.balanceOf(receiver), receiverAssetsBefore + assets);
+        assertEq(asset.balanceOf(feeReceiver), feeReceiverAssetsBefore + expectedFee);
         assertEq(proto.totalSupply(), tokenSupplyBefore - redeemedTokens);
     }
 
     // Redeem
     function _redeemAndAssert(address caller, uint256 tokens, address receiver, address owner) internal {
         uint256 expectedAssets = proto.previewRedeem(tokens);
+        uint256 expectedFee = proto.convertToAssets(tokens) - expectedAssets;
 
         uint256 ownerTokensBefore = proto.balanceOf(owner);
         uint256 receiverAssetsBefore = asset.balanceOf(receiver);
+        uint256 feeReceiverAssetsBefore = asset.balanceOf(feeReceiver);
         uint256 tokenSupplyBefore = proto.totalSupply();
 
         vm.prank(caller);
@@ -276,6 +291,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         assertEq(proto.balanceOf(owner), ownerTokensBefore - tokens);
         assertEq(asset.balanceOf(receiver), receiverAssetsBefore + withdrawnAssets);
+        assertEq(asset.balanceOf(feeReceiver), feeReceiverAssetsBefore + expectedFee);
         assertEq(proto.totalSupply(), tokenSupplyBefore - tokens);
     }
 
@@ -400,11 +416,11 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
     function test_Initialize_Revert_ZeroAddress() public {
         address implementationAddress = _deploy();
 
-        bytes memory initData_ZeroAsset = _packInitData(address(0), admin, treasury);
+        bytes memory initData_ZeroAsset = _packInitData(address(0), admin, treasury, feeReceiver);
         vm.expectRevert(InvalidZeroAddress.selector);
         new ERC1967Proxy(implementationAddress, initData_ZeroAsset);
 
-        bytes memory initData_ZeroAdmin = _packInitData(address(asset), address(0), treasury);
+        bytes memory initData_ZeroAdmin = _packInitData(address(asset), address(0), treasury, feeReceiver);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControlDefaultAdminRules.AccessControlInvalidDefaultAdmin.selector, address(0)
@@ -412,15 +428,19 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         );
         new ERC1967Proxy(implementationAddress, initData_ZeroAdmin);
 
-        bytes memory initData_ZeroTreasury = _packInitData(address(asset), admin, address(0));
+        bytes memory initData_ZeroTreasury = _packInitData(address(asset), admin, address(0), feeReceiver);
         vm.expectRevert(InvalidZeroAddress.selector);
         new ERC1967Proxy(implementationAddress, initData_ZeroTreasury);
+
+        bytes memory initData_ZeroFeeReceiver = _packInitData(address(asset), admin, treasury, address(0));
+        vm.expectRevert(InvalidZeroAddress.selector);
+        new ERC1967Proxy(implementationAddress, initData_ZeroFeeReceiver);
     }
 
     function test_Initialize_Revert_AlreadyInitialized() public {
         vm.mockCallRevert(
             address(proto),
-            _packInitData(address(asset), admin, treasury),
+            _packInitData(address(asset), admin, treasury, feeReceiver),
             abi.encodeWithSelector(Initializable.InvalidInitialization.selector)
         );
     }
@@ -1283,6 +1303,7 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
     uint256 public withdrawnAssets;
     uint256 public redeemedTokens;
     uint256 public canceledOrderTokens;
+    uint256 public collectedFees;
 
     constructor(YuzuProto _proto, address _admin) {
         useGuardrails = vm.envOr("USE_GUARDRAILS", false);
@@ -1380,8 +1401,13 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         address receiver = _getActor(receiverIndexSeed);
         address owner = _getActor(ownerIndexSeed);
         assets = _bound(assets, 0, proto.maxWithdraw(owner));
+
+        uint256 tokens = proto.withdraw(assets, receiver, owner);
+        uint256 fee = Math.ceilDiv(assets * proto.redeemFeePpm(), 1_000_000);
+
         withdrawnAssets += assets;
-        redeemedTokens += proto.withdraw(assets, receiver, owner);
+        redeemedTokens += tokens;
+        collectedFees += fee;
     }
 
     function redeem(uint256 tokens, uint256 receiverIndexSeed, uint256 ownerIndexSeed, uint256 actorIndexSeed)
@@ -1394,8 +1420,14 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         uint256 _maxRedeem = proto.maxRedeem(owner);
         if (useGuardrails && _maxRedeem < 1e12) return;
         tokens = _bound(tokens, 1e12, _maxRedeem);
+
+        uint256 tokenValue = proto.convertToAssets(tokens);
+        uint256 assets = proto.redeem(tokens, receiver, owner);
+        uint256 fee = tokenValue - assets;
+
         redeemedTokens += tokens;
-        withdrawnAssets += proto.redeem(tokens, receiver, owner);
+        withdrawnAssets += assets;
+        collectedFees += fee;
     }
 
     function createRedeemOrder(
@@ -1519,6 +1551,7 @@ abstract contract YuzuProtoInvariantTest is Test {
             "PROTO",
             admin,
             _treasury,
+            admin,
             type(uint256).max, // supplyCap
             1 days, // fillWindow
             0 // minRedeemOrder
@@ -1556,10 +1589,11 @@ abstract contract YuzuProtoInvariantTest is Test {
         uint256 depositedAssets = handler.depositedAssets();
         uint256 withdrawnAssets = handler.withdrawnAssets();
         uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
+        uint256 collectedFees = handler.collectedFees();
         assertEq(
             contractAssetBalance,
-            donatedAssets + depositedAssets + unfinalizedOrderValue - withdrawnAssets,
-            "! contractAssetBalance == donatedAssets + depositedAssets - unfinalizedOrderValue - withdrawnAssets"
+            donatedAssets + depositedAssets + unfinalizedOrderValue - withdrawnAssets - collectedFees,
+            "! contractAssetBalance == donatedAssets + depositedAssets - unfinalizedOrderValue - withdrawnAssets - collectedFees"
         );
     }
 

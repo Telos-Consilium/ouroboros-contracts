@@ -89,13 +89,15 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view virtual returns (uint256) {
-        return _convertToShares(assets, Math.Rounding.Ceil);
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        (uint256 tokens,) = _previewWithdraw(assets);
+        return tokens;
     }
 
     /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 tokens) public view virtual returns (uint256) {
-        return _convertToAssets(tokens, Math.Rounding.Floor);
+    function previewRedeem(uint256 tokens) public view returns (uint256) {
+        (uint256 assets,) = _previewRedeem(tokens);
+        return assets;
     }
 
     /// @notice See {IERC4626-deposit}
@@ -131,8 +133,8 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
             revert ExceededMaxWithdraw(owner, assets, maxAssets);
         }
 
-        uint256 tokens = previewWithdraw(assets);
-        _withdraw(_msgSender(), receiver, owner, assets, tokens);
+        (uint256 tokens, uint256 fee) = _previewWithdraw(assets);
+        _withdraw(_msgSender(), receiver, owner, assets, tokens, fee);
 
         return tokens;
     }
@@ -144,8 +146,8 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
             revert ExceededMaxRedeem(owner, tokens, maxTokens);
         }
 
-        uint256 assets = previewRedeem(tokens);
-        _withdraw(_msgSender(), receiver, owner, assets, tokens);
+        (uint256 assets, uint256 fee) = _previewRedeem(tokens);
+        _withdraw(_msgSender(), receiver, owner, assets, tokens, fee);
 
         return assets;
     }
@@ -174,13 +176,21 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return __yuzu_balanceOf(owner);
     }
 
+    function _previewWithdraw(uint256 assets) public view virtual returns (uint256, uint256) {
+        return (_convertToShares(assets, Math.Rounding.Ceil), 0);
+    }
+
+    function _previewRedeem(uint256 tokens) public view virtual returns (uint256, uint256) {
+        return (_convertToAssets(tokens, Math.Rounding.Floor), 0);
+    }
+
     function _deposit(address caller, address receiver, uint256 assets, uint256 tokens) internal virtual {
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury(), assets);
         __yuzu_mint(receiver, tokens);
         emit Deposit(caller, receiver, assets, tokens);
     }
 
-    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 tokens)
+    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 tokens, uint256 fee)
         internal
         virtual
     {

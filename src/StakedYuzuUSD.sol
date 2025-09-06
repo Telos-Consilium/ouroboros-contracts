@@ -35,6 +35,7 @@ contract StakedYuzuUSD is
 
     uint256 public redeemDelay;
     uint256 public redeemFeePpm;
+    address public feeReceiver;
 
     uint256 public totalPendingOrderValue;
 
@@ -52,6 +53,7 @@ contract StakedYuzuUSD is
      * @param __name The name of the staked token
      * @param __symbol The symbol of the staked token
      * @param _owner The owner of the contract
+     * @param _feeReceiver The address that receives redemption fees
      * @param _redeemDelay The delay in seconds before a redeem order can be finalized
      */
     // slither-disable-next-line pess-arbitrary-call-destination-tainted
@@ -60,6 +62,7 @@ contract StakedYuzuUSD is
         string memory __name,
         string memory __symbol,
         address _owner,
+        address _feeReceiver,
         uint256 _redeemDelay
     ) external initializer {
         __ERC4626_init(_asset);
@@ -72,7 +75,11 @@ contract StakedYuzuUSD is
         if (address(_asset) == address(0)) {
             revert InvalidZeroAddress();
         }
+        if (_feeReceiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
 
+        feeReceiver = _feeReceiver;
         redeemDelay = _redeemDelay;
     }
 
@@ -117,14 +124,14 @@ contract StakedYuzuUSD is
 
     /// @notice See {IERC4626-previewWithdraw}
     function previewWithdraw(uint256 assets) public view override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
-        return super.previewWithdraw(assets + fee);
+        (uint256 shares,) = _previewWithdraw(assets);
+        return shares;
     }
 
     /// @notice See {IERC4626-previewRedeem}
     function previewRedeem(uint256 shares) public view override returns (uint256) {
-        uint256 assets = super.previewRedeem(shares);
-        return assets - _feeOnTotal(assets, redeemFeePpm);
+        (uint256 assets,) = _previewRedeem(shares);
+        return assets;
     }
 
     /**
@@ -154,9 +161,9 @@ contract StakedYuzuUSD is
             revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
         }
 
-        uint256 assets = previewRedeem(shares);
+        (uint256 assets, uint256 fee) = _previewRedeem(shares);
         address caller = _msgSender();
-        uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares);
+        uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
 
         emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares);
 
@@ -216,6 +223,16 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
     }
 
+    /// @notice Sets the fee receiver to `newFeeReceiver`
+    function setFeeReceiver(address newFeeReceiver) external onlyOwner {
+        if (newFeeReceiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        address oldFeeReceiver = feeReceiver;
+        feeReceiver = newFeeReceiver;
+        emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
+    }
+
     /// @notice Pauses all minting and redeeming functions
     function pause() external onlyOwner {
         _pause();
@@ -257,11 +274,27 @@ contract StakedYuzuUSD is
         return _domainSeparatorV4();
     }
 
+    function _previewWithdraw(uint256 assets) public view returns (uint256, uint256) {
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
+        uint256 shares = super.previewWithdraw(assets + fee);
+        return (shares, fee);
+    }
+
+    function _previewRedeem(uint256 shares) public view returns (uint256, uint256) {
+        uint256 assets = super.previewRedeem(shares);
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
+        return (assets - fee, fee);
+    }
+
     // slither-disable-next-line pess-unprotected-initialize
-    function _initiateRedeem(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
-        internal
-        returns (uint256)
-    {
+    function _initiateRedeem(
+        address caller,
+        address receiver,
+        address _owner,
+        uint256 assets,
+        uint256 shares,
+        uint256 fee
+    ) internal returns (uint256) {
         totalPendingOrderValue += assets;
 
         uint256 orderId = orderCount;
@@ -280,6 +313,7 @@ contract StakedYuzuUSD is
             _spendAllowance(_owner, caller, shares);
         }
         _burn(_owner, shares);
+        SafeERC20.safeTransfer(IERC20(asset()), feeReceiver, fee);
 
         return orderId;
     }

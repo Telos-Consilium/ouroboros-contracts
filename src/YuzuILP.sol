@@ -40,11 +40,14 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
         uint256 _fillWindow,
         uint256 _minRedeemOrder
     ) external initializer {
-        __YuzuProto_init(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow, _minRedeemOrder);
+        __YuzuProto_init(
+            __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
+        );
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
     }
 
@@ -86,30 +89,13 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address _owner) public view override returns (uint256) {
+    function maxWithdraw(address) public view override returns (uint256) {
         return 0;
     }
 
     /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address _owner) public view override returns (uint256) {
+    function maxRedeem(address) public view override returns (uint256) {
         return 0;
-    }
-
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        poolSize += _discountYield(assets, Math.Rounding.Floor);
-        super._deposit(caller, receiver, assets, shares);
-    }
-
-    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares)
-        internal
-        override
-    {
-        revert();
-    }
-
-    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee) internal override {
-        poolSize -= _discountYield(assets + fee, Math.Rounding.Ceil);
-        super._fillRedeemOrder(caller, order, assets, fee);
     }
 
     function _totalAssets(Math.Rounding rounding) internal view returns (uint256) {
@@ -133,6 +119,27 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         }
         uint256 totalAsset_ = _totalAssets(rounding);
         return Math.mulDiv(totalAsset_, shares, totalSupply(), rounding);
+    }
+
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
+        poolSize += _discountYield(assets, Math.Rounding.Floor);
+        super._deposit(caller, receiver, assets, shares);
+    }
+
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares, uint256 fee)
+        internal
+        override
+    {
+        revert();
+    }
+
+    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
+        internal
+        virtual
+        override
+    {
+        super._fillRedeemOrder(caller, order, assets, fee);
+        poolSize -= _discountYield(assets + fee, Math.Rounding.Ceil);
     }
 
     /// @dev Returns the yield accrued since the last pool update.

@@ -47,4 +47,5 @@ interface IStakedYuzuUSDDefinitions {
     );
     event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
+    event UpdatedFeeReceiver(address oldFeeReceiver, address newFeeReceiver);
 }

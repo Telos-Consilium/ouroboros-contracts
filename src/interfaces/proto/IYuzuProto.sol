@@ -7,6 +7,7 @@ import {IYuzuOrderBook} from "./IYuzuOrderBook.sol";
 interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
     function rescueTokens(address token, address to, uint256 amount) external;
 
+    function feeReceiver() external view returns (address);
     function minRedeemOrder() external view returns (uint256);
     function redeemFeePpm() external view returns (uint256);
     function redeemOrderFeePpm() external view returns (uint256);

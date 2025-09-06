@@ -37,6 +37,7 @@ abstract contract YuzuProto is
 
     uint256 public redeemFeePpm;
     uint256 public redeemOrderFeePpm;
+    address public feeReceiver;
 
     function __YuzuProto_init(
         address __asset,
@@ -44,12 +45,13 @@ abstract contract YuzuProto is
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
         uint256 _fillWindow,
         uint256 _minRedeemOrder
     ) internal onlyInitializing {
         __YuzuProto_init_unchained(
-            __asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow, _minRedeemOrder
+            __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
         );
     }
 
@@ -59,6 +61,7 @@ abstract contract YuzuProto is
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
         uint256 _fillWindow,
         uint256 _minRedeemOrder
@@ -73,9 +76,13 @@ abstract contract YuzuProto is
         if (__asset == address(0) || __treasury == address(0)) {
             revert InvalidZeroAddress();
         }
+        if (_feeReceiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
 
         _asset = __asset;
         _treasury = __treasury;
+        feeReceiver = _feeReceiver;
 
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
@@ -183,20 +190,6 @@ abstract contract YuzuProto is
         return super.maxRedeemOrder(_owner);
     }
 
-    /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
-        uint256 tokens = _convertToShares(assets + fee, Math.Rounding.Ceil);
-        return tokens;
-    }
-
-    /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 tokens) public view virtual override returns (uint256) {
-        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
-        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
-        return assets - fee;
-    }
-
     /// @notice Preview the amount of assets to receive when redeeming `tokens` with an order after fees
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
@@ -250,6 +243,15 @@ abstract contract YuzuProto is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
+    function setFeeReceiver(address newFeeReceiver) external onlyRole(ADMIN_ROLE) {
+        if (newFeeReceiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        address oldFeeReceiver = feeReceiver;
+        feeReceiver = newFeeReceiver;
+        emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
+    }
+
     /// @notice Pauses all minting and redeeming functions
     function pause() external onlyRole(ADMIN_ROLE) {
         _pause();
@@ -280,10 +282,40 @@ abstract contract YuzuProto is
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
     }
 
-    function _previewRedeemOrder(uint256 shares, uint256 feePpm) public virtual override view returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) public view virtual override returns (uint256, uint256) {
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
+        uint256 tokens = _convertToShares(assets + fee, Math.Rounding.Ceil);
+        return (tokens, fee);
+    }
+
+    function _previewRedeem(uint256 tokens) public view virtual override returns (uint256, uint256) {
+        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
+        return (assets - fee, fee);
+    }
+
+    function _previewRedeemOrder(uint256 shares, uint256 feePpm)
+        public
+        view
+        virtual
+        override
+        returns (uint256, uint256)
+    {
         uint256 assets = _convertToAssets(shares, Math.Rounding.Floor);
         uint256 fee = _feeOnTotal(assets, feePpm);
         return (assets - fee, fee);
+    }
+
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 tokens, uint256 fee)
+        internal
+        virtual
+        override
+        whenNotPaused
+    {
+        super._withdraw(caller, receiver, _owner, assets, tokens, fee);
+        if (fee > 0) {
+            SafeERC20.safeTransfer(IERC20(asset()), feeReceiver, fee);
+        }
     }
 
     function _finalizeRedeemOrder(Order storage order) internal virtual override whenNotPaused {

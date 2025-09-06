@@ -8,5 +8,6 @@ interface IYuzuProtoDefinitions {
 
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
     event UpdatedRedeemOrderFee(uint256 oldFee, uint256 newFee);
+    event UpdatedFeeReceiver(address oldFeeReceiver, address newFeeReceiver);
     event UpdatedTreasury(address oldTreasury, address newTreasury);
 }
