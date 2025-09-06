@@ -42,7 +42,6 @@ contract StakedYuzuUSD is
     mapping(uint256 => Order) internal orders;
     uint256 public orderCount;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -256,7 +255,7 @@ contract StakedYuzuUSD is
         _unpause();
     }
 
-    /// @notice See {IERC20Permit-permit}.
+    /// @notice See {IERC20Permit-permit}
     function permit(address _owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         public
     {
@@ -337,12 +336,12 @@ contract StakedYuzuUSD is
         SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
     }
 
-    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
+    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
     function _feeOnRaw(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
     }
 
-    /// @dev Calculates the fee part of an amount `assets` that already includes fees.
+    /// @dev Calculates the fee part of an amount `assets` that already includes fees
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
     }

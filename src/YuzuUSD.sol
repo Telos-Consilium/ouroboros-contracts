@@ -10,7 +10,6 @@ import {YuzuProto} from "./proto/YuzuProto.sol";
  * @notice YuzuUSD token implementation with 1:1 peg to underlying asset
  */
 contract YuzuUSD is YuzuProto {
-    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }

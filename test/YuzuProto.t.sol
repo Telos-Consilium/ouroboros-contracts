@@ -184,7 +184,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         vm.stopPrank();
     }
 
-    function _setBalances(address user, uint256 userDeposit, uint256 protoBalance) internal {
+    function _depositAndMint(address user, uint256 userDeposit, uint256 protoBalance) internal {
         if (userDeposit > 0) _deposit(user, userDeposit);
         if (protoBalance > 0) asset.mint(address(proto), protoBalance);
     }
@@ -782,7 +782,7 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
 
     // Misc
     function test_MintRedeem_Revert_Paused() public {
-        _setBalances(user1, 100e6, 100e6);
+        _depositAndMint(user1, 100e6, 100e6);
 
         vm.prank(admin);
         proto.pause();
@@ -838,7 +838,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     // Withdraw
     function test_Withdraw() public {
         uint256 assets = 100e6;
-        _setBalances(user1, assets, assets);
+        _depositAndMint(user1, assets, assets);
         _withdrawAndAssert(user1, assets, user2, user1);
     }
 
@@ -853,13 +853,13 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         vm.prank(redeemManager);
         proto.setRedeemFee(feePpm);
 
-        _setBalances(user1, assets, assets);
+        _depositAndMint(user1, assets, assets);
         _withdrawAndAssert(user1, 80e6, user2, user1);
     }
 
     function test_Withdraw_Revert_ExceedsMaxWithdraw() public {
         uint256 assets = 100e6;
-        _setBalances(user1, assets, assets);
+        _depositAndMint(user1, assets, assets);
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, assets + 1, assets));
@@ -873,7 +873,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
 
         vm.prank(redeemManager);
         proto.setRedeemFee(feePpm);
-        _setBalances(user1, assets, liquidityBuffer);
+        _depositAndMint(user1, assets, liquidityBuffer);
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, liquidityBuffer, 40e6));
@@ -884,7 +884,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     function test_Redeem() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets);
+        _depositAndMint(user1, assets, assets);
         _redeemAndAssert(user1, tokens, user2, user1);
     }
 
@@ -900,14 +900,14 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         vm.prank(redeemManager);
         proto.setRedeemFee(feePpm);
 
-        _setBalances(user1, assets, assets);
+        _depositAndMint(user1, assets, assets);
         _redeemAndAssert(user1, tokens, user2, user1);
     }
 
     function test_Redeem_Revert_ExceedsMaxRedeem_Balance() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets + 1);
+        _depositAndMint(user1, assets, assets + 1);
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
@@ -917,7 +917,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     function test_Redeem_Revert_ExceedsMaxRedeem_LiquidityBuffer() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setBalances(user1, assets + 1, assets);
+        _depositAndMint(user1, assets + 1, assets);
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
@@ -925,7 +925,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     }
 
     function test_Redeem_Revert_ExceededMaxSlippage() public {
-        _setBalances(user1, 100e6, 200e6);
+        _depositAndMint(user1, 100e6, 200e6);
         uint256 tokens = 100e18;
         uint256 minAssets = proto.previewRedeem(tokens);
 
@@ -1067,7 +1067,7 @@ abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
     function test_CreateRedeemOrder_Revert_ZeroReceiver() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets);
+        _depositAndMint(user1, assets, assets);
         vm.prank(user1);
         vm.expectRevert(InvalidZeroAddress.selector);
         proto.createRedeemOrder(tokens, address(0), user1);
@@ -1076,7 +1076,7 @@ abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
     function test_CreateRedeemOrder_Revert_InsufficientAllowance() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        _setBalances(user1, assets, assets);
+        _depositAndMint(user1, assets, assets);
         vm.prank(user2);
         vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, user2, 0, tokens));
         proto.createRedeemOrder(tokens, user2, user1);
@@ -1312,7 +1312,7 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
 
     uint256[] public activeOrderIds;
 
-    uint256 public donatedAssets;
+    uint256 public distributedAssets;
     uint256 public depositedAssets;
     uint256 public mintedTokens;
     uint256 public withdrawnAssets;
@@ -1374,9 +1374,9 @@ contract YuzuProtoHandler is CommonBase, StdCheats, StdUtils {
         return activeOrderIds;
     }
 
-    function donateAssets(uint256 assets) public virtual {
+    function distributeAssets(uint256 assets) public virtual {
         assets = _bound(assets, 0, 1e15);
-        donatedAssets += assets;
+        distributedAssets += assets;
         asset.mint(address(proto), assets);
     }
 
@@ -1600,15 +1600,15 @@ abstract contract YuzuProtoInvariantTest is Test {
 
     function invariantTest_AssetBalance_Consistent() public view virtual {
         uint256 contractAssetBalance = asset.balanceOf(address(proto));
-        uint256 donatedAssets = handler.donatedAssets();
+        uint256 distributedAssets = handler.distributedAssets();
         uint256 depositedAssets = handler.depositedAssets();
         uint256 withdrawnAssets = handler.withdrawnAssets();
         uint256 unfinalizedOrderValue = proto.totalUnfinalizedOrderValue();
         uint256 collectedFees = handler.collectedFees();
         assertEq(
             contractAssetBalance,
-            donatedAssets + depositedAssets + unfinalizedOrderValue - withdrawnAssets - collectedFees,
-            "! contractAssetBalance == donatedAssets + depositedAssets - unfinalizedOrderValue - withdrawnAssets - collectedFees"
+            distributedAssets + depositedAssets + unfinalizedOrderValue - withdrawnAssets - collectedFees,
+            "! contractAssetBalance == distributedAssets + depositedAssets - unfinalizedOrderValue - withdrawnAssets - collectedFees"
         );
     }
 

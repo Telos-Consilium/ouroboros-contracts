@@ -638,7 +638,7 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
 
     uint256[] public activeOrderIds;
 
-    uint256 public donatedAssets;
+    uint256 public distributedAssets;
     uint256 public depositedAssets;
     uint256 public mintedShares;
     uint256 public withdrawnAssets;
@@ -696,9 +696,9 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
         return activeOrderIds;
     }
 
-    function donateAssets(uint256 assets) external {
+    function distributeAssets(uint256 assets) external {
         assets = _bound(assets, 0, 1e27);
-        donatedAssets += assets;
+        distributedAssets += assets;
         yzusd.mint(address(styz), assets);
     }
 
@@ -813,14 +813,14 @@ contract StakedYuzuUSDInvariantTest is Test {
 
     function invariantTest_AssetBalance_Consistent() public view {
         uint256 contractAssetBalance = yzusd.balanceOf(address(styz));
-        uint256 donatedAssets = handler.donatedAssets();
+        uint256 distributedAssets = handler.distributedAssets();
         uint256 depositedAssets = handler.depositedAssets();
         uint256 withdrawnAssets = handler.withdrawnAssets();
         uint256 collectedFees = handler.collectedFees();
         assertEq(
             contractAssetBalance,
-            donatedAssets + depositedAssets - withdrawnAssets - collectedFees,
-            "! contractAssetBalance == donatedAssets + depositedAssets - withdrawnAssets - collectedFees"
+            distributedAssets + depositedAssets - withdrawnAssets - collectedFees,
+            "! contractAssetBalance == distributedAssets + depositedAssets - withdrawnAssets - collectedFees"
         );
     }
 

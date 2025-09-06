@@ -277,7 +277,7 @@ abstract contract YuzuProto is
         _setMinRedeemOrder(newValue);
     }
 
-    /// @dev Returns the assets available for withdrawal.
+    /// @dev Returns the assets available for withdrawal
     function liquidityBufferSize() public view virtual override returns (uint256) {
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
     }
@@ -339,12 +339,12 @@ abstract contract YuzuProto is
         return order;
     }
 
-    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
+    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
     function _feeOnRaw(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
     }
 
-    /// @dev Calculates the fee part of an amount `assets` that already includes fees.
+    /// @dev Calculates the fee part of an amount `assets` that already includes fees
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
     }

@@ -25,7 +25,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         $._supplyCap = _supplyCap;
     }
 
-    /// @dev See {IERC4626}
+    /// @dev See {IERC4626-asset}
     function asset() public view virtual returns (address);
 
     /// @dev See {IERC20}

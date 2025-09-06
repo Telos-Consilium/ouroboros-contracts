@@ -19,7 +19,6 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     uint256 public dailyLinearYieldRatePpm;
     uint256 public lastPoolUpdateTimestamp;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -149,7 +148,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         poolSize -= _discountYield(assets + fee, Math.Rounding.Ceil);
     }
 
-    /// @dev Returns the yield accrued since the last pool update.
+    /// @dev Returns the yield accrued since the last pool update
     function _yieldSinceUpdate(Math.Rounding rounding) internal view returns (uint256) {
         return Math.mulDiv(poolSize * dailyLinearYieldRatePpm, _timeSinceUpdate(), 1e6 days, rounding);
     }
