@@ -70,6 +70,7 @@ contract StakedYuzuUSD is
         __Ownable2Step_init();
         __Pausable_init();
         __EIP712_init(__name, "1");
+        __Nonces_init();
 
         if (address(_asset) == address(0)) {
             revert InvalidZeroAddress();
