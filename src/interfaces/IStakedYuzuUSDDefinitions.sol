@@ -36,7 +36,8 @@ interface IStakedYuzuUSDDefinitions {
         address indexed owner,
         uint256 orderId,
         uint256 assets,
-        uint256 shares
+        uint256 shares,
+        uint256 fee
     );
     event FinalizedRedeem(
         address indexed sender,

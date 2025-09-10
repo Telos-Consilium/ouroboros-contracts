@@ -172,7 +172,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         vm.prank(caller);
         vm.expectEmit();
-        emit InitiatedRedeem(caller, receiver, _owner, expectedOrderId, expectedAssets, shares);
+        emit InitiatedRedeem(caller, receiver, _owner, expectedOrderId, expectedAssets, shares, expectedFee);
         (uint256 orderId, uint256 _assets) = styz.initiateRedeem(shares, receiver, _owner);
 
         assertEq(_assets, expectedAssets);

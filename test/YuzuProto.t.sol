@@ -332,6 +332,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         Order memory order = proto.getRedeemOrder(orderId);
 
         uint256 expectedAssets = proto.previewRedeemOrder(order.tokens);
+        uint256 expectedFee = proto.convertToAssets(order.tokens) - expectedAssets;
+
         uint256 contractAssetsBefore = asset.balanceOf(address(proto));
         uint256 tokensSupplyBefore = proto.totalSupply();
         uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
@@ -339,7 +341,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         vm.prank(caller);
         vm.expectEmit();
-        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, expectedAssets, order.tokens);
+        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, expectedAssets, order.tokens, expectedFee);
         proto.fillRedeemOrder(orderId);
 
         Order memory orderAfter = proto.getRedeemOrder(orderId);

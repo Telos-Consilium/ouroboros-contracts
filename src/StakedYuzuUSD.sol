@@ -164,7 +164,7 @@ contract StakedYuzuUSD is
         address caller = _msgSender();
         uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
 
-        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares);
+        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares, fee);
 
         return (orderId, assets);
     }
