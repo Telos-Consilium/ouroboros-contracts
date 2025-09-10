@@ -230,7 +230,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.initiateRedeem(mintedShares, address(0), user1);
     }
 
-    function test_InitiateRedeem_Revert_ExceededMaxSlippage() public {
+    function test_InitiateRedeem_Revert_WithdrewLessThanMinAssets() public {
         uint256 mintedShares = _deposit(user1, 100e18);
         uint256 minAssets = styz.previewRedeem(mintedShares);
 
@@ -240,7 +240,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         uint256 actualAssets = styz.previewRedeem(mintedShares);
 
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxSlippage.selector, actualAssets, minAssets));
+        vm.expectRevert(abi.encodeWithSelector(WithdrewLessThanMinAssets.selector, actualAssets, minAssets));
         styz.initiateRedeemWithSlippage(mintedShares, user1, user1, minAssets);
     }
 

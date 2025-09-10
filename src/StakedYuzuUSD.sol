@@ -178,7 +178,7 @@ contract StakedYuzuUSD is
     {
         (uint256 orderId, uint256 assets) = initiateRedeem(shares, receiver, _owner);
         if (assets < minAssets) {
-            revert ExceededMaxSlippage(assets, minAssets);
+            revert WithdrewLessThanMinAssets(assets, minAssets);
         }
         return (orderId, assets);
     }

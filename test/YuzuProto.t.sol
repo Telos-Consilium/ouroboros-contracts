@@ -882,6 +882,21 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.withdraw(liquidityBuffer, user2, user1);
     }
 
+    function test_Withdraw_Revert_RedeemedMoreThanMaxTokens() public {
+        _depositAndMint(user1, 200e6, 200e6);
+        uint256 assets = 100e6;
+        uint256 maxTokens = proto.previewWithdraw(assets);
+
+        vm.prank(redeemManager);
+        proto.setRedeemFee(100_000); // 10%
+
+        uint256 actualTokens = proto.previewWithdraw(assets);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(RedeemedMoreThanMaxTokens.selector, actualTokens, maxTokens));
+        proto.withdrawWithSlippage(assets, user1, user1, maxTokens);
+    }
+
     // Redeem
     function test_Redeem() public {
         uint256 assets = 100e6;
@@ -926,7 +941,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.redeem(tokens + 1, user2, user1);
     }
 
-    function test_Redeem_Revert_ExceededMaxSlippage() public {
+    function test_Redeem_Revert_WithdrewLessThanMinAssets() public {
         _depositAndMint(user1, 100e6, 200e6);
         uint256 tokens = 100e18;
         uint256 minAssets = proto.previewRedeem(tokens);
@@ -937,7 +952,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         uint256 actualAssets = proto.previewRedeem(tokens);
 
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxSlippage.selector, actualAssets, minAssets));
+        vm.expectRevert(abi.encodeWithSelector(WithdrewLessThanMinAssets.selector, actualAssets, minAssets));
         proto.redeemWithSlippage(tokens, user1, user1, minAssets);
     }
 
