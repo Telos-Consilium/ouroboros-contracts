@@ -37,6 +37,10 @@ contract StakedYuzuUSD is
     uint256 public redeemFeePpm;
     address public feeReceiver;
 
+    uint256 public lastDistributedAmount;
+    uint256 public lastDistributionPeriod;
+    uint256 public lastDistributionTime;
+
     uint256 public totalPendingOrderValue;
 
     mapping(uint256 => Order) internal orders;
@@ -81,11 +85,41 @@ contract StakedYuzuUSD is
 
         feeReceiver = _feeReceiver;
         redeemDelay = _redeemDelay;
+        lastDistributionPeriod = 1;
     }
 
     /// @notice See {IERC4626-totalAssets}
     function totalAssets() public view override returns (uint256) {
-        return super.totalAssets() - totalPendingOrderValue;
+        uint256 distributed = Math.min(
+            lastDistributedAmount,
+            Math.mulDiv(
+                block.timestamp - lastDistributionTime,
+                lastDistributedAmount,
+                lastDistributionPeriod,
+                Math.Rounding.Floor
+            )
+        );
+        uint256 notDistributed = lastDistributedAmount - distributed;
+        return super.totalAssets() - totalPendingOrderValue - notDistributed;
+    }
+
+    /// @notice Transfer `amount` of assets from the caller into the vault and schedule it for
+    // gradual distribution
+    function distribute(uint256 assets, uint256 period) external onlyOwner {
+        if (period < 1) {
+            revert DistributionPeriodTooLow(period, 1);
+        }
+        if (period > 7 days) {
+            revert DistributionPeriodTooHigh(period, 7 days);
+        }
+        if (lastDistributionTime > 0 && block.timestamp < lastDistributionTime + lastDistributionPeriod) {
+            revert DistributionInProgress();
+        }
+        lastDistributedAmount = assets;
+        lastDistributionPeriod = period;
+        lastDistributionTime = block.timestamp;
+        SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), assets);
+        emit Distributed(assets, period);
     }
 
     /// @notice See {IERC4626-maxDeposit}

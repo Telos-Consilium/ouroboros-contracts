@@ -33,6 +33,7 @@ interface IStakedYuzuUSD is IERC4626 {
         returns (uint256, uint256);
     function finalizeRedeem(uint256 orderId) external;
 
+    function distribute(uint256 assets, uint256 period) external;
     function rescueTokens(address token, address receiver, uint256 amount) external;
 
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
@@ -40,6 +41,9 @@ interface IStakedYuzuUSD is IERC4626 {
     function feeReceiver() external view returns (address);
     function redeemDelay() external view returns (uint256);
     function redeemFeePpm() external view returns (uint256);
+    function lastDistributedAmount() external view returns (uint256);
+    function lastDistributionPeriod() external view returns (uint256);
+    function lastDistributionTime() external view returns (uint256);
     function totalPendingOrderValue() external view returns (uint256);
 
     function setFeeReceiver(address newFeeReceiver) external;

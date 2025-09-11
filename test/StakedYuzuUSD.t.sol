@@ -52,6 +52,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         // Deploy mock asset and mint balances
         yzusd = new ERC20Mock();
+        yzusd.mint(owner, 10_000_000e18);
         yzusd.mint(user1, 10_000_000e18);
         yzusd.mint(user2, 10_000_000e18);
 
@@ -70,6 +71,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz = StakedYuzuUSD(address(proxy));
 
         // Approvals for deposits/orders
+        _approveAssets(owner, address(styz), type(uint256).max);
         _approveAssets(user1, address(styz), type(uint256).max);
         _approveAssets(user2, address(styz), type(uint256).max);
     }
@@ -623,6 +625,77 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         vm.expectRevert(abi.encodeWithSelector(ERC20PermitUpgradeable.ERC2612ExpiredSignature.selector, deadline));
         styz.permit(_owner, spender, value, deadline, v, r, s);
+    }
+
+    // Distribution
+    function test_Distribute() public {
+        uint256 mintedShares = _deposit(user1, 100e18);
+
+        uint256 initialAssets = styz.totalAssets();
+        uint256 initialTime = block.timestamp;
+
+        vm.prank(owner);
+        vm.expectEmit();
+        emit Distributed(10e18, 10);
+        styz.distribute(10e18, 10);
+
+        assertEq(styz.lastDistributedAmount(), 10e18);
+        assertEq(styz.lastDistributionPeriod(), 10);
+        assertEq(styz.lastDistributionTime(), initialTime);
+
+        assertEq(yzusd.balanceOf(address(styz)), initialAssets + 10e18);
+        assertEq(styz.totalAssets(), initialAssets);
+        assertEq(styz.convertToAssets(mintedShares), 100e18);
+
+        vm.warp(initialTime + 5);
+        assertEq(styz.totalAssets(), initialAssets + 5e18);
+        assertEq(styz.convertToAssets(mintedShares), 105e18 - 1);
+
+        vm.warp(initialTime + 10);
+        assertEq(styz.totalAssets(), initialAssets + 10e18);
+        assertEq(styz.convertToAssets(mintedShares), 110e18 - 1);
+
+        vm.warp(initialTime + 15);
+        assertEq(styz.totalAssets(), initialAssets + 10e18);
+        assertEq(styz.convertToAssets(mintedShares), 110e18 - 1);
+    }
+
+    function test_Distribute_Revert_NotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
+        styz.distribute(1e18, 1 days);
+    }
+
+    function test_Distribute_Revert_PeriodTooLow() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooLow.selector, 0, 1));
+        styz.distribute(1e18, 0);
+    }
+
+    function test_Distribute_Revert_PeriodTooHigh() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooHigh.selector, 7 days + 1, 7 days));
+        styz.distribute(1e18, 7 days + 1);
+    }
+
+    function test_Distribute_Revert_InProgress() public {
+        uint256 initialTime = block.timestamp;
+
+        vm.startPrank(owner);
+
+        styz.distribute(1e18, 1 days);
+
+        vm.expectRevert(abi.encodeWithSelector(DistributionInProgress.selector));
+        styz.distribute(1e18, 1 days);
+
+        vm.warp(initialTime + 1 hours);
+        vm.expectRevert(abi.encodeWithSelector(DistributionInProgress.selector));
+        styz.distribute(1e18, 1 days);
+
+        vm.warp(initialTime + 1 days);
+        styz.distribute(1e18, 1 days);
+
+        vm.stopPrank();
     }
 }
 

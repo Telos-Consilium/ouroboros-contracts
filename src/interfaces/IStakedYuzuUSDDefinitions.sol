@@ -29,6 +29,9 @@ interface IStakedYuzuUSDDefinitions {
     error RedeemNotSupported();
     error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
     error WithdrewLessThanMinAssets(uint256 assets, uint256 min);
+    error DistributionInProgress();
+    error DistributionPeriodTooLow(uint256 provided, uint256 min);
+    error DistributionPeriodTooHigh(uint256 provided, uint256 max);
 
     event InitiatedRedeem(
         address indexed sender,
@@ -50,4 +53,5 @@ interface IStakedYuzuUSDDefinitions {
     event UpdatedRedeemDelay(uint256 oldDelay, uint256 newDelay);
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
     event UpdatedFeeReceiver(address oldFeeReceiver, address newFeeReceiver);
+    event Distributed(uint256 assets, uint256 period);
 }
