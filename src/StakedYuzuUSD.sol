@@ -184,7 +184,7 @@ contract StakedYuzuUSD is
         revert RedeemNotSupported();
     }
 
-    /// @notice Initiates a 2-step redemption of `shares`
+    /// @notice Initiate a 2-step redemption of `shares`
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address _owner) public returns (uint256, uint256) {
         if (receiver == address(0)) {
@@ -204,7 +204,7 @@ contract StakedYuzuUSD is
         return (orderId, assets);
     }
 
-    /// @notice Initiates a 2-step redemption of `shares` and reverts if slippage is exceeded
+    /// @notice Initiate a 2-step redemption of `shares` and revert if slippage is exceeded
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeemWithSlippage(uint256 shares, address receiver, address _owner, uint256 minAssets)
         external
@@ -217,7 +217,7 @@ contract StakedYuzuUSD is
         return (orderId, assets);
     }
 
-    /// @notice Finalizes a 2-step redemption order by `orderId`
+    /// @notice Finalize a 2-step redemption order by `orderId`
     function finalizeRedeem(uint256 orderId) external {
         address caller = _msgSender();
         Order storage order = orders[orderId];
@@ -237,7 +237,7 @@ contract StakedYuzuUSD is
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.shares);
     }
 
-    /// @notice Transfers `amount` of `token` held by the vault to `receiver`
+    /// @notice Transfer `amount` of `token` held by the vault to `receiver`
     function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
         if (token == asset()) {
             revert InvalidAssetRescue(token);
@@ -250,7 +250,7 @@ contract StakedYuzuUSD is
         return orders[orderId];
     }
 
-    /// @notice Sets the redemption delay to `newDelay`
+    /// @notice Set the redemption delay to `newDelay`
     function setRedeemDelay(uint256 newDelay) external onlyOwner {
         if (newDelay > 365 days) {
             revert RedeemDelayTooHigh(newDelay, 365 days);
@@ -260,7 +260,7 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemDelay(oldDelay, newDelay);
     }
 
-    /// @notice Sets the redeem fee to `newFeePpm`
+    /// @notice Set the redeem fee to `newFeePpm`
     function setRedeemFee(uint256 newFeePpm) external onlyOwner {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
@@ -270,7 +270,7 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
     }
 
-    /// @notice Sets the fee receiver to `newFeeReceiver`
+    /// @notice Set the fee receiver to `newFeeReceiver`
     function setFeeReceiver(address newFeeReceiver) external onlyOwner {
         if (newFeeReceiver == address(0)) {
             revert InvalidZeroAddress();
@@ -280,12 +280,12 @@ contract StakedYuzuUSD is
         emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
     }
 
-    /// @notice Pauses all minting and redeeming functions
+    /// @notice Pause all mint and redeem functions
     function pause() external onlyOwner {
         _pause();
     }
 
-    /// @notice Unpauses all minting and redeeming functions
+    /// @notice Unpause all mint and redeem functions
     function unpause() external onlyOwner {
         _unpause();
     }

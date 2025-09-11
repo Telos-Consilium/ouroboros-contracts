@@ -358,6 +358,8 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && _owner != address(0));
         vm.assume(caller != address(styz) && receiver != address(styz) && _owner != address(styz));
+        vm.assume(caller != feeReceiver && receiver != feeReceiver && _owner != feeReceiver);
+
         shares = bound(shares, 1e12, 1_000_000e18);
         feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 

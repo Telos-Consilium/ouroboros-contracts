@@ -139,7 +139,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return tokens;
     }
 
-    /// @notice Withdraws assets and reverts if slippage is exceeded
+    /// @notice Withdraw assets and revert if slippage is exceeded
     function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxTokens)
         public
         returns (uint256)
@@ -164,7 +164,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return assets;
     }
 
-    /// @notice Redeems tokens and reverts if slippage is exceeded
+    /// @notice Redeem tokens and revert if slippage is exceeded
     function redeemWithSlippage(uint256 tokens, address receiver, address owner, uint256 minAssets)
         public
         virtual

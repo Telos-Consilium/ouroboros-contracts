@@ -962,6 +962,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        vm.assume(caller != feeReceiver && receiver != feeReceiver && owner != feeReceiver);
 
         assets = bound(assets, 0, 1_000_000e6);
         feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
@@ -987,6 +988,8 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        vm.assume(caller != feeReceiver && receiver != feeReceiver && owner != feeReceiver);
+
         tokens = bound(tokens, 1e12, 1_000_000e18);
         feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 

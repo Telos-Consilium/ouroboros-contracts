@@ -159,6 +159,8 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(ilp) && receiver != address(ilp) && owner != address(ilp));
         vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
+        vm.assume(caller != feeReceiver && receiver != feeReceiver && owner != feeReceiver);
+
         shares = bound(shares, 1e12, 1_000_000e18);
         feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
