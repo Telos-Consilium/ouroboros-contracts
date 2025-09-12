@@ -25,7 +25,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         $._supplyCap = _supplyCap;
     }
 
-    /// @dev See {IERC4626}
+    /// @dev See {IERC4626-asset}
     function asset() public view virtual returns (address);
 
     /// @dev See {IERC20}
@@ -89,13 +89,15 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view virtual returns (uint256) {
-        return _convertToShares(assets, Math.Rounding.Ceil);
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        (uint256 tokens,) = _previewWithdraw(assets);
+        return tokens;
     }
 
     /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 tokens) public view virtual returns (uint256) {
-        return _convertToAssets(tokens, Math.Rounding.Floor);
+    function previewRedeem(uint256 tokens) public view returns (uint256) {
+        (uint256 assets,) = _previewRedeem(tokens);
+        return assets;
     }
 
     /// @notice See {IERC4626-deposit}
@@ -131,8 +133,8 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
             revert ExceededMaxWithdraw(owner, assets, maxAssets);
         }
 
-        uint256 tokens = previewWithdraw(assets);
-        _withdraw(_msgSender(), receiver, owner, assets, tokens);
+        (uint256 tokens, uint256 fee) = _previewWithdraw(assets);
+        _withdraw(_msgSender(), receiver, owner, assets, tokens, fee);
 
         return tokens;
     }
@@ -144,15 +146,30 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
             revert ExceededMaxRedeem(owner, tokens, maxTokens);
         }
 
-        uint256 assets = previewRedeem(tokens);
-        _withdraw(_msgSender(), receiver, owner, assets, tokens);
+        (uint256 assets, uint256 fee) = _previewRedeem(tokens);
+        _withdraw(_msgSender(), receiver, owner, assets, tokens, fee);
 
+        return assets;
+    }
+
+    /// @notice Redeems tokens and reverts if slippage is exceeded
+    function redeemWithSlippage(uint256 tokens, address receiver, address owner, uint256 minAssets)
+        public
+        virtual
+        returns (uint256)
+    {
+        uint256 assets = redeem(tokens, receiver, owner);
+        if (assets < minAssets) {
+            revert ExceededMaxSlippage(assets, minAssets);
+        }
         return assets;
     }
 
     function withdrawCollateral(uint256 assets, address receiver) public virtual {
         uint256 liquidityBuffer = liquidityBufferSize();
-        if (assets > liquidityBuffer) {
+        if (assets == type(uint256).max) {
+            assets = liquidityBuffer;
+        } else if (assets > liquidityBuffer) {
             revert ExceededLiquidityBuffer(assets, liquidityBuffer);
         }
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
@@ -172,13 +189,21 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return __yuzu_balanceOf(owner);
     }
 
+    function _previewWithdraw(uint256 assets) public view virtual returns (uint256, uint256) {
+        return (_convertToShares(assets, Math.Rounding.Ceil), 0);
+    }
+
+    function _previewRedeem(uint256 tokens) public view virtual returns (uint256, uint256) {
+        return (_convertToAssets(tokens, Math.Rounding.Floor), 0);
+    }
+
     function _deposit(address caller, address receiver, uint256 assets, uint256 tokens) internal virtual {
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury(), assets);
         __yuzu_mint(receiver, tokens);
         emit Deposit(caller, receiver, assets, tokens);
     }
 
-    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 tokens)
+    function _withdraw(address caller, address receiver, address owner, uint256 assets, uint256 tokens, uint256 fee)
         internal
         virtual
     {

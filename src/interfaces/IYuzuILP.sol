@@ -10,11 +10,12 @@ interface IYuzuILP is IYuzuProto {
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
         uint256 _fillWindow
     ) external;
 
-    function updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external;
+    function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external;
 
     function poolSize() external view returns (uint256);
     function dailyLinearYieldRatePpm() external view returns (uint256);

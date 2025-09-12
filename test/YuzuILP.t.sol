@@ -3,15 +3,23 @@ pragma solidity ^0.8.30;
 
 import {console2} from "forge-std/Test.sol";
 
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+
 import {IYuzuILPDefinitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 
 import {YuzuProto} from "../src/proto/YuzuProto.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 
-import {YuzuProtoTest, YuzuProtoHandler, YuzuProtoInvariantTest} from "./YuzuProto.t.sol";
+import {
+    YuzuProtoTest_Common,
+    YuzuProtoTest_Issuer,
+    YuzuProtoTest_OrderBook,
+    YuzuProtoHandler,
+    YuzuProtoInvariantTest
+} from "./YuzuProto.t.sol";
 
-contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
+contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
     YuzuILP public ilp;
 
     address public poolManager;
@@ -33,18 +41,31 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
     }
 
     // Helpers
+    function _pause() internal {
+        vm.prank(admin);
+        ilp.pause();
+    }
+
+    function _unpause() internal {
+        vm.prank(admin);
+        ilp.unpause();
+    }
+
     function _updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) internal {
+        _pause();
+        uint256 currentPoolSize = ilp.poolSize();
         vm.prank(poolManager);
-        ilp.updatePool(newPoolSize, newDailyLinearYieldRatePpm);
+        ilp.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+        _unpause();
     }
 
     // Preview Functions
     function test_Preview_EmptyPool() public {
         assertEq(ilp.previewDeposit(100e6), 100e18);
         assertEq(ilp.previewMint(100e18), 100e6);
-        assertEq(ilp.previewWithdraw(100e6), 0);
-        assertEq(ilp.previewRedeem(100e18), 0);
-        assertEq(ilp.previewRedeemOrder(100e18), 0);
+        assertEq(ilp.previewWithdraw(100e6), 100e18);
+        assertEq(ilp.previewRedeem(100e18), 100e6);
+        assertEq(ilp.previewRedeemOrder(100e18), 100e6);
     }
 
     function test_Preview_NonEmptyPool() public {
@@ -71,9 +92,9 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 
         assertEq(ilp.previewDeposit(100e6), uint256(100e18) * 10 / 11);
         assertEq(ilp.previewMint(100e18), 110e6);
-        assertEq(ilp.previewWithdraw(100e6), 100e18);
-        assertEq(ilp.previewRedeem(100e18), 100e6);
-        assertEq(ilp.previewRedeemOrder(100e18), 100e6);
+        assertEq(ilp.previewWithdraw(110e6), 100e18);
+        assertEq(ilp.previewRedeem(100e18), 110e6);
+        assertEq(ilp.previewRedeemOrder(100e18), 110e6);
     }
 
     function test_PreviewWithdraw_WithFee() public {
@@ -88,19 +109,13 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
     function test_PreviewWithdraw_WithFeeAndYield() public {
         _deposit(user1, 100e6);
         _updatePool(100e6, 100_000);
-        _setFees(100_000, 200_000);
+        _setFees(250_000, 500_000);
 
         vm.warp(block.timestamp + 1 days);
 
-        assertEq(ilp.previewWithdraw(100e6), 110e18);
-        assertEq(ilp.previewRedeem(100e18), 90_909090); // 100e6 / (1 + 0.1) = 90.909090
-        assertEq(ilp.previewRedeemOrder(100e18), 83_333333); // 100e6 / (1 + 0.2) = 83.333333
-    }
-
-    function test_PreviewRedeemOrder_WithIncentive() public {
-        _deposit(user1, 100e6);
-        _setFees(0, -100_000); // 10% incentive on order fee
-        assertEq(ilp.previewRedeemOrder(100e18), 110000000); // 100e6 * (1 + 0.1) = 110e6
+        assertEq(ilp.previewWithdraw(110e6), 125e18); // 100e18 * 1.25
+        assertEq(ilp.previewRedeem(100e18), 88_000000); // 110e6 / (1 + 0.25)
+        assertEq(ilp.previewRedeemOrder(100e18), 73_333333); // 110e6 / (1 + 0.5)
     }
 
     // Deposit
@@ -118,14 +133,6 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         assertEq(ilp.totalAssets(), 150e6);
     }
 
-    // Withdraw
-    function test_Withdraw_UpdatesPool() public {
-        _setBalances(user1, 100e6, 100e6);
-        _withdraw(user1, 100e6);
-        assertEq(ilp.poolSize(), 0);
-        assertEq(ilp.totalAssets(), 0);
-    }
-
     // Redeem Orders
     function test_CreateRedeemOrder_DoesNotUpdatePool() public {
         _deposit(user1, 100e6);
@@ -134,34 +141,12 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         assertEq(ilp.totalAssets(), 100e6);
     }
 
-    function test_FillRedeemOrder_WithIncentive() public {
-        uint256 assets = 100e6;
-        uint256 shares = 100e18;
-        int256 feePpm = -100_000; // -10%
-
-        vm.prank(redeemManager);
-        ilp.setRedeemOrderFee(feePpm);
-
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, shares);
-        _updatePool(200e6, 0);
-        _fillRedeemOrderAndAssert(orderFiller, orderId);
-    }
-
     function test_FillRedeemOrder_UpdatesPool() public {
         _deposit(user1, 100e6);
-        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
+        uint256 orderId = _createRedeemOrder(user1, 100e18);
         _fillRedeemOrder(orderId);
         assertEq(ilp.poolSize(), 0);
         assertEq(ilp.totalAssets(), 0);
-    }
-
-    function test_FillRedeemOrder_Reverts_InsufficientPoolSize() public {
-        _deposit(user1, 100e6);
-        (uint256 orderId,) = _createRedeemOrder(user1, 100e18);
-        _updatePool(50e6, 0);
-        vm.expectRevert(abi.encodeWithSelector(InsufficientPoolSize.selector, 100e6, 50e6));
-        _fillRedeemOrder(orderId);
     }
 
     function testFuzz_CreateRedeemOrder_FillRedeemOrder(
@@ -169,13 +154,13 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         address receiver,
         address owner,
         uint256 shares,
-        int256 feePpm
+        uint256 feePpm
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(ilp) && receiver != address(ilp) && owner != address(ilp));
         vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
         shares = bound(shares, 1e12, 1_000_000e18);
-        feePpm = bound(feePpm, -1_000_000, 1_000_000); // -100% to 100%
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
         uint256 depositSize = ilp.previewMint(shares);
 
@@ -199,8 +184,11 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 
     // Admin Functions
     function test_UpdatePool() public {
+        _pause();
         vm.prank(poolManager);
-        ilp.updatePool(100e6, 100_000);
+        vm.expectEmit();
+        emit UpdatedPool(0, 100e6, 100_000);
+        ilp.updatePool(0, 100e6, 100_000);
 
         assertEq(ilp.poolSize(), 100e6);
         assertEq(ilp.dailyLinearYieldRatePpm(), 100_000);
@@ -209,10 +197,24 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
         assertEq(ilp.totalAssets(), 100e6);
     }
 
+    function test_UpdatePool_Revert_NotPaused() public {
+        vm.prank(poolManager);
+        vm.expectRevert(PausableUpgradeable.ExpectedPause.selector);
+        ilp.updatePool(0, 100e6, 1e6 + 1);
+    }
+
+    function test_UpdatePool_Revert_InvalidCurrentPoolSize() public {
+        _pause();
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(InvalidCurrentPoolSize.selector, 1, 0));
+        ilp.updatePool(1, 100e6, 1e6 + 1);
+    }
+
     function test_UpdatePool_Revert_InvalidYield() public {
+        _pause();
         vm.prank(poolManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidYield.selector, 1e6 + 1));
-        ilp.updatePool(100e6, 1e6 + 1);
+        ilp.updatePool(0, 100e6, 1e6 + 1);
     }
 
     // Total Assets
@@ -225,6 +227,12 @@ contract YuzuILPTest is YuzuProtoTest, IYuzuILPDefinitions {
 
         vm.warp(ilp.lastPoolUpdateTimestamp() + 1 days);
         assertEq(ilp.totalAssets(), 110e6);
+    }
+}
+
+contract YuzuUSDTest_OrderBook is YuzuProtoTest_OrderBook {
+    function _deploy() internal override returns (address) {
+        return address(new YuzuILP());
     }
 }
 
@@ -272,8 +280,11 @@ contract YuzuILPHandler is YuzuProtoHandler {
 
         if (useGuardrails && order.assets > poolSize) {
             uint256 yieldRatePpm = ilp.dailyLinearYieldRatePpm();
-            vm.prank(admin);
-            ilp.updatePool(order.assets, yieldRatePpm);
+            vm.startPrank(admin);
+            ilp.pause();
+            ilp.updatePool(poolSize, order.assets, yieldRatePpm);
+            ilp.unpause();
+            vm.stopPrank();
         }
 
         asset.mint(admin, order.assets);
@@ -285,10 +296,14 @@ contract YuzuILPHandler is YuzuProtoHandler {
         actualYieldRatePpm = bound(actualYieldRatePpm, int256(-1_000_000), int256(10_000_000)); // -100% to 1000%
         newYieldRatePpm = bound(newYieldRatePpm, 0, 1_000_000); // 0% to 100%
         vm.warp(block.timestamp + 1 days);
-        uint256 newPoolSize = ilp.poolSize() * uint256(1e6 + actualYieldRatePpm) / 1e6;
+        uint256 currentPoolSize = ilp.poolSize();
+        uint256 newPoolSize = currentPoolSize * uint256(1e6 + actualYieldRatePpm) / 1e6;
         newPoolSize = _bound(newPoolSize, 0, 1e36);
-        vm.prank(admin);
-        ilp.updatePool(newPoolSize, newYieldRatePpm);
+        vm.startPrank(admin);
+        ilp.pause();
+        ilp.updatePool(currentPoolSize, newPoolSize, newYieldRatePpm);
+        ilp.unpause();
+        vm.stopPrank();
     }
 }
 

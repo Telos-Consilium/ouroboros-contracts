@@ -13,6 +13,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         uint256 _totalPendingOrderSize;
         uint256 _totalUnfinalizedOrderValue;
         uint256 _orderCount;
+        uint256 _minRedeemOrder;
         mapping(uint256 => Order) _orders;
     }
 
@@ -20,13 +21,14 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
     bytes32 private constant YuzuOrderBookStorageLocation =
         0x747f75a735bbbfd5f9552c4d2a106ffbc4ca977c3f429389a57413d9a643a500;
 
-    function __YuzuOrderBook_init(uint256 _fillWindow) internal onlyInitializing {
-        __YuzuOrderBook_init_unchained(_fillWindow);
+    function __YuzuOrderBook_init(uint256 _fillWindow, uint256 _minRedeemOrder) internal onlyInitializing {
+        __YuzuOrderBook_init_unchained(_fillWindow, _minRedeemOrder);
     }
 
-    function __YuzuOrderBook_init_unchained(uint256 _fillWindow) internal onlyInitializing {
+    function __YuzuOrderBook_init_unchained(uint256 _fillWindow, uint256 _minRedeemOrder) internal onlyInitializing {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._fillWindow = _fillWindow;
+        $._minRedeemOrder = _minRedeemOrder;
     }
 
     /// @dev See {IERC4626}
@@ -39,17 +41,18 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
 
     function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
 
-    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256);
+    function _previewRedeemOrder(uint256 tokens, uint256 feePpm) public view virtual returns (uint256, uint256);
 
     function maxRedeemOrder(address owner) public view virtual returns (uint256) {
         return __yuzu_balanceOf(owner);
     }
 
-    function createRedeemOrder(uint256 tokens, address receiver, address owner)
-        public
-        virtual
-        returns (uint256, uint256)
-    {
+    function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256) {
+        (uint256 assets,) = _previewRedeemOrder(tokens, 0);
+        return assets;
+    }
+
+    function createRedeemOrder(uint256 tokens, address receiver, address owner) public virtual returns (uint256) {
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -57,14 +60,17 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         if (tokens > maxTokens) {
             revert ExceededMaxRedeemOrder(owner, tokens, maxTokens);
         }
+        uint256 minTokens = minRedeemOrder();
+        if (tokens < minTokens) {
+            revert UnderMinRedeemOrder(tokens, minTokens);
+        }
 
-        uint256 assets = previewRedeemOrder(tokens);
         address caller = _msgSender();
-        uint256 orderId = _createRedeemOrder(caller, receiver, owner, tokens, assets);
+        uint256 orderId = _createRedeemOrder(caller, receiver, owner, tokens);
 
-        emit CreatedRedeemOrder(caller, receiver, owner, orderId, assets, tokens);
+        emit CreatedRedeemOrder(caller, receiver, owner, orderId, tokens);
 
-        return (orderId, assets);
+        return (orderId);
     }
 
     function fillRedeemOrder(uint256 orderId) public virtual {
@@ -73,10 +79,11 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
             revert OrderNotPending(orderId);
         }
 
+        (uint256 assets, uint256 fee) = _previewRedeemOrder(order.tokens, uint256(order.feePpm));
         address caller = _msgSender();
-        _fillRedeemOrder(caller, order);
+        _fillRedeemOrder(caller, order, assets, fee);
 
-        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, order.assets, order.tokens);
+        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, assets, order.tokens);
     }
 
     function finalizeRedeemOrder(uint256 orderId) public virtual {
@@ -118,6 +125,11 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return $._fillWindow;
     }
 
+    function minRedeemOrder() public view returns (uint256) {
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        return $._minRedeemOrder;
+    }
+
     function totalPendingOrderSize() public view returns (uint256) {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         return $._totalPendingOrderSize;
@@ -137,7 +149,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return _getOrder(orderId);
     }
 
-    function _createRedeemOrder(address caller, address receiver, address owner, uint256 tokens, uint256 assets)
+    function _createRedeemOrder(address caller, address receiver, address owner, uint256 tokens)
         internal
         virtual
         returns (uint256)
@@ -146,15 +158,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         $._totalPendingOrderSize += tokens;
 
         uint256 orderId = $._orderCount;
-        $._orders[orderId] = Order({
-            assets: assets,
-            tokens: tokens,
-            owner: owner,
-            receiver: receiver,
-            controller: caller,
-            dueTime: SafeCast.toUint40(block.timestamp + $._fillWindow),
-            status: OrderStatus.Pending
-        });
+        $._orders[orderId] = _newRedeemOrder(caller, receiver, owner, tokens);
         $._orderCount++;
 
         if (caller != owner) {
@@ -165,14 +169,15 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return orderId;
     }
 
-    function _fillRedeemOrder(address caller, Order storage order) internal virtual {
+    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee) internal virtual {
         order.status = OrderStatus.Filled;
+        order.assets = assets;
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         $._totalPendingOrderSize -= order.tokens;
-        $._totalUnfinalizedOrderValue += order.assets;
+        $._totalUnfinalizedOrderValue += assets;
 
         __yuzu_burn(address(this), order.tokens);
-        SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), order.assets);
+        SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), assets);
     }
 
     function _finalizeRedeemOrder(Order storage order) internal virtual {
@@ -190,6 +195,24 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         __yuzu_transfer(address(this), order.owner, order.tokens);
     }
 
+    function _newRedeemOrder(address caller, address receiver, address owner, uint256 tokens)
+        internal
+        view
+        virtual
+        returns (Order memory)
+    {
+        return Order({
+            assets: 0,
+            tokens: tokens,
+            owner: owner,
+            receiver: receiver,
+            controller: caller,
+            dueTime: SafeCast.toUint40(block.timestamp + _getYuzuOrderBookStorage()._fillWindow),
+            status: OrderStatus.Pending,
+            feePpm: 0
+        });
+    }
+
     function _getYuzuOrderBookStorage() private pure returns (YuzuOrderBookStorage storage $) {
         // slither-disable-next-line assembly
         assembly {
@@ -197,18 +220,25 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         }
     }
 
-    function _getOrder(uint256 orderId) private view returns (Order storage) {
+    function _getOrder(uint256 orderId) internal view returns (Order storage) {
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         return $._orders[orderId];
     }
 
     function _setFillWindow(uint256 newWindow) internal {
-        if (newWindow > type(uint32).max) {
-            revert FillWindowTooHigh(newWindow, type(uint32).max);
+        if (newWindow > 365 days) {
+            revert FillWindowTooHigh(newWindow, 365 days);
         }
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         uint256 oldWindow = $._fillWindow;
         $._fillWindow = newWindow;
         emit UpdatedFillWindow(oldWindow, newWindow);
+    }
+
+    function _setMinRedeemOrder(uint256 newMin) internal {
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        uint256 oldMin = $._minRedeemOrder;
+        $._minRedeemOrder = newMin;
+        emit UpdatedMinRedeemOrder(oldMin, newMin);
     }
 }

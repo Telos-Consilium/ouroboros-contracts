@@ -7,6 +7,7 @@ interface IYuzuProtoDefinitions {
     error ExceededOutstandingBalance(uint256 requested, uint256 outstandingBalance);
 
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
-    event UpdatedRedeemOrderFee(int256 oldFee, int256 newFee);
+    event UpdatedRedeemOrderFee(uint256 oldFee, uint256 newFee);
+    event UpdatedFeeReceiver(address oldFeeReceiver, address newFeeReceiver);
     event UpdatedTreasury(address oldTreasury, address newTreasury);
 }

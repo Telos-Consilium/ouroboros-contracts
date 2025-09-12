@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import {YuzuProto} from "./proto/YuzuProto.sol";
 
@@ -11,7 +10,6 @@ import {YuzuProto} from "./proto/YuzuProto.sol";
  * @notice YuzuUSD token implementation with 1:1 peg to underlying asset
  */
 contract YuzuUSD is YuzuProto {
-    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -32,10 +30,14 @@ contract YuzuUSD is YuzuProto {
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
-        uint256 _fillWindow
+        uint256 _fillWindow,
+        uint256 _minRedeemOrder
     ) external initializer {
-        __YuzuProto_init(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow);
+        __YuzuProto_init(
+            __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
+        );
     }
 
     function _convertToShares(uint256 assets, Math.Rounding) internal view override returns (uint256) {

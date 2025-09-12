@@ -2,8 +2,8 @@
 pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -33,8 +33,11 @@ abstract contract YuzuProto is
     address internal _asset;
     address internal _treasury;
 
+    uint8 private _underlyingDecimals;
+
     uint256 public redeemFeePpm;
-    int256 public redeemOrderFeePpm;
+    uint256 public redeemOrderFeePpm;
+    address public feeReceiver;
 
     function __YuzuProto_init(
         address __asset,
@@ -42,10 +45,14 @@ abstract contract YuzuProto is
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
-        uint256 _fillWindow
+        uint256 _fillWindow,
+        uint256 _minRedeemOrder
     ) internal onlyInitializing {
-        __YuzuProto_init_unchained(__asset, __name, __symbol, _admin, __treasury, _supplyCap, _fillWindow);
+        __YuzuProto_init_unchained(
+            __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
+        );
     }
 
     function __YuzuProto_init_unchained(
@@ -54,26 +61,51 @@ abstract contract YuzuProto is
         string memory __symbol,
         address _admin,
         address __treasury,
+        address _feeReceiver,
         uint256 _supplyCap,
-        uint256 _fillWindow
+        uint256 _fillWindow,
+        uint256 _minRedeemOrder
     ) internal onlyInitializing {
         __ERC20_init(__name, __symbol);
         __ERC20Permit_init(__name);
         __YuzuIssuer_init(_supplyCap);
-        __YuzuOrderBook_init(_fillWindow);
+        __YuzuOrderBook_init(_fillWindow, _minRedeemOrder);
         __AccessControlDefaultAdminRules_init(0, _admin);
+        __Pausable_init();
 
         if (__asset == address(0) || __treasury == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        if (_feeReceiver == address(0)) {
             revert InvalidZeroAddress();
         }
 
         _asset = __asset;
         _treasury = __treasury;
+        feeReceiver = _feeReceiver;
 
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
+
+        (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(IERC20(__asset));
+        _underlyingDecimals = success ? assetDecimals : 18;
+    }
+
+    /// @dev Attempts to fetch the asset decimals. A return value of false indicates that the attempt failed in some way.
+    function _tryGetAssetDecimals(IERC20 asset_) private view returns (bool ok, uint8 assetDecimals) {
+        // slither-disable-next-line pess-arbitrary-call-destination-tainted,low-level-calls
+        (bool success, bytes memory encodedDecimals) =
+            address(asset_).staticcall(abi.encodeCall(IERC20Metadata.decimals, ()));
+        if (success && encodedDecimals.length >= 32) {
+            uint256 returnedDecimals = abi.decode(encodedDecimals, (uint256));
+            if (returnedDecimals <= type(uint8).max) {
+                // slither-disable-next-line pess-dubious-typecast
+                return (true, uint8(returnedDecimals));
+            }
+        }
+        return (false, 0);
     }
 
     function __yuzu_totalSupply() internal view override(YuzuIssuer) returns (uint256) {
@@ -103,6 +135,10 @@ abstract contract YuzuProto is
         _transfer(from, to, amount);
     }
 
+    function decimals() public view virtual override returns (uint8) {
+        return _underlyingDecimals + _decimalsOffset();
+    }
+
     /// @notice See {IERC4626-asset}
     function asset() public view override(YuzuIssuer, YuzuOrderBook) returns (address) {
         return _asset;
@@ -112,24 +148,52 @@ abstract contract YuzuProto is
         return _treasury;
     }
 
-    /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
-        uint256 tokens = previewDeposit(assets + fee);
-        return tokens;
+    /// @notice See {IERC4626-maxDeposit}
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxDeposit(receiver);
     }
 
-    /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 tokens) public view virtual override returns (uint256) {
-        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
-        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
-        return assets - fee;
+    /// @notice See {IERC4626-maxMint}
+    function maxMint(address receiver) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxMint(receiver);
+    }
+
+    /// @notice See {IERC4626-maxWithdraw}
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        uint256 maxAssets = _maxWithdraw(_owner);
+        uint256 fee = _feeOnTotal(maxAssets, redeemFeePpm);
+        return Math.min(previewRedeem(_maxRedeem(_owner)), maxAssets - fee);
+    }
+
+    /// @notice See {IERC4626-maxRedeem}
+    function maxRedeem(address _owner) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxRedeem(_owner);
+    }
+
+    /// @notice Returns the maximum amount of shares that can be redeemed by `_owner` in a single order
+    function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
+        if (paused()) {
+            return 0;
+        }
+        return super.maxRedeemOrder(_owner);
     }
 
     /// @notice Preview the amount of assets to receive when redeeming `tokens` with an order after fees
-    function previewRedeemOrder(uint256 tokens) public view virtual override returns (uint256) {
-        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
-        return _applyFeeOrIncentiveOnTotal(assets, redeemOrderFeePpm);
+    function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
+        (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
+        return assets;
     }
 
     function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
@@ -170,13 +234,22 @@ abstract contract YuzuProto is
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    function setRedeemOrderFee(int256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemOrderFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
-            revert FeeTooHigh(SafeCast.toUint256(newFeePpm), 1e6);
+            revert FeeTooHigh(newFeePpm, 1e6);
         }
-        int256 oldFee = redeemOrderFeePpm;
+        uint256 oldFee = redeemOrderFeePpm;
         redeemOrderFeePpm = newFeePpm;
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
+    }
+
+    function setFeeReceiver(address newFeeReceiver) external onlyRole(ADMIN_ROLE) {
+        if (newFeeReceiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        address oldFeeReceiver = feeReceiver;
+        feeReceiver = newFeeReceiver;
+        emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
     }
 
     /// @notice Pauses all minting and redeeming functions
@@ -199,37 +272,50 @@ abstract contract YuzuProto is
         _setFillWindow(newWindow);
     }
 
-    /// @dev Returns the assets available for withdrawal.
+    // slither-disable-next-line pess-strange-setter
+    function setMinRedeemOrder(uint256 newValue) external onlyRole(REDEEM_MANAGER_ROLE) {
+        _setMinRedeemOrder(newValue);
+    }
+
+    /// @dev Returns the assets available for withdrawal
     function liquidityBufferSize() public view virtual override returns (uint256) {
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
     }
 
-    function _deposit(address caller, address receiver, uint256 assets, uint256 tokens)
-        internal
-        virtual
-        override
-        whenNotPaused
-    {
-        super._deposit(caller, receiver, assets, tokens);
+    function _previewWithdraw(uint256 assets) public view virtual override returns (uint256, uint256) {
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
+        uint256 tokens = _convertToShares(assets + fee, Math.Rounding.Ceil);
+        return (tokens, fee);
     }
 
-    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 tokens)
-        internal
-        virtual
-        override
-        whenNotPaused
-    {
-        super._withdraw(caller, receiver, _owner, assets, tokens);
+    function _previewRedeem(uint256 tokens) public view virtual override returns (uint256, uint256) {
+        uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
+        return (assets - fee, fee);
     }
 
-    function _createRedeemOrder(address caller, address receiver, address _owner, uint256 tokens, uint256 assets)
+    function _previewRedeemOrder(uint256 shares, uint256 feePpm)
+        public
+        view
+        virtual
+        override
+        returns (uint256, uint256)
+    {
+        uint256 assets = _convertToAssets(shares, Math.Rounding.Floor);
+        uint256 fee = _feeOnTotal(assets, feePpm);
+        return (assets - fee, fee);
+    }
+
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 tokens, uint256 fee)
         internal
         virtual
         override
         whenNotPaused
-        returns (uint256)
     {
-        return super._createRedeemOrder(caller, receiver, _owner, tokens, assets);
+        super._withdraw(caller, receiver, _owner, assets, tokens, fee);
+        if (fee > 0) {
+            SafeERC20.safeTransfer(IERC20(asset()), feeReceiver, fee);
+        }
     }
 
     function _finalizeRedeemOrder(Order storage order) internal virtual override whenNotPaused {
@@ -240,27 +326,27 @@ abstract contract YuzuProto is
         super._cancelRedeemOrder(order);
     }
 
-    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees.
+    function _newRedeemOrder(address caller, address receiver, address _owner, uint256 tokens)
+        internal
+        view
+        virtual
+        override
+        returns (Order memory)
+    {
+        Order memory order = super._newRedeemOrder(caller, receiver, _owner, tokens);
+        // slither-disable-next-line pess-dubious-typecast
+        order.feePpm = uint24(redeemOrderFeePpm);
+        return order;
+    }
+
+    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
     function _feeOnRaw(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
     }
 
-    /// @dev Calculates the fee part of an amount `assets` that already includes fees.
+    /// @dev Calculates the fee part of an amount `assets` that already includes fees
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
-    }
-
-    /// @dev Applies a fee or incentive to an amount `assets` that already includes fees.
-    function _applyFeeOrIncentiveOnTotal(uint256 assets, int256 feePpm) internal pure returns (uint256) {
-        if (feePpm >= 0) {
-            /// @dev Positive fee - reduce assets returned
-            uint256 fee = _feeOnTotal(assets, SafeCast.toUint256(feePpm));
-            return assets - fee;
-        } else {
-            /// @dev Negative fee (incentive) - increase assets returned
-            uint256 incentive = _feeOnRaw(assets, SafeCast.toUint256(-feePpm));
-            return assets + incentive;
-        }
     }
 
     function _decimalsOffset() internal view virtual returns (uint8) {

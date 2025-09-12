@@ -5,9 +5,14 @@ import {console2} from "forge-std/Test.sol";
 
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 
-import {YuzuProtoTest, YuzuProtoInvariantTest} from "./YuzuProto.t.sol";
+import {
+    YuzuProtoTest_Common,
+    YuzuProtoTest_Issuer,
+    YuzuProtoTest_OrderBook,
+    YuzuProtoInvariantTest
+} from "./YuzuProto.t.sol";
 
-contract YuzuUSDTest is YuzuProtoTest {
+contract YuzuUSDTest_Common is YuzuProtoTest_Common {
     function _deploy() internal override returns (address) {
         return address(new YuzuUSD());
     }
@@ -28,25 +33,6 @@ contract YuzuUSDTest is YuzuProtoTest {
         assertEq(proto.previewRedeemOrder(100e18), 83_333333); // 100e6 / (1 + 0.2) = 83.333333
     }
 
-    function test_PreviewRedeemOrder_WithIncentive() public {
-        _setFees(0, -100_000); // 10% incentive on order fee
-        assertEq(proto.previewRedeemOrder(100e18), 110000000); // 100e6 * (1 + 0.1) = 110e6
-    }
-
-    // Redeem Orders
-    function test_FillRedeemOrder_WithIncentive() public {
-        uint256 assets = 100e6;
-        uint256 tokens = 100e18;
-        int256 feePpm = -100_000; // -10%
-
-        vm.prank(redeemManager);
-        proto.setRedeemOrderFee(feePpm);
-
-        _deposit(user1, assets);
-        (uint256 orderId,) = _createRedeemOrder(user1, tokens);
-        _fillRedeemOrderAndAssert(orderFiller, orderId);
-    }
-
     // Total Assets
     function test_TotalAssets() public {
         _deposit(user1, 100e6);
@@ -59,13 +45,13 @@ contract YuzuUSDTest is YuzuProtoTest {
         address receiver,
         address owner,
         uint256 tokens,
-        int256 feePpm
+        uint256 feePpm
     ) public {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
         vm.assume(caller != orderFiller && receiver != orderFiller && owner != orderFiller);
         tokens = bound(tokens, 1e12, 1_000_000e18);
-        feePpm = bound(feePpm, -1_000_000, 1_000_000); // -100% to 100%
+        feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
         uint256 depositSize = proto.previewMint(tokens);
 
@@ -83,6 +69,18 @@ contract YuzuUSDTest is YuzuProtoTest {
         vm.warp(block.timestamp + proto.fillWindow());
 
         _fillRedeemOrderAndAssert(orderFiller, proto.orderCount() - 1);
+    }
+}
+
+contract YuzuUSDTest_Issuer is YuzuProtoTest_Issuer {
+    function _deploy() internal override returns (address) {
+        return address(new YuzuUSD());
+    }
+}
+
+contract YuzuUSDTest_OrderBook is YuzuProtoTest_OrderBook {
+    function _deploy() internal override returns (address) {
+        return address(new YuzuUSD());
     }
 }
 
