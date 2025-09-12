@@ -182,7 +182,7 @@ abstract contract YuzuProto is
         return super.maxRedeem(_owner);
     }
 
-    /// @notice Returns the maximum amount of shares that can be redeemed by `_owner` in a single order
+    /// @notice Return the maximum amount of shares that can be redeemed by `_owner` in a single order
     function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -194,6 +194,17 @@ abstract contract YuzuProto is
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
         return assets;
+    }
+
+    function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address _owner, uint256 maxFeePpm)
+        public
+        virtual
+        returns (uint256)
+    {
+        if (redeemOrderFeePpm > maxFeePpm) {
+            revert FeeOverMaxFee(redeemOrderFeePpm, maxFeePpm);
+        }
+        return createRedeemOrder(tokens, receiver, _owner);
     }
 
     function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
@@ -252,12 +263,12 @@ abstract contract YuzuProto is
         emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
     }
 
-    /// @notice Pauses all minting and redeeming functions
+    /// @notice Pause all mint and redeem functions
     function pause() external onlyRole(ADMIN_ROLE) {
         _pause();
     }
 
-    /// @notice Unpauses all minting and redeeming functions
+    /// @notice Unpause all mint and redeem functions
     function unpause() external onlyRole(ADMIN_ROLE) {
         _unpause();
     }

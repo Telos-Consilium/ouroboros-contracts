@@ -83,7 +83,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         address caller = _msgSender();
         _fillRedeemOrder(caller, order, assets, fee);
 
-        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, assets, order.tokens);
+        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, assets, order.tokens, fee);
     }
 
     function finalizeRedeemOrder(uint256 orderId) public virtual {

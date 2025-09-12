@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 interface IYuzuProtoDefinitions {
     error FeeTooHigh(uint256 provided, uint256 max);
+    error FeeOverMaxFee(uint256 feePpm, uint256 max);
     error InvalidAssetRescue(address token);
     error ExceededOutstandingBalance(uint256 requested, uint256 outstandingBalance);
 

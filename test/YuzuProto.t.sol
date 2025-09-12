@@ -332,6 +332,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         Order memory order = proto.getRedeemOrder(orderId);
 
         uint256 expectedAssets = proto.previewRedeemOrder(order.tokens);
+        uint256 expectedFee = proto.convertToAssets(order.tokens) - expectedAssets;
+
         uint256 contractAssetsBefore = asset.balanceOf(address(proto));
         uint256 tokensSupplyBefore = proto.totalSupply();
         uint256 pendingOrderSizeBefore = proto.totalPendingOrderSize();
@@ -339,7 +341,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         vm.prank(caller);
         vm.expectEmit();
-        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, expectedAssets, order.tokens);
+        emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, expectedAssets, order.tokens, expectedFee);
         proto.fillRedeemOrder(orderId);
 
         Order memory orderAfter = proto.getRedeemOrder(orderId);
@@ -880,6 +882,21 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.withdraw(liquidityBuffer, user2, user1);
     }
 
+    function test_WithdrawWithSlippage_Revert_RedeemedMoreThanMaxTokens() public {
+        _depositAndMint(user1, 200e6, 200e6);
+        uint256 assets = 100e6;
+        uint256 maxTokens = proto.previewWithdraw(assets);
+
+        vm.prank(redeemManager);
+        proto.setRedeemFee(100_000); // 10%
+
+        uint256 actualTokens = proto.previewWithdraw(assets);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(RedeemedMoreThanMaxTokens.selector, actualTokens, maxTokens));
+        proto.withdrawWithSlippage(assets, user1, user1, maxTokens);
+    }
+
     // Redeem
     function test_Redeem() public {
         uint256 assets = 100e6;
@@ -924,7 +941,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.redeem(tokens + 1, user2, user1);
     }
 
-    function test_Redeem_Revert_ExceededMaxSlippage() public {
+    function test_RedeemWithSlippage_Revert_WithdrewLessThanMinAssets() public {
         _depositAndMint(user1, 100e6, 200e6);
         uint256 tokens = 100e18;
         uint256 minAssets = proto.previewRedeem(tokens);
@@ -935,7 +952,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         uint256 actualAssets = proto.previewRedeem(tokens);
 
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxSlippage.selector, actualAssets, minAssets));
+        vm.expectRevert(abi.encodeWithSelector(WithdrewLessThanMinAssets.selector, actualAssets, minAssets));
         proto.redeemWithSlippage(tokens, user1, user1, minAssets);
     }
 
@@ -945,6 +962,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        vm.assume(caller != feeReceiver && receiver != feeReceiver && owner != feeReceiver);
 
         assets = bound(assets, 0, 1_000_000e6);
         feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
@@ -970,6 +988,8 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     {
         vm.assume(caller != address(0) && receiver != address(0) && owner != address(0));
         vm.assume(caller != address(proto) && receiver != address(proto) && owner != address(proto));
+        vm.assume(caller != feeReceiver && receiver != feeReceiver && owner != feeReceiver);
+
         tokens = bound(tokens, 1e12, 1_000_000e18);
         feePpm = bound(feePpm, 0, 1_000_000); // 0% to 100%
 
@@ -1080,6 +1100,18 @@ abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
         vm.prank(user2);
         vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, user2, 0, tokens));
         proto.createRedeemOrder(tokens, user2, user1);
+    }
+
+    function test_CreateRedeemOrderWithMaxFee_Revert_FeeOverMaxFee() public {
+        uint256 tokens = _deposit(user1, 100e6);
+        uint256 maxFee = proto.redeemOrderFeePpm();
+
+        vm.prank(redeemManager);
+        proto.setRedeemOrderFee(maxFee + 1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(FeeOverMaxFee.selector, maxFee + 1, maxFee));
+        proto.createRedeemOrderWithMaxFee(tokens, user1, user1, maxFee);
     }
 
     function test_FillRedeemOrder() public {

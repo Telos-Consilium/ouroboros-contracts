@@ -44,7 +44,8 @@ interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
         address indexed owner,
         uint256 orderId,
         uint256 assets,
-        uint256 tokens
+        uint256 tokens,
+        uint256 fee
     );
     event FinalizedRedeemOrder(
         address indexed sender,

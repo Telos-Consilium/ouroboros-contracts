@@ -50,7 +50,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
     }
 
-    /// @notice Updates the pool parameters including size and yield rate
+    /// @notice Update the pool parameters including size and yield rate
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         external
         whenPaused

@@ -16,23 +16,18 @@ interface IStakedYuzuUSD is IERC4626 {
         uint256 _redeemDelay
     ) external;
 
-    function previewDeposit(uint256 assets) external view returns (uint256 tokens);
-    function previewMint(uint256 tokens) external view returns (uint256 assets);
-    function previewWithdraw(uint256 assets) external view returns (uint256 tokens);
-    function previewRedeem(uint256 tokens) external view returns (uint256 assets);
-
-    function maxDeposit(address) external view returns (uint256);
-    function maxMint(address receiver) external view returns (uint256);
-    function maxWithdraw(address owner) external view returns (uint256);
-    function maxRedeem(address owner) external view returns (uint256);
     function maxRedeemOrder(address owner) external view returns (uint256);
 
-    function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256);
+    function initiateRedeem(uint256 shares, address receiver, address owner)
+        external
+        returns (uint256 orderId, uint256 assets);
     function initiateRedeemWithSlippage(uint256 shares, address receiver, address _owner, uint256 minAssets)
         external
-        returns (uint256, uint256);
+        returns (uint256 orderId, uint256 assets);
     function finalizeRedeem(uint256 orderId) external;
 
+    function distribute(uint256 assets, uint256 period) external;
+    function terminateDistribution(address receiver) external;
     function rescueTokens(address token, address receiver, uint256 amount) external;
 
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
@@ -40,6 +35,9 @@ interface IStakedYuzuUSD is IERC4626 {
     function feeReceiver() external view returns (address);
     function redeemDelay() external view returns (uint256);
     function redeemFeePpm() external view returns (uint256);
+    function lastDistributedAmount() external view returns (uint256);
+    function lastDistributionPeriod() external view returns (uint256);
+    function lastDistributionTime() external view returns (uint256);
     function totalPendingOrderValue() external view returns (uint256);
 
     function setFeeReceiver(address newFeeReceiver) external;

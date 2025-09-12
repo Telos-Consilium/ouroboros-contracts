@@ -37,6 +37,10 @@ contract StakedYuzuUSD is
     uint256 public redeemFeePpm;
     address public feeReceiver;
 
+    uint256 public lastDistributedAmount;
+    uint256 public lastDistributionPeriod;
+    uint256 public lastDistributionTime;
+
     uint256 public totalPendingOrderValue;
 
     mapping(uint256 => Order) internal orders;
@@ -70,6 +74,7 @@ contract StakedYuzuUSD is
         __Ownable2Step_init();
         __Pausable_init();
         __EIP712_init(__name, "1");
+        __Nonces_init();
 
         if (address(_asset) == address(0)) {
             revert InvalidZeroAddress();
@@ -80,11 +85,43 @@ contract StakedYuzuUSD is
 
         feeReceiver = _feeReceiver;
         redeemDelay = _redeemDelay;
+        lastDistributionPeriod = 1;
     }
 
     /// @notice See {IERC4626-totalAssets}
     function totalAssets() public view override returns (uint256) {
-        return super.totalAssets() - totalPendingOrderValue;
+        return super.totalAssets() - totalPendingOrderValue - _undistributedAssets();
+    }
+
+    /// @notice Transfer `amount` of assets from the caller into the vault and schedule it for
+    // gradual distribution
+    function distribute(uint256 assets, uint256 period) external onlyOwner {
+        if (period < 1) {
+            revert DistributionPeriodTooLow(period, 1);
+        }
+        if (period > 7 days) {
+            revert DistributionPeriodTooHigh(period, 7 days);
+        }
+        if (lastDistributionTime > 0 && block.timestamp < lastDistributionTime + lastDistributionPeriod) {
+            revert DistributionInProgress();
+        }
+        lastDistributedAmount = assets;
+        lastDistributionPeriod = period;
+        lastDistributionTime = block.timestamp;
+        SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), assets);
+        emit Distributed(assets, period);
+    }
+
+    function terminateDistribution(address receiver) external onlyOwner {
+        uint256 elapsedTime = block.timestamp - lastDistributionTime;
+        if (lastDistributionTime == 0 || elapsedTime >= lastDistributionPeriod) {
+            revert NoDistributionInProgress();
+        }
+        uint256 undistributed = _undistributedAssets();
+        lastDistributedAmount -= undistributed;
+        lastDistributionPeriod = elapsedTime;
+        SafeERC20.safeTransfer(IERC20(asset()), receiver, undistributed);
+        emit TerminatedDistribution(undistributed, receiver);
     }
 
     /// @notice See {IERC4626-maxDeposit}
@@ -149,7 +186,7 @@ contract StakedYuzuUSD is
         revert RedeemNotSupported();
     }
 
-    /// @notice Initiates a 2-step redemption of `shares`
+    /// @notice Initiate a 2-step redemption of `shares`
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address _owner) public returns (uint256, uint256) {
         if (receiver == address(0)) {
@@ -164,12 +201,12 @@ contract StakedYuzuUSD is
         address caller = _msgSender();
         uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
 
-        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares);
+        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares, fee);
 
         return (orderId, assets);
     }
 
-    /// @notice Initiates a 2-step redemption of `shares` and reverts if slippage is exceeded
+    /// @notice Initiate a 2-step redemption of `shares` and revert if slippage is exceeded
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeemWithSlippage(uint256 shares, address receiver, address _owner, uint256 minAssets)
         external
@@ -177,12 +214,12 @@ contract StakedYuzuUSD is
     {
         (uint256 orderId, uint256 assets) = initiateRedeem(shares, receiver, _owner);
         if (assets < minAssets) {
-            revert ExceededMaxSlippage(assets, minAssets);
+            revert WithdrewLessThanMinAssets(assets, minAssets);
         }
         return (orderId, assets);
     }
 
-    /// @notice Finalizes a 2-step redemption order by `orderId`
+    /// @notice Finalize a 2-step redemption order by `orderId`
     function finalizeRedeem(uint256 orderId) external {
         address caller = _msgSender();
         Order storage order = orders[orderId];
@@ -202,9 +239,9 @@ contract StakedYuzuUSD is
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.shares);
     }
 
-    /// @notice Transfers `amount` of `token` held by the vault to `receiver`
+    /// @notice Transfer `amount` of `token` held by the vault to `receiver`
     function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
-        if (token == asset()) {
+        if (token == asset() && totalSupply() > 0) {
             revert InvalidAssetRescue(token);
         }
         SafeERC20.safeTransfer(IERC20(token), receiver, amount);
@@ -215,7 +252,7 @@ contract StakedYuzuUSD is
         return orders[orderId];
     }
 
-    /// @notice Sets the redemption delay to `newDelay`
+    /// @notice Set the redemption delay to `newDelay`
     function setRedeemDelay(uint256 newDelay) external onlyOwner {
         if (newDelay > 365 days) {
             revert RedeemDelayTooHigh(newDelay, 365 days);
@@ -225,7 +262,7 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemDelay(oldDelay, newDelay);
     }
 
-    /// @notice Sets the redeem fee to `newFeePpm`
+    /// @notice Set the redeem fee to `newFeePpm`
     function setRedeemFee(uint256 newFeePpm) external onlyOwner {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
@@ -235,7 +272,7 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
     }
 
-    /// @notice Sets the fee receiver to `newFeeReceiver`
+    /// @notice Set the fee receiver to `newFeeReceiver`
     function setFeeReceiver(address newFeeReceiver) external onlyOwner {
         if (newFeeReceiver == address(0)) {
             revert InvalidZeroAddress();
@@ -245,12 +282,12 @@ contract StakedYuzuUSD is
         emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
     }
 
-    /// @notice Pauses all minting and redeeming functions
+    /// @notice Pause all mint and redeem functions
     function pause() external onlyOwner {
         _pause();
     }
 
-    /// @notice Unpauses all minting and redeeming functions
+    /// @notice Unpause all mint and redeem functions
     function unpause() external onlyOwner {
         _unpause();
     }
@@ -334,6 +371,19 @@ contract StakedYuzuUSD is
         order.status = OrderStatus.Executed;
         totalPendingOrderValue -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
+    }
+
+    function _undistributedAssets() internal view returns (uint256) {
+        uint256 distributed = Math.min(
+            lastDistributedAmount,
+            Math.mulDiv(
+                block.timestamp - lastDistributionTime,
+                lastDistributedAmount,
+                lastDistributionPeriod,
+                Math.Rounding.Floor
+            )
+        );
+        return lastDistributedAmount - distributed;
     }
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
