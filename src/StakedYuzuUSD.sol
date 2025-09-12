@@ -90,17 +90,7 @@ contract StakedYuzuUSD is
 
     /// @notice See {IERC4626-totalAssets}
     function totalAssets() public view override returns (uint256) {
-        uint256 distributed = Math.min(
-            lastDistributedAmount,
-            Math.mulDiv(
-                block.timestamp - lastDistributionTime,
-                lastDistributedAmount,
-                lastDistributionPeriod,
-                Math.Rounding.Floor
-            )
-        );
-        uint256 notDistributed = lastDistributedAmount - distributed;
-        return super.totalAssets() - totalPendingOrderValue - notDistributed;
+        return super.totalAssets() - totalPendingOrderValue - _undistributedAssets();
     }
 
     /// @notice Transfer `amount` of assets from the caller into the vault and schedule it for
@@ -120,6 +110,18 @@ contract StakedYuzuUSD is
         lastDistributionTime = block.timestamp;
         SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), assets);
         emit Distributed(assets, period);
+    }
+
+    function terminateDistribution(address receiver) external onlyOwner {
+        uint256 elapsedTime = block.timestamp - lastDistributionTime;
+        if (lastDistributionTime == 0 || elapsedTime >= lastDistributionPeriod) {
+            revert NoDistributionInProgress();
+        }
+        uint256 undistributed = _undistributedAssets();
+        lastDistributedAmount -= undistributed;
+        lastDistributionPeriod = elapsedTime;
+        SafeERC20.safeTransfer(IERC20(asset()), receiver, undistributed);
+        emit TerminatedDistribution(undistributed, receiver);
     }
 
     /// @notice See {IERC4626-maxDeposit}
@@ -239,7 +241,7 @@ contract StakedYuzuUSD is
 
     /// @notice Transfer `amount` of `token` held by the vault to `receiver`
     function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
-        if (token == asset()) {
+        if (token == asset() && totalSupply() > 0) {
             revert InvalidAssetRescue(token);
         }
         SafeERC20.safeTransfer(IERC20(token), receiver, amount);
@@ -369,6 +371,19 @@ contract StakedYuzuUSD is
         order.status = OrderStatus.Executed;
         totalPendingOrderValue -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
+    }
+
+    function _undistributedAssets() internal view returns (uint256) {
+        uint256 distributed = Math.min(
+            lastDistributedAmount,
+            Math.mulDiv(
+                block.timestamp - lastDistributionTime,
+                lastDistributedAmount,
+                lastDistributionPeriod,
+                Math.Rounding.Floor
+            )
+        );
+        return lastDistributedAmount - distributed;
     }
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees

@@ -27,6 +27,7 @@ interface IStakedYuzuUSD is IERC4626 {
     function finalizeRedeem(uint256 orderId) external;
 
     function distribute(uint256 assets, uint256 period) external;
+    function terminateDistribution(address receiver) external;
     function rescueTokens(address token, address receiver, uint256 amount) external;
 
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);

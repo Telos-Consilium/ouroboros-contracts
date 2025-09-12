@@ -404,7 +404,19 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.balanceOf(address(styz)), 0);
     }
 
+    function test_RescueToken_Asset_ZeroSupply() public {
+        yzusd.mint(address(styz), 100e18);
+        uint256 balanceBefore = yzusd.balanceOf(user1);
+
+        vm.prank(owner);
+        styz.rescueTokens(address(yzusd), user1, 50e18);
+
+        assertEq(yzusd.balanceOf(user1), balanceBefore + 50e18);
+        assertEq(yzusd.balanceOf(address(styz)), 50e18);
+    }
+
     function test_RescueToken_Revert_Asset() public {
+        _deposit(user1, 1);
         yzusd.mint(address(styz), 100e18);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(InvalidAssetRescue.selector, address(yzusd)));
@@ -638,26 +650,26 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         vm.prank(owner);
         vm.expectEmit();
-        emit Distributed(10e18, 10);
-        styz.distribute(10e18, 10);
+        emit Distributed(10e18, 10 hours);
+        styz.distribute(10e18, 10 hours);
 
         assertEq(styz.lastDistributedAmount(), 10e18);
-        assertEq(styz.lastDistributionPeriod(), 10);
+        assertEq(styz.lastDistributionPeriod(), 10 hours);
         assertEq(styz.lastDistributionTime(), initialTime);
 
         assertEq(yzusd.balanceOf(address(styz)), initialAssets + 10e18);
         assertEq(styz.totalAssets(), initialAssets);
         assertEq(styz.convertToAssets(mintedShares), 100e18);
 
-        vm.warp(initialTime + 5);
+        vm.warp(initialTime + 5 hours);
         assertEq(styz.totalAssets(), initialAssets + 5e18);
         assertEq(styz.convertToAssets(mintedShares), 105e18 - 1);
 
-        vm.warp(initialTime + 10);
+        vm.warp(initialTime + 10 hours);
         assertEq(styz.totalAssets(), initialAssets + 10e18);
         assertEq(styz.convertToAssets(mintedShares), 110e18 - 1);
 
-        vm.warp(initialTime + 15);
+        vm.warp(initialTime + 15 hours);
         assertEq(styz.totalAssets(), initialAssets + 10e18);
         assertEq(styz.convertToAssets(mintedShares), 110e18 - 1);
     }
@@ -698,6 +710,55 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.distribute(1e18, 1 days);
 
         vm.stopPrank();
+    }
+
+    function test_TerminateDistribution() public {
+        // uint256 initialTime = block.timestamp;
+        // uint32 cast prevents unexpected compiler behavior
+        uint256 initialTime = uint256(uint32(block.timestamp));
+
+        vm.prank(owner);
+        styz.distribute(10e18, 10 hours);
+
+        vm.warp(initialTime + 1 hours);
+
+        vm.prank(owner);
+        vm.expectEmit();
+        emit TerminatedDistribution(9e18, owner);
+        styz.terminateDistribution(owner);
+
+        assertEq(styz.lastDistributedAmount(), 1e18);
+        assertEq(styz.lastDistributionPeriod(), 1 hours);
+        assertEq(styz.lastDistributionTime(), initialTime);
+
+        assertEq(yzusd.balanceOf(address(styz)), 1e18);
+        assertEq(styz.totalAssets(), 1e18);
+
+        vm.warp(initialTime + 10 hours);
+
+        assertEq(yzusd.balanceOf(address(styz)), 1e18);
+        assertEq(styz.totalAssets(), 1e18);
+    }
+
+    function test_TerminateDistribution_Revert_NotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, user1));
+        styz.terminateDistribution(user1);
+    }
+
+    function test_TerminateDistribution_Revert_NotInProgress() public {
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(NoDistributionInProgress.selector));
+        styz.terminateDistribution(owner);
+
+        vm.prank(owner);
+        styz.distribute(1e18, 1 days);
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(NoDistributionInProgress.selector));
+        styz.terminateDistribution(owner);
     }
 }
 
