@@ -102,7 +102,7 @@ contract StakedYuzuUSD is
         if (period > 7 days) {
             revert DistributionPeriodTooHigh(period, 7 days);
         }
-        if (lastDistributionTime > 0 && block.timestamp < lastDistributionTime + lastDistributionPeriod) {
+        if (_isDistributionInProgress()) {
             revert DistributionInProgress();
         }
         lastDistributedAmount = assets;
@@ -241,8 +241,13 @@ contract StakedYuzuUSD is
 
     /// @notice Transfer `amount` of `token` held by the vault to `receiver`
     function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
-        if (token == asset() && totalSupply() > 0) {
-            revert InvalidAssetRescue(token);
+        if (token == asset()) {
+            if (totalSupply() > 0) {
+                revert InvalidAssetRescue(token);
+            }
+            if (_isDistributionInProgress()) {
+                revert DistributionInProgress();
+            }
         }
         SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
@@ -371,6 +376,10 @@ contract StakedYuzuUSD is
         order.status = OrderStatus.Executed;
         totalPendingOrderValue -= order.assets;
         SafeERC20.safeTransfer(IERC20(asset()), order.receiver, order.assets);
+    }
+
+    function _isDistributionInProgress() internal view returns (bool) {
+        return block.timestamp < lastDistributionTime + lastDistributionPeriod;
     }
 
     function _undistributedAssets() internal view returns (uint256) {

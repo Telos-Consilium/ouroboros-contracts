@@ -415,6 +415,18 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(yzusd.balanceOf(address(styz)), 50e18);
     }
 
+    function test_RescueToken_Asset_Revert_DistributionInProgress() public {
+        yzusd.mint(address(styz), 100e18);
+        vm.prank(owner);
+        styz.distribute(100e18, 1 days);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DistributionInProgress.selector));
+        styz.rescueTokens(address(yzusd), user1, 100e18);
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(owner);
+        styz.rescueTokens(address(yzusd), user1, 100e18);
+    }
+
     function test_RescueToken_Revert_Asset() public {
         _deposit(user1, 1);
         yzusd.mint(address(styz), 100e18);
