@@ -5,6 +5,10 @@ import {IYuzuIssuer} from "./IYuzuIssuer.sol";
 import {IYuzuOrderBook} from "./IYuzuOrderBook.sol";
 
 interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
+    function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address owner, uint256 maxFeePpm)
+        external
+        returns (uint256);
+
     function rescueTokens(address token, address to, uint256 amount) external;
 
     function feeReceiver() external view returns (address);

@@ -232,7 +232,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         styz.initiateRedeem(mintedShares, address(0), user1);
     }
 
-    function test_InitiateRedeem_Revert_WithdrewLessThanMinAssets() public {
+    function test_InitiateRedeemWithSlippage_Revert_WithdrewLessThanMinAssets() public {
         uint256 mintedShares = _deposit(user1, 100e18);
         uint256 minAssets = styz.previewRedeem(mintedShares);
 

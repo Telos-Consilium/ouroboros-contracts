@@ -882,7 +882,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.withdraw(liquidityBuffer, user2, user1);
     }
 
-    function test_Withdraw_Revert_RedeemedMoreThanMaxTokens() public {
+    function test_WithdrawWithSlippage_Revert_RedeemedMoreThanMaxTokens() public {
         _depositAndMint(user1, 200e6, 200e6);
         uint256 assets = 100e6;
         uint256 maxTokens = proto.previewWithdraw(assets);
@@ -941,7 +941,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.redeem(tokens + 1, user2, user1);
     }
 
-    function test_Redeem_Revert_WithdrewLessThanMinAssets() public {
+    function test_RedeemWithSlippage_Revert_WithdrewLessThanMinAssets() public {
         _depositAndMint(user1, 100e6, 200e6);
         uint256 tokens = 100e18;
         uint256 minAssets = proto.previewRedeem(tokens);
@@ -1100,6 +1100,18 @@ abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
         vm.prank(user2);
         vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, user2, 0, tokens));
         proto.createRedeemOrder(tokens, user2, user1);
+    }
+
+    function test_CreateRedeemOrderWithMaxFee_Revert_FeeOverMaxFee() public {
+        uint256 tokens = _deposit(user1, 100e6);
+        uint256 maxFee = proto.redeemOrderFeePpm();
+
+        vm.prank(redeemManager);
+        proto.setRedeemOrderFee(maxFee + 1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(FeeOverMaxFee.selector, maxFee + 1, maxFee));
+        proto.createRedeemOrderWithMaxFee(tokens, user1, user1, maxFee);
     }
 
     function test_FillRedeemOrder() public {

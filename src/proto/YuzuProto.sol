@@ -196,6 +196,17 @@ abstract contract YuzuProto is
         return assets;
     }
 
+    function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address _owner, uint256 maxFeePpm)
+        public
+        virtual
+        returns (uint256)
+    {
+        if (redeemOrderFeePpm > maxFeePpm) {
+            revert FeeOverMaxFee(redeemOrderFeePpm, maxFeePpm);
+        }
+        return createRedeemOrder(tokens, receiver, _owner);
+    }
+
     function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
         super.fillRedeemOrder(orderId);
     }
