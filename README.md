@@ -109,3 +109,89 @@ Tokens are priced according to the share of the vault's YuzuUSD balance they rep
 Same as minting, subject to a configurable fee.
 
 The price is set when a redemption is initiated. All yield accrued until that point is counted toward the price calculation.
+
+## Admin functions
+
+### YuzuUSD, YuzuILP
+
+#### Basics
+
+```solidity
+function setTreasury(address newTreasury) external;         // Set the address collateral is deposited to
+function setFeeReceiver(address newFeeReceiver) external;   // Set the address fees are sent to
+function setSupplyCap(uint256 newCap) external;             // Set the max token supply
+function setFillWindow(uint256 newWindow) external;         // Set the time after which redemption orders become cancellable
+function setMinRedeemOrder(uint256 newMin) external;        // Set the minimum redemption order
+function setRedeemFee(uint256 newFeePpm) external;          // Set the fee for instant redemptions (YuzuUSD)
+function setRedeemOrderFee(int256 newFeePpm) external;      // Set the fee for redemption orders
+
+function pause() external;      // Pause all deposits and redemptions
+function unpause() external;    // Unpause all deposits and redemptions
+```
+
+#### Rescuing tokens
+
+```solidity
+function rescueTokens(address token, address to, uint256 amount) external;
+```
+
+Collateral tokens (USDC) can not be rescued using this function.
+
+Tokens (YuzuUSD, YuzuILP) can only be rescued up to `balanceOf(address(this)) - totalPendingOrderSize()`.
+
+Other tokens can be rescued freely.
+
+#### Managing the liquidity buffer (YuzuUSD)
+
+Liquidity can be added by directly depositing collateral to the contract.
+
+Liquidity can be withdrawn with
+
+```solidity
+function withdrawCollateral(uint256 assets, address receiver) external;
+```
+
+Use the special flag `assets=type(uint256).max` to withdrawn all remaining collateral in the contract.
+
+#### Managing the insurance liquidity pool (YuzuILP)
+
+```solidity
+function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external;
+```
+
+The contract must be paused and `currentPoolSize` must exactly match the current pool size, otherwise calling `updatePool()` will revert.
+
+### StakedYuzuUSD
+
+#### Basics
+
+```solidity
+function setFeeReceiver(address newFeeReceiver) external;   // Set the address fees are sent to
+function setRedeemDelay(uint256 newDelay) external;         // Set the delay 
+function setRedeemFee(uint256 newFeePpm) external;          // Set the redemption fee
+
+function pause() external;      // Pause all deposits and redemptions
+function unpause() external;    // Unpause all deposits and redemptions
+```
+
+#### Rescuing tokens
+
+```solidity
+function rescueTokens(address token, address receiver, uint256 amount) external;
+```
+
+The underlying token (YuzuUSD) can only be be rescued if:
+- `totalSupply() == 0`
+- There is no distribution in progress (see below)
+
+#### Distributing yield
+
+```solidity
+function distribute(uint256 assets, uint256 period) external;
+function terminateDistribution(address receiver) external;
+```
+
+`distribute()` transfers `assets` from the caller to the contract and schedules them to be uniformly distributed over `period` seconds.
+
+`terminateDistribution()` terminates an ongoing distribution and transfers all assets that remain to be distributed to `receiver`.
+ 
