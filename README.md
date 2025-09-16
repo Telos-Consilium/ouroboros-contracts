@@ -12,18 +12,23 @@ StakedYuzuUSD is an ERC‑4626 vault that allows users to stake YuzuUSD.
 
 ### YuzuILP.sol
 
-YuzuILP is an ERC‑20 token representing deposits in the Yuzu Insurance Liquidity Pool (ILP).
+YuzuILP is an ERC‑20 token representing USDC deposits in the Yuzu Insurance Liquidity Pool (ILP).
 
-## Mint and redemption mechanisms
+## Minting tokens
 
-### YuzuUSD and YuzuILP
-
-Tokens are minted with:
+For all three contracts, tokens are minted with:
 
 ```solidity
 function deposit(uint256 assets, address receiver) external returns (uint256 shares);
 function mint(uint256 tokens, address receiver) external returns (uint256 assets);
 ```
+
+- YuzuUSD and YuzuILP deposits (USDC) are sent to an external treasury.
+- StakedYuzuUSD deposits (YuzuUSD) are held in the vault contract.
+
+## Redeeming tokens
+
+### YuzuUSD
 
 Tokens can be instantly redeemed with:
 
@@ -31,8 +36,6 @@ Tokens can be instantly redeemed with:
 function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
 function redeem(uint256 tokens, address receiver, address owner) external returns (uint256 assets);
 ```
-
-Deposited assets are sent to an external treasury.
 
 When redeeming with `withdraw` or `redeem`, withdrawn assets are sourced from the contract's liquidity buffer, which the admin funds from the treasury.
 
@@ -46,29 +49,28 @@ function fillRedeemOrder(uint256 orderId) external;
 function finalizeRedeemOrder(uint256 orderId) external;
 ```
 
-If the admin fails to fill an order within a configurable period, the order managers (either the token owner or the order creator) may cancel the order with:
+If the admin fails to fill an order within a configurable period, the order manager (either the token owner or the order creator) may cancel the order with:
 
 ```solidity
 function cancelRedeemOrder(uint256 orderId) external;
 ```
 
+### YuzuILP
+
+Instant redemptions are disabled.
+
+Tokens can be redeemed with `createRedeemOrder()`, `fillRedeemOrder()`, and `finalizeRedeemOrder()`, and canceled with `cancelRedeemOrder()` like YuzuUSD.
+
 ### StakedYuzuUSD
 
-Tokens are minted with:
-
-```solidity
-function deposit(uint256 assets, address receiver) external returns (uint256 shares);
-function mint(uint256 tokens, address receiver) external returns (uint256 assets);
-```
-
-Redeems are performed in two steps with a configurable delay between them:
+Redemptions are performed in two steps with a configurable delay between them:
 
 ```solidity
 function initiateRedeem(uint256 shares, address receiver, address owner) external returns (uint256, uint256);
 function finalizeRedeem(uint256 orderId) external;
 ```
 
-## Token value
+## Token exchange rate
 
 ### YuzuUSD
 
@@ -78,40 +80,125 @@ YuzuUSD tokens are minted 1:1 for the underlying asset (after decimal adjustment
 
 #### Redeem
 
-YuzuUSD tokens are redeemable 1:1 for the underlying asset, subject to a configurable fee or incentive.
+YuzuUSD tokens are redeemed 1:1 for the underlying asset, subject to a configurable fee.
 
 ### YuzuILP
 
-YuzuILP tokens represent a share of the insurance liquidity pool (ILP). The ILP size is periodically updated by the admin, who also sets a yield rate when updating the pool.
+YuzuILP tokens represent a pro rata claim on the insurance liquidity pool (ILP). The ILP size is periodically updated by the admin, who also sets a yield rate when updating the pool.
 
 #### Mint
 
-Tokens are priced according to the share of the ILP they represent, including the yield accrued since the last pool-size update.
+Tokens are priced according to the share of the ILP they represent, including all yield accrued so far.
 
 #### Redeem
 
-Tokens are priced according to the share of the ILP they represent, excluding the yield accrued since the last pool-size update. In other words, yield accrued after the last update is forfeited when redeeming tokens.
+Same as minting, subject to a configurable fee.
 
-Excluding recently accrued yield prevents an exploiter from depositing assets immediately after an update and withdrawing them before the next update, thereby capturing most of the yield without bearing the pool's risk.
-
-A configurable fee or incentive may apply to redeems.
+The redemption price for an order is set when the order is filled. All yield accrued until that point is included in the price calculation.
 
 ### StakedYuzuUSD
+
+StakedYuzuUSD tokens represent a pro rata claim on the YuzuUSD held by the vault.
 
 #### Mint
 
-Tokens are priced according to the share of YuzuUSD held by the contract that they represent.
+Tokens are priced according to the share of the vault's YuzuUSD balance they represent, including all yield accrued so far.
 
 #### Redeem
 
-Redeem pricing follows the same rules as minting, and a configurable fee may apply.
+Same as minting, subject to a configurable fee.
 
-## Redemption fees
+The price is set when a redemption is initiated. All yield accrued until that point is counted toward the price calculation.
 
-### YuzuUSD and YuzuILP
+## Admin functions
 
-Instant redeems are subject to a configurable fee. Redeem orders can either be charged a fee or receive an incentive.
+### YuzuUSD, YuzuILP
+
+#### Basics
+
+```solidity
+function setTreasury(address newTreasury) external;         // Set the address collateral is deposited to
+function setFeeReceiver(address newFeeReceiver) external;   // Set the address fees are sent to
+function setSupplyCap(uint256 newCap) external;             // Set the max token supply
+function setFillWindow(uint256 newWindow) external;         // Set the time after which redemption orders become cancellable
+function setMinRedeemOrder(uint256 newMin) external;        // Set the minimum redemption order
+function setRedeemFee(uint256 newFeePpm) external;          // Set the fee for instant redemptions (YuzuUSD)
+function setRedeemOrderFee(int256 newFeePpm) external;      // Set the fee for redemption orders
+
+function pause() external;      // Pause all deposits and redemptions
+function unpause() external;    // Unpause all deposits and redemptions
+```
+
+#### Rescuing tokens
+
+```solidity
+function rescueTokens(address token, address to, uint256 amount) external;
+```
+
+Collateral tokens (USDC) can not be rescued using this function.
+
+Tokens (YuzuUSD, YuzuILP) can only be rescued up to `balanceOf(address(this)) - totalPendingOrderSize()`.
+
+Other tokens can be rescued freely.
+
+#### Managing the liquidity buffer (YuzuUSD)
+
+Liquidity can be added by directly depositing collateral to the contract.
+
+Liquidity can be withdrawn with
+
+```solidity
+function withdrawCollateral(uint256 assets, address receiver) external;
+```
+
+Use the special flag `assets=type(uint256).max` to withdrawn all remaining collateral in the contract.
+
+#### Managing the insurance liquidity pool (YuzuILP)
+
+```solidity
+function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external;
+```
+
+The contract must be paused and `currentPoolSize` must exactly match the current pool size, otherwise calling `updatePool()` will revert.
 
 ### StakedYuzuUSD
 
-Redeems are subject to a configurable fee.
+#### Basics
+
+```solidity
+function setFeeReceiver(address newFeeReceiver) external;   // Set the address fees are sent to
+function setRedeemDelay(uint256 newDelay) external;         // Set the delay 
+function setRedeemFee(uint256 newFeePpm) external;          // Set the redemption fee
+
+function pause() external;      // Pause all deposits and redemptions
+function unpause() external;    // Unpause all deposits and redemptions
+```
+
+#### Rescuing tokens
+
+```solidity
+function rescueTokens(address token, address receiver, uint256 amount) external;
+```
+
+The underlying token (YuzuUSD) can only be be rescued if:
+- `totalSupply() == 0`
+- There is no distribution in progress (see below)
+
+#### Distributing yield
+
+```solidity
+function distribute(uint256 assets, uint256 period) external;
+function terminateDistribution(address receiver) external;
+```
+
+`distribute()` transfers `assets` from the caller to the contract and schedules them to be uniformly distributed over `period` seconds.
+
+`terminateDistribution()` terminates an ongoing distribution and transfers all assets that remain to be distributed to `receiver`.
+
+## Further work
+
+### Restricted minting
+
+By adding a `MINTER_ROLE = keccak256("MINTER_ROLE")` to `YuzuProto.sol` role and reverting all `_deposit` calls where `caller` does not have the role, minting can be restricted to a limited set of addresses authorized by the admin.
+
+Given that mints and redeems can be done in the name of a third party, any other authorization scheme can be implemented through an external contract authorized by the admin.
