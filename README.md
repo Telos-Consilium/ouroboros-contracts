@@ -194,4 +194,11 @@ function terminateDistribution(address receiver) external;
 `distribute()` transfers `assets` from the caller to the contract and schedules them to be uniformly distributed over `period` seconds.
 
 `terminateDistribution()` terminates an ongoing distribution and transfers all assets that remain to be distributed to `receiver`.
- 
+
+## Further work
+
+### Restricted minting
+
+By adding a `MINTER_ROLE = keccak256("MINTER_ROLE")` to `YuzuProto.sol` role and reverting all `_deposit` calls where `caller` does not have the role, minting can be restricted to a limited set of addresses authorized by the admin.
+
+Given that mints and redeems can be done in the name of a third party, any other authorization scheme can be implemented through an external contract authorized by the admin.
