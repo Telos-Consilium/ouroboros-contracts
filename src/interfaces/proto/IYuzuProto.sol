@@ -22,6 +22,8 @@ interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
     function setMinRedeemOrder(uint256 newMin) external;
     function setRedeemFee(uint256 newFeePpm) external;
     function setRedeemOrderFee(int256 newFeePpm) external;
+    function setIsMintRestricted(bool restricted) external;
+    function setIsRedeemRestricted(bool restricted) external;
 
     function pause() external;
     function unpause() external;

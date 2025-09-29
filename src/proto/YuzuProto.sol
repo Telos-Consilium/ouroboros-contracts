@@ -29,6 +29,8 @@ abstract contract YuzuProto is
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
     address internal _asset;
     address internal _treasury;
@@ -38,6 +40,8 @@ abstract contract YuzuProto is
     uint256 public redeemFeePpm;
     uint256 public redeemOrderFeePpm;
     address public feeReceiver;
+    bool public isMintRestricted;
+    bool public isRedeemRestricted;
 
     function __YuzuProto_init(
         address __asset,
@@ -83,11 +87,15 @@ abstract contract YuzuProto is
         _asset = __asset;
         _treasury = __treasury;
         feeReceiver = _feeReceiver;
+        isMintRestricted = true;
+        isRedeemRestricted = true;
 
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(MINTER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(REDEEMER_ROLE, ADMIN_ROLE);
 
         (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(IERC20(__asset));
         _underlyingDecimals = success ? assetDecimals : 18;
@@ -153,6 +161,11 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
+        if (isMintRestricted) {
+            if (!hasRole(MINTER_ROLE, receiver)) {
+                return 0;
+            }
+        }
         return super.maxDeposit(receiver);
     }
 
@@ -161,6 +174,11 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
+        if (isMintRestricted) {
+            if (!hasRole(MINTER_ROLE, receiver)) {
+                return 0;
+            }
+        }
         return super.maxMint(receiver);
     }
 
@@ -168,6 +186,11 @@ abstract contract YuzuProto is
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
+        }
+        if (isRedeemRestricted) {
+            if (!hasRole(REDEEMER_ROLE, _owner)) {
+                return 0;
+            }
         }
         uint256 maxAssets = _maxWithdraw(_owner);
         uint256 fee = _feeOnTotal(maxAssets, redeemFeePpm);
@@ -179,6 +202,11 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
+        if (isRedeemRestricted) {
+            if (!hasRole(REDEEMER_ROLE, _owner)) {
+                return 0;
+            }
+        }
         return super.maxRedeem(_owner);
     }
 
@@ -186,6 +214,11 @@ abstract contract YuzuProto is
     function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
+        }
+        if (isRedeemRestricted) {
+            if (!hasRole(REDEEMER_ROLE, _owner)) {
+                return 0;
+            }
         }
         return super.maxRedeemOrder(_owner);
     }
@@ -286,6 +319,18 @@ abstract contract YuzuProto is
     // slither-disable-next-line pess-strange-setter
     function setMinRedeemOrder(uint256 newValue) external onlyRole(REDEEM_MANAGER_ROLE) {
         _setMinRedeemOrder(newValue);
+    }
+
+    function setIsMintRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+        bool oldValue = isMintRestricted;
+        isMintRestricted = restricted;
+        emit UpdatedIsMintRestricted(oldValue, restricted);
+    }
+
+    function setIsRedeemRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+        bool oldValue = isRedeemRestricted;
+        isRedeemRestricted = restricted;
+        emit UpdatedIsRedeemRestricted(oldValue, restricted);
     }
 
     /// @dev Returns the assets available for withdrawal
