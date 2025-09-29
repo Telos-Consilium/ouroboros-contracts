@@ -161,10 +161,8 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
-        if (isMintRestricted) {
-            if (!hasRole(MINTER_ROLE, receiver)) {
-                return 0;
-            }
+        if (!_canMint(receiver)) {
+            return 0;
         }
         return super.maxDeposit(receiver);
     }
@@ -174,10 +172,8 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
-        if (isMintRestricted) {
-            if (!hasRole(MINTER_ROLE, receiver)) {
-                return 0;
-            }
+        if (!_canMint(receiver)) {
+            return 0;
         }
         return super.maxMint(receiver);
     }
@@ -187,10 +183,8 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
-        if (isRedeemRestricted) {
-            if (!hasRole(REDEEMER_ROLE, _owner)) {
-                return 0;
-            }
+        if (!_canRedeem(_owner)) {
+            return 0;
         }
         uint256 maxAssets = _maxWithdraw(_owner);
         uint256 fee = _feeOnTotal(maxAssets, redeemFeePpm);
@@ -202,10 +196,8 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
-        if (isRedeemRestricted) {
-            if (!hasRole(REDEEMER_ROLE, _owner)) {
-                return 0;
-            }
+        if (!_canRedeem(_owner)) {
+            return 0;
         }
         return super.maxRedeem(_owner);
     }
@@ -215,10 +207,8 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
-        if (isRedeemRestricted) {
-            if (!hasRole(REDEEMER_ROLE, _owner)) {
-                return 0;
-            }
+        if (!_canRedeem(_owner)) {
+            return 0;
         }
         return super.maxRedeemOrder(_owner);
     }
@@ -393,6 +383,24 @@ abstract contract YuzuProto is
         // slither-disable-next-line pess-dubious-typecast
         order.feePpm = uint24(redeemOrderFeePpm);
         return order;
+    }
+
+    function _canMint(address receiver) internal view virtual returns (bool) {
+        if (isMintRestricted) {
+            if (!hasRole(MINTER_ROLE, receiver)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function _canRedeem(address _owner) internal view virtual returns (bool) {
+        if (isRedeemRestricted) {
+            if (!hasRole(REDEEMER_ROLE, _owner)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
