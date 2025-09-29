@@ -41,7 +41,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
 
     function __yuzu_spendAllowance(address owner, address spender, uint256 amount) internal virtual;
 
-    function _previewRedeemOrder(uint256 tokens, uint256 feePpm) public view virtual returns (uint256, uint256);
+    function _previewRedeemOrder(uint256 tokens, uint256 feePpm) internal view virtual returns (uint256, uint256);
 
     function maxRedeemOrder(address owner) public view virtual returns (uint256) {
         return __yuzu_balanceOf(owner);

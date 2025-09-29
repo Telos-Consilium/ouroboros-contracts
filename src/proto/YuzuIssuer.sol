@@ -193,6 +193,10 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return $._supplyCap;
     }
 
+    function liquidityBufferSize() public view virtual returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this));
+    }
+
     function _maxWithdraw(address) internal view virtual returns (uint256) {
         return liquidityBufferSize();
     }
@@ -201,11 +205,11 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return __yuzu_balanceOf(owner);
     }
 
-    function _previewWithdraw(uint256 assets) public view virtual returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view virtual returns (uint256, uint256) {
         return (_convertToShares(assets, Math.Rounding.Ceil), 0);
     }
 
-    function _previewRedeem(uint256 tokens) public view virtual returns (uint256, uint256) {
+    function _previewRedeem(uint256 tokens) internal view virtual returns (uint256, uint256) {
         return (_convertToAssets(tokens, Math.Rounding.Floor), 0);
     }
 
@@ -236,10 +240,6 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
             return 0;
         }
         return supplyCap - totalSupply;
-    }
-
-    function liquidityBufferSize() public view virtual returns (uint256) {
-        return IERC20(asset()).balanceOf(address(this));
     }
 
     function _getYuzuIssuerStorage() private pure returns (YuzuIssuerStorage storage $) {

@@ -10,5 +10,7 @@ interface IYuzuProtoDefinitions {
     event UpdatedRedeemFee(uint256 oldFee, uint256 newFee);
     event UpdatedRedeemOrderFee(uint256 oldFee, uint256 newFee);
     event UpdatedFeeReceiver(address oldFeeReceiver, address newFeeReceiver);
+    event UpdatedIsMintRestricted(bool oldValue, bool newValue);
+    event UpdatedIsRedeemRestricted(bool oldValue, bool newValue);
     event UpdatedTreasury(address oldTreasury, address newTreasury);
 }

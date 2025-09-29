@@ -29,6 +29,8 @@ abstract contract YuzuProto is
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
     address internal _asset;
     address internal _treasury;
@@ -38,6 +40,8 @@ abstract contract YuzuProto is
     uint256 public redeemFeePpm;
     uint256 public redeemOrderFeePpm;
     address public feeReceiver;
+    bool public isMintRestricted;
+    bool public isRedeemRestricted;
 
     function __YuzuProto_init(
         address __asset,
@@ -83,11 +87,15 @@ abstract contract YuzuProto is
         _asset = __asset;
         _treasury = __treasury;
         feeReceiver = _feeReceiver;
+        isMintRestricted = true;
+        isRedeemRestricted = true;
 
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(MINTER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(REDEEMER_ROLE, ADMIN_ROLE);
 
         (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(IERC20(__asset));
         _underlyingDecimals = success ? assetDecimals : 18;
@@ -153,6 +161,9 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
+        if (!_canMint(receiver)) {
+            return 0;
+        }
         return super.maxDeposit(receiver);
     }
 
@@ -161,12 +172,18 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
+        if (!_canMint(receiver)) {
+            return 0;
+        }
         return super.maxMint(receiver);
     }
 
     /// @notice See {IERC4626-maxWithdraw}
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
+            return 0;
+        }
+        if (!_canRedeem(_owner)) {
             return 0;
         }
         uint256 maxAssets = _maxWithdraw(_owner);
@@ -179,12 +196,18 @@ abstract contract YuzuProto is
         if (paused()) {
             return 0;
         }
+        if (!_canRedeem(_owner)) {
+            return 0;
+        }
         return super.maxRedeem(_owner);
     }
 
     /// @notice Return the maximum amount of shares that can be redeemed by `_owner` in a single order
     function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
+            return 0;
+        }
+        if (!_canRedeem(_owner)) {
             return 0;
         }
         return super.maxRedeemOrder(_owner);
@@ -288,25 +311,37 @@ abstract contract YuzuProto is
         _setMinRedeemOrder(newValue);
     }
 
+    function setIsMintRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+        bool oldValue = isMintRestricted;
+        isMintRestricted = restricted;
+        emit UpdatedIsMintRestricted(oldValue, restricted);
+    }
+
+    function setIsRedeemRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+        bool oldValue = isRedeemRestricted;
+        isRedeemRestricted = restricted;
+        emit UpdatedIsRedeemRestricted(oldValue, restricted);
+    }
+
     /// @dev Returns the assets available for withdrawal
     function liquidityBufferSize() public view virtual override returns (uint256) {
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
     }
 
-    function _previewWithdraw(uint256 assets) public view virtual override returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 tokens = _convertToShares(assets + fee, Math.Rounding.Ceil);
         return (tokens, fee);
     }
 
-    function _previewRedeem(uint256 tokens) public view virtual override returns (uint256, uint256) {
+    function _previewRedeem(uint256 tokens) internal view virtual override returns (uint256, uint256) {
         uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return (assets - fee, fee);
     }
 
     function _previewRedeemOrder(uint256 shares, uint256 feePpm)
-        public
+        internal
         view
         virtual
         override
@@ -348,6 +383,24 @@ abstract contract YuzuProto is
         // slither-disable-next-line pess-dubious-typecast
         order.feePpm = uint24(redeemOrderFeePpm);
         return order;
+    }
+
+    function _canMint(address receiver) internal view virtual returns (bool) {
+        if (isMintRestricted) {
+            if (!hasRole(MINTER_ROLE, receiver)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function _canRedeem(address _owner) internal view virtual returns (bool) {
+        if (isRedeemRestricted) {
+            if (!hasRole(REDEEMER_ROLE, _owner)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees

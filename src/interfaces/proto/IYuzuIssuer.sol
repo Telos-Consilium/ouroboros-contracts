@@ -34,4 +34,5 @@ interface IYuzuIssuer is IYuzu {
 
     function treasury() external view returns (address);
     function cap() external view returns (uint256);
+    function liquidityBufferSize() external view returns (uint256);
 }

@@ -54,6 +54,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
     bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
@@ -98,6 +100,12 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         );
         ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
         proto = YuzuProto(address(proxy));
+
+        // Set mint unrestricted
+        vm.startPrank(admin);
+        proto.setIsMintRestricted(false);
+        proto.setIsRedeemRestricted(false);
+        vm.stopPrank();
 
         // Grant roles from admin
         vm.startPrank(admin);
@@ -456,6 +464,22 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         _depositAndAssert(user1, 0, user2);
     }
 
+    function test_Deposit_MintRestricted() public {
+        vm.startPrank(admin);
+        proto.setIsMintRestricted(true);
+        proto.grantRole(MINTER_ROLE, user2);
+        vm.stopPrank();
+        _depositAndAssert(user1, 100e6, user2);
+    }
+
+    function test_Deposit_Revert_NotMinter() public {
+        vm.prank(admin);
+        proto.setIsMintRestricted(true);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxDeposit.selector, user2, 100e6, 0));
+        proto.deposit(100e6, user2);
+    }
+
     function test_Deposit_Revert_ExceedsMaxDeposit() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
@@ -472,6 +496,22 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
 
     function test_Mint_Zero() public {
         _mintAndAssert(user1, 0, user2);
+    }
+
+    function test_Mint_MintRestricted() public {
+        vm.startPrank(admin);
+        proto.setIsMintRestricted(true);
+        proto.grantRole(MINTER_ROLE, user2);
+        vm.stopPrank();
+        _mintAndAssert(user1, 100e18, user2);
+    }
+
+    function test_Mint_Revert_NotMinter() public {
+        vm.prank(admin);
+        proto.setIsMintRestricted(true);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxMint.selector, user2, 100e18, 0));
+        proto.mint(100e18, user2);
     }
 
     function test_Mint_Revert_ExceedsMaxMint() public {
@@ -751,6 +791,38 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         proto.setMinRedeemOrder(100e18);
     }
 
+    function test_SetIsMintRestricted() public {
+        vm.prank(admin);
+        vm.expectEmit();
+        emit UpdatedIsMintRestricted(false, true);
+        proto.setIsMintRestricted(true);
+        assertTrue(proto.isMintRestricted());
+    }
+
+    function test_SetIsMintRestricted_Revert_NotAdmin() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        proto.setIsMintRestricted(true);
+    }
+
+    function test_SetIsRedeemRestricted() public {
+        vm.prank(admin);
+        vm.expectEmit();
+        emit UpdatedIsRedeemRestricted(false, true);
+        proto.setIsRedeemRestricted(true);
+        assertTrue(proto.isRedeemRestricted());
+    }
+
+    function test_SetIsRedeemRestricted_Revert_NotAdmin() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        proto.setIsRedeemRestricted(true);
+    }
+
     function test_Pause_Unpause() public {
         vm.prank(admin);
         vm.expectEmit();
@@ -859,6 +931,24 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         _withdrawAndAssert(user1, 80e6, user2, user1);
     }
 
+    function test_Withdraw_RedeemRestricted() public {
+        vm.startPrank(admin);
+        proto.setIsRedeemRestricted(true);
+        proto.grantRole(REDEEMER_ROLE, user1);
+        vm.stopPrank();
+        _depositAndMint(user1, 100e6, 100e6);
+        _withdrawAndAssert(user1, 100e6, user2, user1);
+    }
+
+    function test_Withdraw_Revert_NotMinter() public {
+        vm.prank(admin);
+        proto.setIsRedeemRestricted(true);
+        _depositAndMint(user1, 100e6, 100e6);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxWithdraw.selector, user1, 100e6, 0));
+        proto.withdraw(100e6, user2, user1);
+    }
+
     function test_Withdraw_Revert_ExceedsMaxWithdraw() public {
         uint256 assets = 100e6;
         _depositAndMint(user1, assets, assets);
@@ -919,6 +1009,28 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
 
         _depositAndMint(user1, assets, assets);
         _redeemAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_Redeem_RedeemRestricted() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        vm.startPrank(admin);
+        proto.setIsRedeemRestricted(true);
+        proto.grantRole(REDEEMER_ROLE, user1);
+        vm.stopPrank();
+        _depositAndMint(user1, assets, assets);
+        _redeemAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_Redeem_Revert_NotRedeemer() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        vm.prank(admin);
+        proto.setIsRedeemRestricted(true);
+        _depositAndMint(user1, assets, assets);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens, 0));
+        proto.redeem(tokens, user2, user1);
     }
 
     function test_Redeem_Revert_ExceedsMaxRedeem_Balance() public {
@@ -1061,6 +1173,28 @@ abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
 
         _deposit(user1, assets);
         _createRedeemOrderAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_CreateRedeemOrder_RedeemRestricted() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        vm.startPrank(admin);
+        proto.setIsRedeemRestricted(true);
+        proto.grantRole(REDEEMER_ROLE, user1);
+        vm.stopPrank();
+        _deposit(user1, assets);
+        _createRedeemOrderAndAssert(user1, tokens, user2, user1);
+    }
+
+    function test_CreateRedeemOrder_Revert_NotRedeemer() public {
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        vm.prank(admin);
+        proto.setIsRedeemRestricted(true);
+        _deposit(user1, assets);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, tokens, 0));
+        proto.createRedeemOrder(tokens, user2, user1);
     }
 
     function test_CreateRedeemOrder_Revert_ExceedsMaxRedeemOrder() public {
