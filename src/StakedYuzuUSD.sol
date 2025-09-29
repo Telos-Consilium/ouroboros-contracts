@@ -328,13 +328,13 @@ contract StakedYuzuUSD is
         return _domainSeparatorV4();
     }
 
-    function _previewWithdraw(uint256 assets) public view returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view returns (uint256, uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 shares = super.previewWithdraw(assets + fee);
         return (shares, fee);
     }
 
-    function _previewRedeem(uint256 shares) public view returns (uint256, uint256) {
+    function _previewRedeem(uint256 shares) internal view returns (uint256, uint256) {
         uint256 assets = super.previewRedeem(shares);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return (assets - fee, fee);

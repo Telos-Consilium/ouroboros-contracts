@@ -328,20 +328,20 @@ abstract contract YuzuProto is
         return super.liquidityBufferSize() - totalUnfinalizedOrderValue();
     }
 
-    function _previewWithdraw(uint256 assets) public view virtual override returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 tokens = _convertToShares(assets + fee, Math.Rounding.Ceil);
         return (tokens, fee);
     }
 
-    function _previewRedeem(uint256 tokens) public view virtual override returns (uint256, uint256) {
+    function _previewRedeem(uint256 tokens) internal view virtual override returns (uint256, uint256) {
         uint256 assets = _convertToAssets(tokens, Math.Rounding.Floor);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return (assets - fee, fee);
     }
 
     function _previewRedeemOrder(uint256 shares, uint256 feePpm)
-        public
+        internal
         view
         virtual
         override

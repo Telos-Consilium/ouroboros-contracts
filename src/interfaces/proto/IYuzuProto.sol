@@ -17,15 +17,18 @@ interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
     function redeemOrderFeePpm() external view returns (uint256);
 
     function setTreasury(address newTreasury) external;
+    function setFeeReceiver(address newFeeReceiver) external;
     function setSupplyCap(uint256 newCap) external;
     function setFillWindow(uint256 newWindow) external;
     function setMinRedeemOrder(uint256 newMin) external;
     function setRedeemFee(uint256 newFeePpm) external;
-    function setRedeemOrderFee(int256 newFeePpm) external;
+    function setRedeemOrderFee(uint256 newFeePpm) external;
     function setIsMintRestricted(bool restricted) external;
     function setIsRedeemRestricted(bool restricted) external;
 
     function pause() external;
     function unpause() external;
     function paused() external view returns (bool);
+    function isMintRestricted() external view returns (bool);
+    function isRedeemRestricted() external view returns (bool);
 }

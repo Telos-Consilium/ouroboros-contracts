@@ -42,7 +42,7 @@ interface IStakedYuzuUSD is IERC4626 {
 
     function setFeeReceiver(address newFeeReceiver) external;
     function setRedeemDelay(uint256 newDelay) external;
-    function setRedeemFee(uint256 newFee) external;
+    function setRedeemFee(uint256 newFeePpm) external;
 
     function pause() external;
     function unpause() external;

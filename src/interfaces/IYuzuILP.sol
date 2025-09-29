@@ -12,7 +12,8 @@ interface IYuzuILP is IYuzuProto {
         address __treasury,
         address _feeReceiver,
         uint256 _supplyCap,
-        uint256 _fillWindow
+        uint256 _fillWindow,
+        uint256 _minRedeemOrder
     ) external;
 
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) external;
