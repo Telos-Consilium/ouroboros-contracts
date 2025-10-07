@@ -29,6 +29,8 @@ abstract contract YuzuProto is
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
+
     bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
@@ -94,8 +96,10 @@ abstract contract YuzuProto is
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(MINTER_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(REDEEMER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(RESTRICTION_MANAGER_ROLE, ADMIN_ROLE);
+
+        _setRoleAdmin(MINTER_ROLE, RESTRICTION_MANAGER_ROLE);
+        _setRoleAdmin(REDEEMER_ROLE, RESTRICTION_MANAGER_ROLE);
 
         (bool success, uint8 assetDecimals) = _tryGetAssetDecimals(IERC20(__asset));
         _underlyingDecimals = success ? assetDecimals : 18;

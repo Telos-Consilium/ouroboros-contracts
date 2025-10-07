@@ -41,6 +41,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     address public admin;
     address public treasury;
     address public feeReceiver;
+    address public restrictionManager;
     address public limitManager;
     address public redeemManager;
     address public orderFiller;
@@ -54,6 +55,8 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+
+    bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
     bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
@@ -66,6 +69,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         admin = makeAddr("admin");
         treasury = makeAddr("treasury");
         feeReceiver = makeAddr("feeReceiver");
+        restrictionManager = makeAddr("restrictionManager");
         limitManager = makeAddr("limitManager");
         redeemManager = makeAddr("redeemManager");
         orderFiller = makeAddr("orderFiller");
@@ -109,6 +113,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         // Grant roles from admin
         vm.startPrank(admin);
+        proto.grantRole(RESTRICTION_MANAGER_ROLE, restrictionManager);
         proto.grantRole(LIMIT_MANAGER_ROLE, limitManager);
         proto.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
         proto.grantRole(ORDER_FILLER_ROLE, orderFiller);
@@ -479,10 +484,10 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
     }
 
     function test_Deposit_MintRestricted() public {
-        vm.startPrank(admin);
+        vm.prank(admin);
         proto.setIsMintRestricted(true);
+        vm.prank(restrictionManager);
         proto.grantRole(MINTER_ROLE, user2);
-        vm.stopPrank();
         _depositAndAssert(user1, 100e6, user2);
     }
 
@@ -513,10 +518,10 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
     }
 
     function test_Mint_MintRestricted() public {
-        vm.startPrank(admin);
+        vm.prank(admin);
         proto.setIsMintRestricted(true);
+        vm.prank(restrictionManager);
         proto.grantRole(MINTER_ROLE, user2);
-        vm.stopPrank();
         _mintAndAssert(user1, 100e18, user2);
     }
 
@@ -946,10 +951,10 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     }
 
     function test_Withdraw_RedeemRestricted() public {
-        vm.startPrank(admin);
+        vm.prank(admin);
         proto.setIsRedeemRestricted(true);
+        vm.prank(restrictionManager);
         proto.grantRole(REDEEMER_ROLE, user1);
-        vm.stopPrank();
         _depositAndMint(user1, 100e6, 100e6);
         _withdrawAndAssert(user1, 100e6, user2, user1);
     }
@@ -1028,10 +1033,10 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
     function test_Redeem_RedeemRestricted() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        vm.startPrank(admin);
+        vm.prank(admin);
         proto.setIsRedeemRestricted(true);
+        vm.prank(restrictionManager);
         proto.grantRole(REDEEMER_ROLE, user1);
-        vm.stopPrank();
         _depositAndMint(user1, assets, assets);
         _redeemAndAssert(user1, tokens, user2, user1);
     }
@@ -1192,10 +1197,10 @@ abstract contract YuzuProtoTest_OrderBook is YuzuProtoTest {
     function test_CreateRedeemOrder_RedeemRestricted() public {
         uint256 assets = 100e6;
         uint256 tokens = 100e18;
-        vm.startPrank(admin);
+        vm.prank(admin);
         proto.setIsRedeemRestricted(true);
+        vm.prank(restrictionManager);
         proto.grantRole(REDEEMER_ROLE, user1);
-        vm.stopPrank();
         _deposit(user1, assets);
         _createRedeemOrderAndAssert(user1, tokens, user2, user1);
     }
@@ -1721,6 +1726,7 @@ abstract contract YuzuProtoInvariantTest is Test {
     ERC20Mock public asset;
 
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 private constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
     bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 private constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
@@ -1756,6 +1762,7 @@ abstract contract YuzuProtoInvariantTest is Test {
 
         vm.startPrank(admin);
         proto.setTreasury(address(proto));
+        proto.grantRole(RESTRICTION_MANAGER_ROLE, admin);
         proto.grantRole(LIMIT_MANAGER_ROLE, admin);
         proto.grantRole(REDEEM_MANAGER_ROLE, admin);
         proto.grantRole(ORDER_FILLER_ROLE, admin);
