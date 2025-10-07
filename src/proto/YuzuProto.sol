@@ -26,6 +26,7 @@ abstract contract YuzuProto is
     IYuzuProtoDefinitions
 {
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
@@ -93,6 +94,7 @@ abstract contract YuzuProto is
         isRedeemRestricted = true;
 
         _grantRole(ADMIN_ROLE, _admin);
+        _setRoleAdmin(PAUSE_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
@@ -291,12 +293,12 @@ abstract contract YuzuProto is
     }
 
     /// @notice Pause all mint and redeem functions
-    function pause() external onlyRole(ADMIN_ROLE) {
+    function pause() external onlyRole(PAUSE_MANAGER_ROLE) {
         _pause();
     }
 
     /// @notice Unpause all mint and redeem functions
-    function unpause() external onlyRole(ADMIN_ROLE) {
+    function unpause() external onlyRole(PAUSE_MANAGER_ROLE) {
         _unpause();
     }
 

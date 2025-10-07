@@ -52,6 +52,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
     uint256 public user2key;
 
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
@@ -113,6 +114,7 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
         // Grant roles from admin
         vm.startPrank(admin);
+        proto.grantRole(PAUSE_MANAGER_ROLE, admin);
         proto.grantRole(RESTRICTION_MANAGER_ROLE, restrictionManager);
         proto.grantRole(LIMIT_MANAGER_ROLE, limitManager);
         proto.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
@@ -856,10 +858,10 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         assertFalse(proto.paused());
     }
 
-    function test_Pause_Unpause_Revert_NotAdmin() public {
+    function test_Pause_Unpause_Revert_NotPauseManager() public {
         vm.prank(user1);
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, PAUSE_MANAGER_ROLE)
         );
         proto.pause();
 
@@ -868,7 +870,7 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
 
         vm.prank(user1);
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, PAUSE_MANAGER_ROLE)
         );
         proto.unpause();
     }
