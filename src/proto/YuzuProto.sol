@@ -302,6 +302,11 @@ abstract contract YuzuProto is
     }
 
     // slither-disable-next-line pess-strange-setter
+    function setLiquidityBufferTargetSize(uint256 newSize) external onlyRole(REDEEM_MANAGER_ROLE) {
+        _setLiquidityBufferTargetSize(newSize);
+    }
+
+    // slither-disable-next-line pess-strange-setter
     function setFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {
         _setFillWindow(newWindow);
     }

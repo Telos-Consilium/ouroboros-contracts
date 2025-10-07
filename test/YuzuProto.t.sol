@@ -185,6 +185,11 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
         proto.setSupplyCap(cap);
     }
 
+    function _setLiquidityBufferTargetSize(uint256 size) internal {
+        vm.prank(redeemManager);
+        proto.setLiquidityBufferTargetSize(size);
+    }
+
     function _setFees(uint256 redeemFeePpm, uint256 orderFeePpm) internal {
         vm.startPrank(redeemManager);
         if (redeemFeePpm > 0) proto.setRedeemFee(redeemFeePpm);
@@ -458,10 +463,19 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
     // Deposit
     function test_Deposit() public {
         _depositAndAssert(user1, 100e6, user2);
+        assertEq(asset.balanceOf(treasury), 100e6);
     }
 
     function test_Deposit_Zero() public {
         _depositAndAssert(user1, 0, user2);
+        assertEq(asset.balanceOf(treasury), 0e6);
+    }
+
+    function test_Deposit_LiquidityBufferUnderTarget() public {
+        _setLiquidityBufferTargetSize(50e6);
+        _depositAndAssert(user1, 100e6, user2);
+        assertEq(asset.balanceOf(address(proto)), 50e6);
+        assertEq(asset.balanceOf(treasury), 50e6);
     }
 
     function test_Deposit_MintRestricted() public {

@@ -13,5 +13,6 @@ interface IYuzuIssuerDefinitions is IYuzuDefinitions {
     error RedeemedMoreThanMaxTokens(uint256 tokens, uint256 max);
 
     event UpdatedSupplyCap(uint256 oldCap, uint256 newCap);
+    event UpdatedLiquidityBufferTargetSize(uint256 oldSize, uint256 newSize);
     event WithdrawnCollateral(address indexed receiver, uint256 assets);
 }

@@ -10,6 +10,7 @@ import {IYuzuIssuerDefinitions} from "../interfaces/proto/IYuzuIssuerDefinitions
 abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     struct YuzuIssuerStorage {
         uint256 _supplyCap;
+        uint256 _liquidityBufferTargetSize;
     }
 
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.issuer")) - 1)) & ~bytes32(uint256(0xff))
@@ -193,6 +194,11 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return $._supplyCap;
     }
 
+    function liquidityBufferTargetSize() public view returns (uint256) {
+        YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
+        return $._liquidityBufferTargetSize;
+    }
+
     function liquidityBufferSize() public view virtual returns (uint256) {
         return IERC20(asset()).balanceOf(address(this));
     }
@@ -214,7 +220,19 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 tokens) internal virtual {
-        SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury(), assets);
+        uint256 liquidityBuffer = liquidityBufferSize();
+        uint256 liquidityBufferTarget = liquidityBufferTargetSize();
+        uint256 treasuryDeposit = assets;
+
+        if (liquidityBuffer < liquidityBufferTarget) {
+            uint256 liquidityBufferDeposit = Math.min(liquidityBufferTarget - liquidityBuffer, assets);
+            treasuryDeposit -= liquidityBufferDeposit;
+            SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), liquidityBufferDeposit);
+        }
+        if (treasuryDeposit > 0) {
+            SafeERC20.safeTransferFrom(IERC20(asset()), caller, treasury(), treasuryDeposit);
+        }
+
         __yuzu_mint(receiver, tokens);
         emit Deposit(caller, receiver, assets, tokens);
     }
@@ -254,5 +272,12 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         uint256 oldCap = $._supplyCap;
         $._supplyCap = newCap;
         emit UpdatedSupplyCap(oldCap, newCap);
+    }
+
+    function _setLiquidityBufferTargetSize(uint256 newSize) internal {
+        YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
+        uint256 oldSize = $._liquidityBufferTargetSize;
+        $._liquidityBufferTargetSize = newSize;
+        emit UpdatedLiquidityBufferTargetSize(oldSize, newSize);
     }
 }

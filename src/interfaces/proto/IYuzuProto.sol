@@ -19,6 +19,7 @@ interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
     function setTreasury(address newTreasury) external;
     function setFeeReceiver(address newFeeReceiver) external;
     function setSupplyCap(uint256 newCap) external;
+    function setLiquidityBufferTargetSize(uint256 newSize) external;
     function setFillWindow(uint256 newWindow) external;
     function setMinRedeemOrder(uint256 newMin) external;
     function setRedeemFee(uint256 newFeePpm) external;
