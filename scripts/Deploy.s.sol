@@ -241,12 +241,16 @@ contract Deploy is Script {
         bytes32 ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
         bytes32 REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
         bytes32 POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+        bytes32 PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
+        bytes32 RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
         bytes32 MINTER_ROLE = keccak256("MINTER_ROLE");
         bytes32 REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
         usd.grantRole(LIMIT_MANAGER_ROLE, admin);
         usd.grantRole(ORDER_FILLER_ROLE, admin);
         usd.grantRole(REDEEM_MANAGER_ROLE, admin);
+        usd.grantRole(PAUSE_MANAGER_ROLE, admin);
+        usd.grantRole(RESTRICTION_MANAGER_ROLE, admin);
         usd.grantRole(MINTER_ROLE, admin);
         usd.grantRole(REDEEMER_ROLE, admin);
         console.log("Granted YuzuUSD roles to admin");
@@ -254,6 +258,8 @@ contract Deploy is Script {
         ilp.grantRole(LIMIT_MANAGER_ROLE, admin);
         ilp.grantRole(ORDER_FILLER_ROLE, admin);
         ilp.grantRole(REDEEM_MANAGER_ROLE, admin);
+        ilp.grantRole(PAUSE_MANAGER_ROLE, admin);
+        ilp.grantRole(RESTRICTION_MANAGER_ROLE, admin);
         ilp.grantRole(POOL_MANAGER_ROLE, admin);
         ilp.grantRole(MINTER_ROLE, admin);
         ilp.grantRole(REDEEMER_ROLE, admin);
