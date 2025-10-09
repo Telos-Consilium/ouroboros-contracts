@@ -241,29 +241,35 @@ contract Deploy is Script {
         bytes32 ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
         bytes32 REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
         bytes32 POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+        bytes32 MINTER_ROLE = keccak256("MINTER_ROLE");
+        bytes32 REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
         usd.grantRole(LIMIT_MANAGER_ROLE, admin);
         usd.grantRole(ORDER_FILLER_ROLE, admin);
         usd.grantRole(REDEEM_MANAGER_ROLE, admin);
+        usd.grantRole(MINTER_ROLE, admin);
+        usd.grantRole(REDEEMER_ROLE, admin);
         console.log("Granted YuzuUSD roles to admin");
 
         ilp.grantRole(LIMIT_MANAGER_ROLE, admin);
         ilp.grantRole(ORDER_FILLER_ROLE, admin);
         ilp.grantRole(REDEEM_MANAGER_ROLE, admin);
         ilp.grantRole(POOL_MANAGER_ROLE, admin);
+        ilp.grantRole(MINTER_ROLE, admin);
+        ilp.grantRole(REDEEMER_ROLE, admin);
         console.log("Granted YuzuILP roles to admin");
 
         usd.setRedeemFee(params.yuzuUsdRedeemFee);
         usd.setRedeemOrderFee(params.yuzuUsdRedeemOrderFee);
-        usd.setIsMintRestricted(false);
-        usd.setIsRedeemRestricted(false);
-        console.log("Set YuzuUSD redeem fees");
+        usd.setIsMintRestricted(true);
+        usd.setIsRedeemRestricted(true);
+        console.log("Set YuzuUSD redeem config");
 
         ilp.setRedeemFee(params.yzilpRedeemFee);
         ilp.setRedeemOrderFee(params.yzilpRedeemOrderFee);
-        ilp.setIsMintRestricted(false);
-        ilp.setIsRedeemRestricted(false);
-        console.log("Set YuzuILP redeem fees");
+        ilp.setIsMintRestricted(true);
+        ilp.setIsRedeemRestricted(true);
+        console.log("Set YuzuILP redeem config");
 
         staked.setRedeemFee(params.stakedRedeemFee);
         console.log("Set StakedYuzuUSD redeem fee");
