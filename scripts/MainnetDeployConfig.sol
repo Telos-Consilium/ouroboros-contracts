@@ -70,7 +70,8 @@ uint256 constant YZILP_LIQUIDITY_BUFFER_TARGET_SIZE = 0; // [ignored]
 
 string constant SYZUSD_NAME = "Staked Yuzu USD";
 string constant SYZUSD_SYMBOL = "syzUSD";
-address constant SYZUSD_OWNER = 0xe61ad2De346db42879B6ee3c7cF0C6a2cDC0530d;
+// address constant SYZUSD_OWNER = 0xe61ad2De346db42879B6ee3c7cF0C6a2cDC0530d;
+address constant SYZUSD_OWNER = 0xcEaFF57fBcD0e8F095c5c1125DD09b93FC5bBF82;
 address constant SYZUSD_FEE_RECEIVER = 0x88f025C01dc457B3A627B83614daC587D40759a1;
 uint256 constant SYZUSD_REDEEM_DELAY = 86_400; // 24 hours
 
