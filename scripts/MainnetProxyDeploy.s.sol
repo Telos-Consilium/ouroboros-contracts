@@ -4,24 +4,15 @@ pragma solidity ^0.8.13;
 import {Script, console} from "forge-std/Script.sol";
 
 import {ProxyAdmin} from "lib/openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
-import {TransparentUpgradeableProxy} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {TransparentUpgradeableProxy} from
+    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 
 import "./MainnetDeployConfig.sol";
-
-bytes32 constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-bytes32 constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-bytes32 constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-bytes32 constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-bytes32 constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-bytes32 constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
-bytes32 constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-
-bytes32 constant MINTER_ROLE = keccak256("MINTER_ROLE");
-bytes32 constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
+import "./Roles.sol";
 
 address constant YZUSD_IMPLEMENTATION = address(0x90b1Bc26E1Ac873fC5043a9F658443dAAB674D85);
 address constant YZILP_IMPLEMENTATION = address(0x7e8bc59B4126415c86C9Bf1f8Cb277B9D9249281);
@@ -42,7 +33,7 @@ contract Deploy is Script {
         console.log("--------------------------------------------------");
 
         console.log("UNDERLYING_ASSET", UNDERLYING_ASSET);
-        
+
         console.log("--------------------------------------------------");
 
         console.log("YZUSD Parameters:");
@@ -59,7 +50,7 @@ contract Deploy is Script {
         console.log("YZUSD_IS_MINT_RESTRICTED", YZUSD_IS_MINT_RESTRICTED);
         console.log("YZUSD_IS_REDEEM_RESTRICTED", YZUSD_IS_REDEEM_RESTRICTED);
         console.log("YZUSD_LIQUIDITY_BUFFER_TARGET_SIZE", YZUSD_LIQUIDITY_BUFFER_TARGET_SIZE);
-        
+
         console.log("--------------------------------------------------");
 
         console.log("YZILP Parameters:");
@@ -76,7 +67,7 @@ contract Deploy is Script {
         console.log("YZILP_IS_MINT_RESTRICTED", YZILP_IS_MINT_RESTRICTED);
         console.log("YZILP_IS_REDEEM_RESTRICTED", YZILP_IS_REDEEM_RESTRICTED);
         console.log("YZILP_LIQUIDITY_BUFFER_TARGET_SIZE", YZILP_LIQUIDITY_BUFFER_TARGET_SIZE);
-        
+
         console.log("--------------------------------------------------");
 
         console.log("SYZUSD Parameters:");
@@ -122,11 +113,8 @@ contract Deploy is Script {
             YZUSD_MIN_REDEEM_ORDER
         );
 
-        TransparentUpgradeableProxy _yzUSDProxy = new TransparentUpgradeableProxy(
-            address(YZUSD_IMPLEMENTATION),
-            PROXY_ADMIN_OWNER,
-            initData
-        );
+        TransparentUpgradeableProxy _yzUSDProxy =
+            new TransparentUpgradeableProxy(address(YZUSD_IMPLEMENTATION), PROXY_ADMIN_OWNER, initData);
         yzUSDProxy = YuzuUSD(address(_yzUSDProxy));
     }
 
@@ -169,11 +157,8 @@ contract Deploy is Script {
             YZILP_MIN_REDEEM_ORDER
         );
 
-        TransparentUpgradeableProxy _yzILPProxy = new TransparentUpgradeableProxy(
-            address(YZILP_IMPLEMENTATION),
-            PROXY_ADMIN_OWNER,
-            initData
-        );
+        TransparentUpgradeableProxy _yzILPProxy =
+            new TransparentUpgradeableProxy(address(YZILP_IMPLEMENTATION), PROXY_ADMIN_OWNER, initData);
         yzILPProxy = YuzuILP(address(_yzILPProxy));
     }
 
@@ -188,7 +173,7 @@ contract Deploy is Script {
 
     function grantRolesYuzuILP() internal {
         yzILPProxy.grantRole(ADMIN_ROLE, ADMIN);
-        
+
         yzILPProxy.grantRole(LIMIT_MANAGER_ROLE, LIMIT_MANAGER);
         yzILPProxy.grantRole(POOL_MANAGER_ROLE, POOL_MANAGER);
         yzILPProxy.grantRole(RESTRICTION_MANAGER_ROLE, RESTRICTION_MANAGER);
@@ -210,11 +195,8 @@ contract Deploy is Script {
             SYZUSD_REDEEM_DELAY
         );
 
-        TransparentUpgradeableProxy _stakedYzUSDProxy = new TransparentUpgradeableProxy(
-            address(SYZUSD_IMPLEMENTATION),
-            PROXY_ADMIN_OWNER,
-            initData
-        );
+        TransparentUpgradeableProxy _stakedYzUSDProxy =
+            new TransparentUpgradeableProxy(address(SYZUSD_IMPLEMENTATION), PROXY_ADMIN_OWNER, initData);
         stakedYzUSDProxy = StakedYuzuUSD(address(_stakedYzUSDProxy));
     }
 }
