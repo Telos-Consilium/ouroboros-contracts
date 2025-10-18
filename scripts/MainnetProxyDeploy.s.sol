@@ -134,7 +134,6 @@ contract Deploy is Script {
         yzUSDProxy.grantRole(ADMIN_ROLE, ADMIN);
 
         yzUSDProxy.grantRole(LIMIT_MANAGER_ROLE, LIMIT_MANAGER);
-        yzUSDProxy.grantRole(POOL_MANAGER_ROLE, POOL_MANAGER);
         yzUSDProxy.grantRole(RESTRICTION_MANAGER_ROLE, RESTRICTION_MANAGER);
         yzUSDProxy.grantRole(REDEEM_MANAGER_ROLE, REDEEM_MANAGER);
 
