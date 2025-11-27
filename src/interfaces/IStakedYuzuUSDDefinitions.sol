@@ -17,6 +17,11 @@ struct Order {
     OrderStatus status;
 }
 
+struct IntegrationConfig {
+    bool canSkipRedeemDelay;
+    bool waiveRedeemFee;
+}
+
 interface IStakedYuzuUSDDefinitions {
     error InvalidZeroAddress();
     error RedeemDelayTooHigh(uint256 provided, uint256 max);
@@ -56,4 +61,8 @@ interface IStakedYuzuUSDDefinitions {
     event UpdatedFeeReceiver(address oldFeeReceiver, address newFeeReceiver);
     event Distributed(uint256 assets, uint256 period);
     event TerminatedDistribution(uint256 undistributed, address receiver);
+}
+
+interface IStakedYuzuUSDV2Definitions {
+    event UpdatedIntegration(address indexed integration, bool canSkipRedeemDelay, bool waiveRedeemFee);
 }

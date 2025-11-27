@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {Order} from "./IStakedYuzuUSDDefinitions.sol";
+import {Order, IntegrationConfig} from "./IStakedYuzuUSDDefinitions.sol";
 
 interface IStakedYuzuUSD is IERC4626 {
     function initialize(
@@ -47,4 +47,9 @@ interface IStakedYuzuUSD is IERC4626 {
     function pause() external;
     function unpause() external;
     function paused() external view returns (bool);
+}
+
+interface IStakedYuzuUSDV2 is IStakedYuzuUSD {
+    function getIntegration(address integration) external view returns (IntegrationConfig memory);
+    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external;
 }

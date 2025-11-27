@@ -39,7 +39,7 @@ contract StakedYuzuUSD is
 
     uint256 public lastDistributedAmount;
     uint256 public lastDistributionPeriod;
-    uint256 public lastDistributionTime;
+    uint256 public lastDistributionTimestamp;
 
     uint256 public totalPendingOrderValue;
 
@@ -107,14 +107,14 @@ contract StakedYuzuUSD is
         }
         lastDistributedAmount = assets;
         lastDistributionPeriod = period;
-        lastDistributionTime = block.timestamp;
+        lastDistributionTimestamp = block.timestamp;
         SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), assets);
         emit Distributed(assets, period);
     }
 
     function terminateDistribution(address receiver) external onlyOwner {
-        uint256 elapsedTime = block.timestamp - lastDistributionTime;
-        if (lastDistributionTime == 0 || elapsedTime >= lastDistributionPeriod) {
+        uint256 elapsedTime = block.timestamp - lastDistributionTimestamp;
+        if (lastDistributionTimestamp == 0 || elapsedTime >= lastDistributionPeriod) {
             revert NoDistributionInProgress();
         }
         uint256 undistributed = _undistributedAssets();
@@ -141,7 +141,7 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address _owner) public view override returns (uint256) {
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         return 0;
     }
 
@@ -159,13 +159,13 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view override returns (uint256) {
+    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
         (uint256 shares,) = _previewWithdraw(assets);
         return shares;
     }
 
     /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 shares) public view override returns (uint256) {
+    function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
         (uint256 assets,) = _previewRedeem(shares);
         return assets;
     }
@@ -174,7 +174,7 @@ contract StakedYuzuUSD is
      * @notice Withdraw function is disabled - instant withdrawals are not supported
      * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
-    function withdraw(uint256, address, address) public pure override returns (uint256) {
+    function withdraw(uint256, address, address) public virtual override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
@@ -182,7 +182,7 @@ contract StakedYuzuUSD is
      * @notice Redeem function is disabled - instant redemptions are not supported
      * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
      */
-    function redeem(uint256, address, address) public pure override returns (uint256) {
+    function redeem(uint256, address, address) public virtual override returns (uint256) {
         revert RedeemNotSupported();
     }
 
@@ -328,13 +328,13 @@ contract StakedYuzuUSD is
         return _domainSeparatorV4();
     }
 
-    function _previewWithdraw(uint256 assets) internal view returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view virtual returns (uint256, uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 shares = super.previewWithdraw(assets + fee);
         return (shares, fee);
     }
 
-    function _previewRedeem(uint256 shares) internal view returns (uint256, uint256) {
+    function _previewRedeem(uint256 shares) internal view virtual returns (uint256, uint256) {
         uint256 assets = super.previewRedeem(shares);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return (assets - fee, fee);
@@ -379,14 +379,14 @@ contract StakedYuzuUSD is
     }
 
     function _isDistributionInProgress() internal view returns (bool) {
-        return block.timestamp < lastDistributionTime + lastDistributionPeriod;
+        return block.timestamp < lastDistributionTimestamp + lastDistributionPeriod;
     }
 
     function _undistributedAssets() internal view returns (uint256) {
         uint256 distributed = Math.min(
             lastDistributedAmount,
             Math.mulDiv(
-                block.timestamp - lastDistributionTime,
+                block.timestamp - lastDistributionTimestamp,
                 lastDistributedAmount,
                 lastDistributionPeriod,
                 Math.Rounding.Floor
@@ -411,5 +411,5 @@ contract StakedYuzuUSD is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[50] private __gap;
+    uint256[41] private __gap;
 }

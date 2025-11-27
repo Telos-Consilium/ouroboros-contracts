@@ -38,7 +38,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     uint256 public user1key;
     uint256 public user2key;
 
-    function setUp() public {
+    function setUp() public virtual {
         owner = makeAddr("owner");
         feeReceiver = makeAddr("feeReceiver");
 
@@ -57,7 +57,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         yzusd.mint(user2, 10_000_000e18);
 
         // Deploy implementation and proxy-initialize
-        StakedYuzuUSD implementation = new StakedYuzuUSD();
+        address implementationAddress = _deploy();
         bytes memory initData = abi.encodeWithSelector(
             StakedYuzuUSD.initialize.selector,
             IERC20(address(yzusd)),
@@ -67,13 +67,17 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
             feeReceiver,
             1 days
         );
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
         styz = StakedYuzuUSD(address(proxy));
 
         // Approvals for deposits/orders
         _approveAssets(owner, address(styz), type(uint256).max);
         _approveAssets(user1, address(styz), type(uint256).max);
         _approveAssets(user2, address(styz), type(uint256).max);
+    }
+
+    function _deploy() internal virtual returns (address) {
+        return address(new StakedYuzuUSD());
     }
 
     // Helpers
@@ -538,12 +542,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.previewRedeem(mintedShares), uint256(100e18) * 10 / 11);
     }
 
-    function test_Withdraw_Revert() public {
+    function test_Withdraw_Revert() public virtual {
         vm.expectRevert(WithdrawNotSupported.selector);
         styz.withdraw(100e18, user1, user1);
     }
 
-    function test_Redeem_Revert() public {
+    function test_Redeem_Revert() public virtual {
         vm.expectRevert(RedeemNotSupported.selector);
         styz.redeem(100e18, user1, user1);
     }
@@ -667,7 +671,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.lastDistributedAmount(), 10e18);
         assertEq(styz.lastDistributionPeriod(), 10 hours);
-        assertEq(styz.lastDistributionTime(), initialTime);
+        assertEq(styz.lastDistributionTimestamp(), initialTime);
 
         assertEq(yzusd.balanceOf(address(styz)), initialAssets + 10e18);
         assertEq(styz.totalAssets(), initialAssets);
@@ -741,7 +745,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.lastDistributedAmount(), 1e18);
         assertEq(styz.lastDistributionPeriod(), 1 hours);
-        assertEq(styz.lastDistributionTime(), initialTime);
+        assertEq(styz.lastDistributionTimestamp(), initialTime);
 
         assertEq(yzusd.balanceOf(address(styz)), 1e18);
         assertEq(styz.totalAssets(), 1e18);
