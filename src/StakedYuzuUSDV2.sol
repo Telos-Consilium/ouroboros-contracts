@@ -9,7 +9,7 @@ import {IntegrationConfig, IStakedYuzuUSDV2Definitions} from "./interfaces/IStak
 
 /**
  * @title StakedYuzuUSDV2
- * @notice Upgraded version with integration whitelist, fee waivers, and instant redeem/withdraw paths.
+ * @notice StakedYuzuUSD with integration support and instant redeem/withdraw paths
  */
 contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     mapping(address => IntegrationConfig) internal integrations;

@@ -11,6 +11,10 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 
 import {IRedeemFee, OrderStatus, Order, IPSMDefinitions} from "./interfaces/IPSMDefinitions.sol";
 
+/**
+ * @title PSM
+ * @notice Module enabling instant chained mint/redeem operations across two vaults with a dedicated liquidity pool
+ */
 contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgradeable, IPSMDefinitions {
     using EnumerableSet for EnumerableSet.UintSet;
 
