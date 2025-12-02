@@ -98,20 +98,12 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return _pendingOrderIds.length();
     }
 
-    /// @notice Returns a list of pending order ids paginated by {offset} and {limit}
-    function getPendingOrderIds(uint256 offset, uint256 limit) external view returns (uint256[] memory) {
+    /// @notice Returns all pending order ids
+    function getPendingOrderIds() external view returns (uint256[] memory) {
         uint256 length = _pendingOrderIds.length();
-        if (offset >= length) {
-            return new uint256[](0);
-        }
-        uint256 end = offset + limit;
-        if (end > length) {
-            end = length;
-        }
-        uint256 size = end - offset;
-        uint256[] memory ids = new uint256[](size);
-        for (uint256 i = 0; i < size; i++) {
-            ids[i] = _pendingOrderIds.at(offset + i);
+        uint256[] memory ids = new uint256[](length);
+        for (uint256 idx = 0; idx < length; idx++) {
+            ids[idx] = _pendingOrderIds.at(idx);
         }
         return ids;
     }

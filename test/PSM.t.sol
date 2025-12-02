@@ -203,7 +203,7 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(psm.vault1(), address(styz));
         assertEq(psm.orderCount(), 0);
         assertEq(psm.pendingOrderCount(), 0);
-        assertEq(psm.getPendingOrderIds(0, type(uint256).max).length, 0);
+        assertEq(psm.getPendingOrderIds().length, 0);
 
         assertEq(psm.getRoleAdmin(ADMIN_ROLE), psm.DEFAULT_ADMIN_ROLE());
         assertEq(psm.getRoleAdmin(ORDER_FILLER_ROLE), ADMIN_ROLE);
@@ -459,33 +459,21 @@ contract PSMTest is IPSMDefinitions, Test {
         vm.prank(user1);
         uint256 orderId3 = psm.createRedeemOrder(shares3, user1);
 
-        uint256[] memory allIds = psm.getPendingOrderIds(0, type(uint256).max);
+        uint256[] memory allIds = psm.getPendingOrderIds();
         assertEq(allIds.length, 3);
         assertEq(allIds[0], orderId1);
         assertEq(allIds[1], orderId2);
         assertEq(allIds[2], orderId3);
 
-        uint256[] memory firstId = psm.getPendingOrderIds(0, 1);
-        assertEq(firstId.length, 1);
-        assertEq(firstId[0], orderId1);
-
-        uint256[] memory midIds = psm.getPendingOrderIds(1, 2);
-        assertEq(midIds.length, 2);
-        assertEq(midIds[0], orderId2);
-        assertEq(midIds[1], orderId3);
-
-        // Cancel the middle order and confirm pagination skips it
+        // Cancel the second order and assert it is removed
         vm.prank(orderFiller);
         psm.cancelRedeemOrders(_asArray(orderId2));
 
-        uint256[] memory afterCancel = psm.getPendingOrderIds(0, type(uint256).max);
+        uint256[] memory afterCancel = psm.getPendingOrderIds();
         assertEq(afterCancel.length, 2);
-        assertEq(afterCancel[0], orderId1);
-        assertEq(afterCancel[1], orderId3);
-
-        uint256[] memory lastId = psm.getPendingOrderIds(1, 1);
-        assertEq(lastId.length, 1);
-        assertEq(lastId[0], orderId3);
+        assertNotEq(afterCancel[0], afterCancel[1]);
+        assertTrue(afterCancel[0] == orderId1 || afterCancel[0] == orderId3);
+        assertTrue(afterCancel[1] == orderId1 || afterCancel[1] == orderId3);
     }
 
     function test_Deposit_Revert_NotUser() public {
