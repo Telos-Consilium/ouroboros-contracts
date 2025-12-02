@@ -796,7 +796,7 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         proto.setFillWindow(2 days);
     }
 
-    function test_setMinRedeemOrder() public {
+    function test_SetMinRedeemOrder() public {
         vm.prank(redeemManager);
         vm.expectEmit();
         emit UpdatedMinRedeemOrder(0, 100e18);
@@ -804,7 +804,7 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         assertEq(proto.minRedeemOrder(), 100e18);
     }
 
-    function test_setMinRedeemOrder_Revert_NotRedeemManager() public {
+    function test_SetMinRedeemOrder_Revert_NotRedeemManager() public {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, REDEEM_MANAGER_ROLE)

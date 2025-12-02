@@ -318,8 +318,8 @@ abstract contract YuzuProto is
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setMinRedeemOrder(uint256 newValue) external onlyRole(REDEEM_MANAGER_ROLE) {
-        _setMinRedeemOrder(newValue);
+    function setMinRedeemOrder(uint256 newMin) external onlyRole(REDEEM_MANAGER_ROLE) {
+        _setMinRedeemOrder(newMin);
     }
 
     function setIsMintRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
