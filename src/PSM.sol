@@ -33,6 +33,13 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the PSM contract
+     * @param __asset The address of the underlying asset token
+     * @param __vault0 The first ERC4626 vault (yzUSD)
+     * @param __vault1 The second ERC4626 vault (syzUSD)
+     * @param _admin The admin of the contract
+     */
     // slither-disable-next-line pess-multiple-storage-read
     function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin) external initializer {
         __AccessControlDefaultAdminRules_init(0, _admin);
@@ -61,30 +68,37 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         _setRoleAdmin(USER_ROLE, RESTRICTION_MANAGER_ROLE);
     }
 
+    /// @notice Returns the address of the underlying asset
     function asset() public view returns (address) {
         return address(_asset);
     }
 
+    /// @notice Returns the address of the first vault
     function vault0() public view returns (address) {
         return address(_vault0);
     }
 
+    /// @notice Returns the address of the second vault
     function vault1() public view returns (address) {
         return address(_vault1);
     }
 
+    /// @notice Returns the total number of created redeem orders
     function orderCount() external view returns (uint256) {
         return _orderCount;
     }
 
+    /// @notice Returns a redeem order by {orderId}
     function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return _orders[orderId];
     }
 
+    /// @notice Returns the number of pending redeem orders
     function pendingOrderCount() external view returns (uint256) {
         return _pendingOrderIds.length();
     }
 
+    /// @notice Returns a list of pending order ids paginated by {offset} and {limit}
     function getPendingOrderIds(uint256 offset, uint256 limit) external view returns (uint256[] memory) {
         uint256 length = _pendingOrderIds.length();
         if (offset >= length) {
@@ -102,25 +116,30 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return ids;
     }
 
+    /// @notice Preview shares minted for {assets}
     function previewDeposit(uint256 assets) external view returns (uint256) {
         uint256 shares0 = _vault0.previewDeposit(assets);
         return _vault1.previewDeposit(shares0);
     }
 
+    /// @notice Preview assets withdrawn for {shares}
     function previewRedeem(uint256 shares) external view returns (uint256) {
         uint256 assets1 = _vault1.convertToAssets(shares);
         return _vault0.convertToAssets(assets1);
     }
 
+    /// @notice Deposit {assets} for shares minted to {receiver}
     function deposit(uint256 assets, address receiver) external nonReentrant onlyRole(USER_ROLE) returns (uint256) {
         return _deposit(_msgSender(), receiver, assets);
     }
 
+    /// @notice Redeem {shares} for assets withdrawn to {receiver}
     function redeem(uint256 shares, address receiver) external nonReentrant onlyRole(USER_ROLE) returns (uint256) {
         address caller = _msgSender();
         return _redeem(caller, caller, receiver, shares);
     }
 
+    /// @notice Create a redeem order of {shares} for {receiver}
     function createRedeemOrder(uint256 shares, address receiver)
         external
         nonReentrant
@@ -130,6 +149,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return _createRedeemOrder(_msgSender(), receiver, shares);
     }
 
+    /// @notice Deposit {assets} in liquidity and fill pending redeem orders by {orderIds}
     function fillRedeemOrders(uint256 assets, uint256[] calldata orderIds)
         external
         nonReentrant
@@ -143,6 +163,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         }
     }
 
+    /// @notice Cancel pending redeem orders by {orderIds}
     function cancelRedeemOrders(uint256[] calldata orderIds) external nonReentrant onlyRole(ORDER_FILLER_ROLE) {
         address caller = _msgSender();
         for (uint256 idx = 0; idx < orderIds.length; idx++) {
@@ -151,10 +172,12 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         }
     }
 
+    /// @notice Deposit {assets} in liquidity
     function depositLiquidity(uint256 assets) external nonReentrant onlyRole(LIQUIDITY_MANAGER_ROLE) {
         _depositLiquidity(_msgSender(), assets);
     }
 
+    /// @notice Withdraw {assets} of liquidity to {receiver}
     function withdrawLiquidity(uint256 assets, address receiver)
         external
         nonReentrant
