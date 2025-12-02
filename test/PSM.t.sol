@@ -7,8 +7,11 @@ import {CommonBase} from "forge-std/Base.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ERC20PermitUpgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -56,6 +59,11 @@ contract PSMTest is IPSMDefinitions, Test {
 
     bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
 
+    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
+
+    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
+    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
     function setUp() public virtual {
         admin = makeAddr("admin");
         treasury = makeAddr("treasury");
@@ -81,9 +89,13 @@ contract PSMTest is IPSMDefinitions, Test {
         _setupStakedYuzuUSDV2();
         _setupPSM();
 
-        // Register PSM as syzUSD integration
-        vm.prank(admin);
+        // Register PSM as a syzUSD integration and a yzUSD minter, redeemer, and redeem manager
+        vm.startPrank(admin);
         styz.setIntegration(address(psm), true, true);
+        yzusd.grantRole(MINTER_ROLE, address(psm));
+        yzusd.grantRole(REDEEMER_ROLE, address(psm));
+        yzusd.grantRole(REDEEM_MANAGER_ROLE, address(psm));
+        vm.stopPrank();
 
         // Label contracts
         vm.label(address(yzusd), "Yuzu USD (proxy)");
@@ -114,10 +126,15 @@ contract PSMTest is IPSMDefinitions, Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         yzusd = YuzuUSD(address(proxy));
 
-        // Set mint unrestricted
+        // Set redeem fee > 0
         vm.startPrank(admin);
-        yzusd.setIsMintRestricted(false);
-        yzusd.setIsRedeemRestricted(false);
+        yzusd.grantRole(RESTRICTION_MANAGER_ROLE, admin);
+        yzusd.grantRole(MINTER_ROLE, user1);
+        yzusd.grantRole(REDEEMER_ROLE, user1);
+        yzusd.grantRole(MINTER_ROLE, user2);
+        yzusd.grantRole(REDEEMER_ROLE, user2);
+        yzusd.grantRole(REDEEM_MANAGER_ROLE, admin);
+        yzusd.setRedeemFee(1e3);
         vm.stopPrank();
     }
 
@@ -134,6 +151,10 @@ contract PSMTest is IPSMDefinitions, Test {
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         styz = StakedYuzuUSDV2(address(proxy));
+
+        // Set redeem fee > 0
+        vm.prank(admin);
+        styz.setRedeemFee(1e3);
     }
 
     function _setupPSM() internal {
@@ -199,6 +220,22 @@ contract PSMTest is IPSMDefinitions, Test {
 
         assertEq(psm.previewDeposit(assets), shares);
         assertEq(psm.previewRedeem(shares), assets);
+
+        _approveAssets(user1, address(yzusd), assets);
+
+        vm.startPrank(user1);
+        uint256 yzusdMinted = yzusd.deposit(assets, user1);
+        yzusd.approve(address(styz), yzusdMinted / 2);
+        uint256 styzMinted = styz.deposit(yzusdMinted / 2, user1);
+        yzusd.transfer(address(styz), yzusdMinted / 2);
+        vm.stopPrank();
+
+        assertEq(
+            psm.previewDeposit(assets), Math.mulDiv(yzusdMinted, styzMinted + 1, yzusdMinted + 1, Math.Rounding.Floor)
+        );
+        assertEq(
+            psm.previewRedeem(shares), Math.mulDiv(shares, yzusdMinted + 1, styzMinted + 1, Math.Rounding.Floor) / 1e12
+        );
     }
 
     function test_Deposit() public {
@@ -236,6 +273,24 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(styz.balanceOf(user1), 0);
     }
 
+    function test_Redeem_Revert_InsufficientLiquidity() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        asset.mint(address(yzusd), 10e6);
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+
+        _approveStaked(user1, address(psm), shares1);
+
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, address(psm), 0, expectedAssets)
+        );
+        psm.redeem(shares1, user1);
+    }
+
     function test_CreateRedeemOrder() public {
         uint256 shares1 = 1e18;
         uint256 expectedAssets = 1e6;
@@ -254,6 +309,19 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(order.shares, shares1);
         assertEq(uint256(order.status), uint256(OrderStatus.Pending));
         assertEq(psm.pendingOrderCount(), 1);
+    }
+
+    function test_CreateRedeemOrder_Revert_ZeroReceiver() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+        _approveStaked(user1, address(psm), shares1);
+
+        vm.prank(user1);
+        vm.expectRevert(InvalidZeroAddress.selector);
+        psm.createRedeemOrder(shares1, address(0));
     }
 
     function test_FillRedeemOrders() public {
@@ -280,6 +348,27 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(asset.balanceOf(user1), balanceBefore + expectedAssets);
     }
 
+    function test_FillRedeemOrders_Revert_OrderNotPending() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+        _approveStaked(user1, address(psm), shares1);
+
+        vm.prank(user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1);
+
+        _depositLiquidity(expectedAssets);
+
+        vm.prank(orderFiller);
+        psm.fillRedeemOrders(expectedAssets, _asArray(orderId));
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        psm.fillRedeemOrders(expectedAssets, _asArray(orderId));
+    }
+
     function test_CancelRedeemOrders() public {
         uint256 shares1 = 1e18;
         uint256 expectedAssets = 1e6;
@@ -298,6 +387,25 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(uint256(order.status), uint256(OrderStatus.Cancelled));
         assertEq(psm.pendingOrderCount(), 0);
         assertEq(styz.balanceOf(user1), shares1);
+    }
+
+    function test_CancelRedeemOrders_Revert_OrderNotPending() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+        _approveStaked(user1, address(psm), shares1);
+
+        vm.prank(user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1);
+
+        vm.prank(orderFiller);
+        psm.cancelRedeemOrders(_asArray(orderId));
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderNotPending.selector, orderId));
+        psm.cancelRedeemOrders(_asArray(orderId));
     }
 
     function test_DepositLiquidity() public {
@@ -376,5 +484,67 @@ contract PSMTest is IPSMDefinitions, Test {
         uint256[] memory lastId = psm.getPendingOrderIds(1, 1);
         assertEq(lastId.length, 1);
         assertEq(lastId[0], orderId3);
+    }
+
+    function test_Deposit_Revert_NotUser() public {
+        uint256 assets = 1e6;
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
+        );
+        psm.deposit(assets, user1);
+    }
+
+    function test_Redeem_Revert_NotUser() public {
+        uint256 shares1 = 1e18;
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
+        );
+        psm.redeem(shares1, user1);
+    }
+
+    function test_CreateRedeemOrder_Revert_NotUser() public {
+        uint256 shares1 = 1e18;
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
+        );
+        psm.createRedeemOrder(shares1, user1);
+    }
+
+    function test_FillRedeemOrders_Revert_NotFiller() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ORDER_FILLER_ROLE)
+        );
+        psm.fillRedeemOrders(0, _asArray(0));
+    }
+
+    function test_CancelRedeemOrders_Revert_NotFiller() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ORDER_FILLER_ROLE)
+        );
+        psm.cancelRedeemOrders(_asArray(0));
+    }
+
+    function test_DepositLiquidity_Revert_NotLiquidityManager() public {
+        uint256 amount = 1e6;
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIQUIDITY_MANAGER_ROLE
+            )
+        );
+        psm.depositLiquidity(amount);
+    }
+
+    function test_WithdrawLiquidity_Revert_NotLiquidityManager() public {
+        uint256 amount = 1e6;
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIQUIDITY_MANAGER_ROLE
+            )
+        );
+        psm.withdrawLiquidity(amount, user1);
     }
 }
