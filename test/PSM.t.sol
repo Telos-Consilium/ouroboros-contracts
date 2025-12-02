@@ -247,6 +247,7 @@ contract PSMTest is IPSMDefinitions, Test {
         uint256 shares = psm.deposit(assets, user1);
         assertEq(shares, expectedShares);
         assertEq(styz.balanceOf(user1), expectedShares);
+        assertEq(asset.balanceOf(feeReceiver), 0);
     }
 
     function test_Redeem() public {
@@ -271,6 +272,7 @@ contract PSMTest is IPSMDefinitions, Test {
         uint256 assets = psm.redeem(shares1, user1);
         assertEq(assets, expectedAssets);
         assertEq(styz.balanceOf(user1), 0);
+        assertEq(asset.balanceOf(feeReceiver), 0);
     }
 
     function test_Redeem_Revert_InsufficientLiquidity() public {
