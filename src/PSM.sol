@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -33,6 +33,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         _disableInitializers();
     }
 
+    // slither-disable-next-line pess-multiple-storage-read
     function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin) external initializer {
         __AccessControlDefaultAdminRules_init(0, _admin);
         __ReentrancyGuard_init();
@@ -72,15 +73,15 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return address(_vault1);
     }
 
-    function orderCount() public view returns (uint256) {
+    function orderCount() external view returns (uint256) {
         return _orderCount;
     }
 
-    function getRedeemOrder(uint256 orderId) public view returns (Order memory) {
+    function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return _orders[orderId];
     }
 
-    function pendingOrderCount() public view returns (uint256) {
+    function pendingOrderCount() external view returns (uint256) {
         return _pendingOrderIds.length();
     }
 
@@ -172,37 +173,39 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return shares1;
     }
 
-    function _redeem(address caller, address owner, address receiver, uint256 shares) internal returns (uint256) {
-        uint256 shares0 = _vault1.redeem(shares, address(this), owner);
+    // slither-disable-next-line calls-loop
+    function _redeem(address caller, address _owner, address receiver, uint256 shares) internal returns (uint256) {
+        uint256 shares0 = _vault1.redeem(shares, address(this), _owner);
         uint256 currentFee = IRedeemFee(vault0()).redeemFeePpm();
         if (currentFee != 0) IRedeemFee(vault0()).setRedeemFee(0);
         uint256 assets0 = _vault0.previewRedeem(shares0);
         SafeERC20.safeTransfer(IERC20(asset()), vault0(), assets0);
         uint256 assets = _vault0.redeem(shares0, receiver, address(this));
         if (currentFee != 0) IRedeemFee(vault0()).setRedeemFee(currentFee);
-        emit Withdraw(caller, receiver, owner, assets, shares);
+        emit Withdraw(caller, receiver, _owner, assets, shares);
         return assets;
     }
 
-    function _createRedeemOrder(address owner, address receiver, uint256 shares) internal returns (uint256) {
+    function _createRedeemOrder(address _owner, address receiver, uint256 shares) internal returns (uint256) {
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
 
-        uint256 orderId = orderCount();
+        uint256 orderId = _orderCount;
         _orders[orderId] = Order({
-            owner: owner,
-            receiver: receiver,
             shares: shares,
-            status: OrderStatus.Pending,
-            createdAt: uint40(block.timestamp)
+            owner: _owner,
+            receiver: receiver,
+            createdAt: SafeCast.toUint40(block.timestamp),
+            status: OrderStatus.Pending
         });
         _orderCount++;
+        // slither-disable-next-line unused-return
         _pendingOrderIds.add(orderId);
 
-        SafeERC20.safeTransferFrom(IERC20(vault1()), owner, address(this), shares);
+        SafeERC20.safeTransferFrom(IERC20(vault1()), _owner, address(this), shares);
 
-        emit CreatedRedeemOrder(owner, receiver, owner, orderId, shares);
+        emit CreatedRedeemOrder(_owner, receiver, _owner, orderId, shares);
         return orderId;
     }
 
@@ -212,10 +215,11 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
             revert OrderNotPending(orderId);
         }
 
-        uint256 assets = _redeem(caller, address(this), order.receiver, order.shares);
-
         order.status = OrderStatus.Filled;
+        // slither-disable-next-line unused-return
         _pendingOrderIds.remove(orderId);
+
+        uint256 assets = _redeem(caller, address(this), order.receiver, order.shares);
 
         emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, assets, order.shares);
     }
@@ -229,6 +233,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         SafeERC20.safeTransfer(IERC20(vault1()), order.owner, order.shares);
 
         order.status = OrderStatus.Cancelled;
+        // slither-disable-next-line unused-return
         _pendingOrderIds.remove(orderId);
 
         emit CancelledRedeemOrder(caller, orderId);
@@ -244,5 +249,11 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         emit WithdrewLiquidity(receiver, assets);
     }
 
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    // slither-disable-next-line unused-state
     uint256[43] private __gap;
 }

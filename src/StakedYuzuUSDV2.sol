@@ -56,15 +56,15 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     /**
      * @notice Instant withdraw for whitelisted integrations; regular users should use initiateRedeem().
      */
-    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
-        uint256 maxAssets = maxWithdraw(owner);
+    function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
+        uint256 maxAssets = maxWithdraw(_owner);
         if (assets > maxAssets) {
-            revert ERC4626ExceededMaxWithdraw(owner, assets, maxAssets);
+            revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssets);
         }
 
         (uint256 shares, uint256 fee) = _previewWithdraw(assets);
         address caller = _msgSender();
-        _withdraw(caller, receiver, owner, shares, assets, fee);
+        _withdraw(caller, receiver, _owner, shares, assets, fee);
 
         return shares;
     }
@@ -72,15 +72,15 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     /**
      * @notice Instant redeem for whitelisted integrations; regular users should use initiateRedeem().
      */
-    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
-        uint256 maxShares = maxRedeem(owner);
+    function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
+        uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
-            revert ERC4626ExceededMaxRedeem(owner, shares, maxShares);
+            revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
         }
 
         (uint256 assets, uint256 fee) = _previewRedeem(shares);
         address caller = _msgSender();
-        _withdraw(caller, receiver, owner, shares, assets, fee);
+        _withdraw(caller, receiver, _owner, shares, assets, fee);
 
         return assets;
     }
@@ -113,21 +113,27 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return (assets - fee, fee);
     }
 
-    function _withdraw(address caller, address receiver, address owner, uint256 shares, uint256 assets, uint256 fee)
+    function _withdraw(address caller, address receiver, address _owner, uint256 shares, uint256 assets, uint256 fee)
         internal
     {
-        if (caller != owner) {
-            _spendAllowance(owner, caller, shares);
+        if (caller != _owner) {
+            _spendAllowance(_owner, caller, shares);
         }
-        _burn(owner, shares);
+        _burn(_owner, shares);
 
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
         if (fee > 0) {
             SafeERC20.safeTransfer(IERC20(asset()), feeReceiver, fee);
         }
 
-        emit Withdraw(caller, receiver, owner, assets, shares);
+        emit Withdraw(caller, receiver, _owner, assets, shares);
     }
 
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    // slither-disable-next-line unused-state
     uint256[49] private __gap;
 }
