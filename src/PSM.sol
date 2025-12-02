@@ -19,6 +19,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     using EnumerableSet for EnumerableSet.UintSet;
 
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
     bytes32 internal constant LIQUIDITY_MANAGER_ROLE = keccak256("LIQUIDITY_MANAGER_ROLE");
     bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
@@ -28,6 +29,8 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     IERC20 internal _asset;
     IERC4626 internal _vault0;
     IERC4626 internal _vault1;
+
+    uint256 public minRedeemOrder;
 
     uint256 internal _orderCount;
     mapping(uint256 => Order) internal _orders;
@@ -45,7 +48,10 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
      * @param _admin The admin of the contract
      */
     // slither-disable-next-line pess-multiple-storage-read
-    function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin) external initializer {
+    function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin, uint256 _minRedeemOrder)
+        external
+        initializer
+    {
         __AccessControlDefaultAdminRules_init(0, _admin);
         __ReentrancyGuard_init();
 
@@ -64,7 +70,10 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         _vault0 = __vault0;
         _vault1 = __vault1;
 
+        minRedeemOrder = _minRedeemOrder;
+
         _grantRole(ADMIN_ROLE, _admin);
+        _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(ORDER_FILLER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LIQUIDITY_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(RESTRICTION_MANAGER_ROLE, ADMIN_ROLE);
@@ -142,6 +151,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         onlyRole(USER_ROLE)
         returns (uint256)
     {
+        if (shares < minRedeemOrder) {
+            revert UnderMinRedeemOrder(shares, minRedeemOrder);
+        }
         return _createRedeemOrder(_msgSender(), receiver, shares);
     }
 
@@ -180,6 +192,12 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         onlyRole(LIQUIDITY_MANAGER_ROLE)
     {
         _withdrawLiquidity(receiver, assets);
+    }
+
+    function setMinRedeemOrder(uint256 newMin) external onlyRole(REDEEM_MANAGER_ROLE) {
+        uint256 oldMin = minRedeemOrder;
+        minRedeemOrder = newMin;
+        emit UpdatedMinRedeemOrder(oldMin, newMin);
     }
 
     function _deposit(address caller, address receiver, uint256 assets) internal returns (uint256) {

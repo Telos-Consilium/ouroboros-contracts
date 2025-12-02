@@ -24,14 +24,16 @@ struct Order {
 interface IPSMDefinitions {
     error InvalidZeroAddress();
     error VaultAssetMismatch(address expected, address underlying);
+    error UnderMinRedeemOrder(uint256 shares, uint256 min);
     error OrderNotPending(uint256 orderId);
 
+    event UpdatedMinRedeemOrder(uint256 oldMin, uint256 newMin);
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
     event Withdraw(
         address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
     );
     event CreatedRedeemOrder(
-        address indexed sender, address indexed receiver, address indexed owner, uint256 orderId, uint256 tokens
+        address indexed sender, address indexed receiver, address indexed owner, uint256 orderId, uint256 shares
     );
     event FilledRedeemOrder(
         address indexed sender,

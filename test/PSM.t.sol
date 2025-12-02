@@ -46,6 +46,7 @@ contract PSMTest is IPSMDefinitions, Test {
     address public admin;
     address public treasury;
     address public feeReceiver;
+    address public redeemManager;
     address public orderFiller;
     address public liquidityManager;
     address public restrictionManager;
@@ -159,11 +160,12 @@ contract PSMTest is IPSMDefinitions, Test {
 
     function _setupPSM() internal {
         PSM implementation = new PSM();
-        bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusd, styz, admin);
+        bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusd, styz, admin, 0);
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         psm = PSM(address(proxy));
 
         vm.startPrank(admin);
+        psm.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
         psm.grantRole(ORDER_FILLER_ROLE, orderFiller);
         psm.grantRole(LIQUIDITY_MANAGER_ROLE, liquidityManager);
         psm.grantRole(RESTRICTION_MANAGER_ROLE, restrictionManager);
@@ -201,6 +203,7 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(psm.asset(), address(asset));
         assertEq(psm.vault0(), address(yzusd));
         assertEq(psm.vault1(), address(styz));
+        assertEq(psm.minRedeemOrder(), 0);
         assertEq(psm.orderCount(), 0);
         assertEq(psm.pendingOrderCount(), 0);
         assertEq(psm.getPendingOrderIds().length, 0);
@@ -324,6 +327,21 @@ contract PSMTest is IPSMDefinitions, Test {
         vm.prank(user1);
         vm.expectRevert(InvalidZeroAddress.selector);
         psm.createRedeemOrder(shares1, address(0));
+    }
+
+    function test_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
+        uint256 assets = 10e6;
+        uint256 minOrder = 5e18;
+
+        vm.prank(redeemManager);
+        psm.setMinRedeemOrder(minOrder);
+
+        vm.prank(user1);
+        psm.deposit(assets, user1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinRedeemOrder.selector, minOrder - 1, minOrder));
+        psm.createRedeemOrder(minOrder - 1, user1);
     }
 
     function test_FillRedeemOrders() public {
@@ -476,6 +494,14 @@ contract PSMTest is IPSMDefinitions, Test {
         assertTrue(afterCancel[1] == orderId1 || afterCancel[1] == orderId3);
     }
 
+    function test_SetMinRedeemOrder() public {
+        vm.prank(redeemManager);
+        vm.expectEmit();
+        emit UpdatedMinRedeemOrder(0, 100e18);
+        psm.setMinRedeemOrder(100e18);
+        assertEq(psm.minRedeemOrder(), 100e18);
+    }
+
     function test_Deposit_Revert_NotUser() public {
         uint256 assets = 1e6;
         vm.expectRevert(
@@ -536,5 +562,13 @@ contract PSMTest is IPSMDefinitions, Test {
             )
         );
         psm.withdrawLiquidity(amount, user1);
+    }
+
+    function test_SetMinRedeemOrder_Revert_NotRedeemManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, REDEEM_MANAGER_ROLE)
+        );
+        psm.setMinRedeemOrder(100e18);
     }
 }
