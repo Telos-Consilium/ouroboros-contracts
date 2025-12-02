@@ -9,52 +9,9 @@ import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-interface IRedeemFee {
-    function redeemFeePpm() external view returns (uint256);
-    function setRedeemFee(uint256 feePpm) external;
-}
+import {IRedeemFee, OrderStatus, Order, IPSMDefinitions} from "./interfaces/IPSMDefinitions.sol";
 
-enum OrderStatus {
-    Nil,
-    Pending,
-    Filled,
-    Cancelled
-}
-
-struct Order {
-    address owner;
-    address receiver;
-    uint256 shares;
-    OrderStatus status;
-    uint40 createdAt;
-}
-
-interface PSMDefinitions {
-    error InvalidZeroAddress();
-    error VaultAssetMismatch(address expected, address underlying);
-    error OrderNotPending(uint256 orderId);
-
-    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
-    event Withdraw(
-        address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
-    );
-    event CreatedRedeemOrder(
-        address indexed sender, address indexed receiver, address indexed owner, uint256 orderId, uint256 tokens
-    );
-    event FilledRedeemOrder(
-        address indexed sender,
-        address indexed receiver,
-        address indexed owner,
-        uint256 orderId,
-        uint256 assets,
-        uint256 shares
-    );
-    event CancelledRedeemOrder(address sender, uint256 orderId);
-    event DepositedLiquidity(address indexed sender, uint256 assets);
-    event WithdrewLiquidity(address indexed receiver, uint256 assets);
-}
-
-contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgradeable, PSMDefinitions {
+contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgradeable, IPSMDefinitions {
     using EnumerableSet for EnumerableSet.UintSet;
 
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -62,7 +19,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     bytes32 internal constant LIQUIDITY_MANAGER_ROLE = keccak256("LIQUIDITY_MANAGER_ROLE");
     bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
 
-    bytes32 internal constant SWAPPER_ROLE = keccak256("SWAPPER_ROLE");
+    bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
 
     IERC20 internal _asset;
     IERC4626 internal _vault0;
@@ -100,7 +57,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         _setRoleAdmin(LIQUIDITY_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(RESTRICTION_MANAGER_ROLE, ADMIN_ROLE);
 
-        _setRoleAdmin(SWAPPER_ROLE, RESTRICTION_MANAGER_ROLE);
+        _setRoleAdmin(USER_ROLE, RESTRICTION_MANAGER_ROLE);
     }
 
     function asset() public view returns (address) {
@@ -154,11 +111,11 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return _vault0.convertToAssets(assets1);
     }
 
-    function deposit(uint256 assets, address receiver) external nonReentrant onlyRole(SWAPPER_ROLE) returns (uint256) {
+    function deposit(uint256 assets, address receiver) external nonReentrant onlyRole(USER_ROLE) returns (uint256) {
         return _deposit(_msgSender(), receiver, assets);
     }
 
-    function redeem(uint256 shares, address receiver) external nonReentrant onlyRole(SWAPPER_ROLE) returns (uint256) {
+    function redeem(uint256 shares, address receiver) external nonReentrant onlyRole(USER_ROLE) returns (uint256) {
         address caller = _msgSender();
         return _redeem(caller, caller, receiver, shares);
     }
@@ -166,7 +123,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     function createRedeemOrder(uint256 shares, address receiver)
         external
         nonReentrant
-        onlyRole(SWAPPER_ROLE)
+        onlyRole(USER_ROLE)
         returns (uint256)
     {
         return _createRedeemOrder(_msgSender(), receiver, shares);
@@ -197,8 +154,12 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         _depositLiquidity(_msgSender(), assets);
     }
 
-    function withdrawLiquidity(uint256 assets) external nonReentrant onlyRole(LIQUIDITY_MANAGER_ROLE) {
-        _withdrawLiquidity(_msgSender(), assets);
+    function withdrawLiquidity(uint256 assets, address receiver)
+        external
+        nonReentrant
+        onlyRole(LIQUIDITY_MANAGER_ROLE)
+    {
+        _withdrawLiquidity(receiver, assets);
     }
 
     function _deposit(address caller, address receiver, uint256 assets) internal returns (uint256) {
@@ -278,9 +239,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         emit DepositedLiquidity(caller, assets);
     }
 
-    function _withdrawLiquidity(address caller, uint256 assets) internal {
-        SafeERC20.safeTransfer(IERC20(asset()), caller, assets);
-        emit WithdrewLiquidity(caller, assets);
+    function _withdrawLiquidity(address receiver, uint256 assets) internal {
+        SafeERC20.safeTransfer(IERC20(asset()), receiver, assets);
+        emit WithdrewLiquidity(receiver, assets);
     }
 
     uint256[43] private __gap;
