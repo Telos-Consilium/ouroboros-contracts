@@ -14,11 +14,11 @@ enum OrderStatus {
 }
 
 struct Order {
+    uint256 shares;
     address owner;
     address receiver;
-    uint256 shares;
-    OrderStatus status;
     uint40 createdAt;
+    OrderStatus status;
 }
 
 interface IPSMDefinitions {
