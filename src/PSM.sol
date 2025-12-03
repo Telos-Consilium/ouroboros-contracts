@@ -129,8 +129,8 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Preview assets withdrawn for {shares}
     function previewRedeem(uint256 shares) external view returns (uint256) {
-        uint256 assets1 = _vault1.convertToAssets(shares);
-        return _vault0.convertToAssets(assets1);
+        uint256 shares0 = _vault1.convertToAssets(shares);
+        return _vault0.convertToAssets(shares0);
     }
 
     /// @notice Deposit {assets} for shares minted to {receiver}
