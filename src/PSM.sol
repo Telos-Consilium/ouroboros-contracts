@@ -202,9 +202,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     function _deposit(address caller, address receiver, uint256 assets) internal returns (uint256) {
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), assets);
-        SafeERC20.forceApprove(IERC20(asset()), vault0(), assets);
+        SafeERC20.safeIncreaseAllowance(IERC20(asset()), vault0(), assets);
         uint256 shares0 = _vault0.deposit(assets, address(this));
-        SafeERC20.forceApprove(IERC20(vault0()), vault1(), shares0);
+        SafeERC20.safeIncreaseAllowance(IERC20(vault0()), vault1(), shares0);
         uint256 shares1 = _vault1.deposit(shares0, receiver);
         emit Deposit(caller, receiver, assets, shares1);
         return shares1;
