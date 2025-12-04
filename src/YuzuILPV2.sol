@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+
+import {YuzuILP} from "./YuzuILP.sol";
+import {IYuzuILPV2Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
+
+/**
+ * @title YuzuILPV2
+ * @notice
+ */
+contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
+    uint256 public lastDistributedAmount;
+    uint256 public lastDistributionPeriod;
+    uint256 public lastDistributionTimestamp;
+
+    function initializeV2() external reinitializer(2) {
+        lastDistributionPeriod = 1;
+    }
+
+    function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
+        public
+        override
+    {
+        if (_isDistributionInProgress()) {
+            revert DistributionInProgress();
+        }
+        super.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+    }
+
+    function distribute(uint256 assets, uint256 period) external onlyRole(POOL_MANAGER_ROLE) {
+        if (period < 1) {
+            revert DistributionPeriodTooLow(period, 1);
+        }
+        if (period > 7 days) {
+            revert DistributionPeriodTooHigh(period, 7 days);
+        }
+        if (_isDistributionInProgress()) {
+            revert DistributionInProgress();
+        }
+        lastDistributedAmount = assets;
+        lastDistributionPeriod = period;
+        lastDistributionTimestamp = block.timestamp;
+        emit Distributed(assets, period);
+    }
+
+    function terminateDistribution() external onlyRole(POOL_MANAGER_ROLE) {
+        uint256 elapsedTime = block.timestamp - lastDistributionTimestamp;
+        if (lastDistributionTimestamp == 0 || elapsedTime >= lastDistributionPeriod) {
+            revert NoDistributionInProgress();
+        }
+        uint256 distributed = _distributedAssets(Math.Rounding.Floor);
+        uint256 undistributed = lastDistributedAmount - distributed;
+        lastDistributedAmount = distributed;
+        lastDistributionPeriod = elapsedTime;
+        emit TerminatedDistribution(undistributed);
+    }
+
+    function _totalAssets(Math.Rounding rounding) internal view override returns (uint256) {
+        return super._totalAssets(rounding) + _distributedAssets(rounding);
+    }
+
+    function _isDistributionInProgress() internal view returns (bool) {
+        return block.timestamp < lastDistributionTimestamp + lastDistributionPeriod;
+    }
+
+    function _distributedAssets(Math.Rounding rounding) internal view returns (uint256) {
+        return Math.min(
+            lastDistributedAmount,
+            Math.mulDiv(
+                block.timestamp - lastDistributionTimestamp, lastDistributedAmount, lastDistributionPeriod, rounding
+            )
+        );
+    }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    // slither-disable-next-line unused-state
+    uint256[47] private __gap;
+}

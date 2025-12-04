@@ -22,3 +22,8 @@ interface IYuzuILP is IYuzuProto {
     function dailyLinearYieldRatePpm() external view returns (uint256);
     function lastPoolUpdateTimestamp() external view returns (uint256);
 }
+
+interface IYuzuILPV2 is IYuzuILP {
+    function distribute(uint256 assets, uint256 period) external;
+    function terminateDistribution(address receiver) external;
+}

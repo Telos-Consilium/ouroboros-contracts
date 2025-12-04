@@ -434,5 +434,6 @@ abstract contract YuzuProto is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[50] private __gap;
+    uint256[45] private __gap0;
+    uint256[5] private __gap1;
 }

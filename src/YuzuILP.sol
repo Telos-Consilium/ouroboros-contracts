@@ -52,7 +52,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
     /// @notice Update the pool parameters including size and yield rate
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
-        external
+        public
+        virtual
         whenPaused
         onlyRole(POOL_MANAGER_ROLE)
     {
@@ -104,7 +105,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return 0;
     }
 
-    function _totalAssets(Math.Rounding rounding) internal view returns (uint256) {
+    function _totalAssets(Math.Rounding rounding) internal view virtual returns (uint256) {
         uint256 yieldSinceUpdate = _yieldSinceUpdate(rounding);
         return poolSize + yieldSinceUpdate;
     }
@@ -171,5 +172,5 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[50] private __gap;
+    uint256[42] private __gap;
 }
