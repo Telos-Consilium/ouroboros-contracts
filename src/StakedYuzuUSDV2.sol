@@ -130,6 +130,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     function _undistributedAssets() internal view virtual override returns (uint256) {
+        // slither-disable-next-line incorrect-equality
         if (lastDistributionPeriod == 0) {
             return 0;
         }
