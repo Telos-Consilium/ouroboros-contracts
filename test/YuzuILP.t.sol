@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {console2} from "forge-std/Test.sol";
 
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IYuzuILPDefinitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
@@ -25,7 +26,7 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
     address public poolManager;
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         ilp = YuzuILP(address(proto));
@@ -36,7 +37,7 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
         ilp.grantRole(POOL_MANAGER_ROLE, poolManager);
     }
 
-    function _deploy() internal override returns (address) {
+    function _deploy() internal virtual override returns (address) {
         return address(new YuzuILP());
     }
 
@@ -199,6 +200,15 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
         assertEq(ilp.totalAssets(), 100e6);
     }
 
+    function test_UpdatePool_Revert_NotPoolManager() public {
+        _pause();
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, POOL_MANAGER_ROLE)
+        );
+        ilp.updatePool(0, 100e6, 100_000);
+    }
+
     function test_UpdatePool_Revert_NotPaused() public {
         vm.prank(poolManager);
         vm.expectRevert(PausableUpgradeable.ExpectedPause.selector);
@@ -232,8 +242,8 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
     }
 }
 
-contract YuzuUSDTest_OrderBook is YuzuProtoTest_OrderBook {
-    function _deploy() internal override returns (address) {
+contract YuzuILPTest_OrderBook is YuzuProtoTest_OrderBook {
+    function _deploy() internal virtual override returns (address) {
         return address(new YuzuILP());
     }
 }
