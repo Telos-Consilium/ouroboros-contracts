@@ -10,17 +10,19 @@ import {IYuzuILPV2Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 
 /**
  * @title YuzuILPV2
- * @notice
+ * @notice YuzuILP with progressive distributions
  */
 contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
     uint256 public lastDistributedAmount;
     uint256 public lastDistributionPeriod;
     uint256 public lastDistributionTimestamp;
 
+    // slither-disable-next-line pess-unprotected-initialize
     function initializeV2() external reinitializer(2) {
         lastDistributionPeriod = 1;
     }
 
+    /// @notice See {YuzuILP-updatePool}
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         public
         override
@@ -31,6 +33,7 @@ contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
         super.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
     }
 
+    /// @notice See {YuzuILP-distribute}
     function distribute(uint256 assets, uint256 period) external onlyRole(POOL_MANAGER_ROLE) {
         if (period < 1) {
             revert DistributionPeriodTooLow(period, 1);
@@ -47,6 +50,7 @@ contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
         emit Distributed(assets, period);
     }
 
+    /// @notice See {YuzuILP-terminateDistribution}
     function terminateDistribution() external onlyRole(POOL_MANAGER_ROLE) {
         uint256 elapsedTime = block.timestamp - lastDistributionTimestamp;
         if (lastDistributionTimestamp == 0 || elapsedTime >= lastDistributionPeriod) {
