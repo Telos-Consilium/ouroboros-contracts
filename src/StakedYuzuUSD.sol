@@ -382,7 +382,7 @@ contract StakedYuzuUSD is
         return block.timestamp < lastDistributionTimestamp + lastDistributionPeriod;
     }
 
-    function _undistributedAssets() internal view returns (uint256) {
+    function _undistributedAssets() internal view virtual returns (uint256) {
         uint256 distributed = Math.min(
             lastDistributedAmount,
             Math.mulDiv(

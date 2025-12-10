@@ -360,4 +360,12 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
         assertGt(maxWithdraw, 0);
         assertEq(maxRedeem, mintedShares);
     }
+
+    function test_TerminateDistribution_SameBlock() public {
+        vm.prank(owner);
+        styz.distribute(1e18, 1 days);
+        vm.prank(owner);
+        styz.terminateDistribution(owner);
+        styz.totalAssets();
+    }
 }

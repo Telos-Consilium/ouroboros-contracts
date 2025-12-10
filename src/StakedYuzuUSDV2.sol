@@ -129,6 +129,13 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         emit Withdraw(caller, receiver, _owner, assets, shares);
     }
 
+    function _undistributedAssets() internal view virtual override returns (uint256) {
+        if (lastDistributionPeriod == 0) {
+            return 0;
+        }
+        return super._undistributedAssets();
+    }
+
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.
