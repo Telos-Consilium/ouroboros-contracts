@@ -18,8 +18,6 @@ contract YuzuILPV2Test_Common is YuzuILPTest_Common, IYuzuILPV2Definitions {
     function setUp() public virtual override {
         super.setUp();
         ilpv2 = YuzuILPV2(address(proto));
-        ilpv2.initializeV2();
-        assertEq(ilpv2.lastDistributionPeriod(), 1);
     }
 
     function _deploy() internal virtual override returns (address) {

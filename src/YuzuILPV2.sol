@@ -15,11 +15,6 @@ contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
     uint256 public lastDistributionPeriod;
     uint256 public lastDistributionTimestamp;
 
-    // slither-disable-next-line pess-unprotected-initialize
-    function initializeV2() external reinitializer(2) {
-        lastDistributionPeriod = 1;
-    }
-
     /// @notice See {YuzuILP-updatePool}
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         public

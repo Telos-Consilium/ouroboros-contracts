@@ -57,9 +57,7 @@ contract YuzuILPUpgradeForkTest is Test {
         vm.prank(proxyAdminOwner);
         // Upgrade and initialize V2
         ProxyAdmin(proxyAdmin).upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(proxy)),
-            address(newImplementation),
-            abi.encodeWithSelector(YuzuILPV2.initializeV2.selector)
+            ITransparentUpgradeableProxy(payable(proxy)), address(newImplementation), bytes("")
         );
 
         // Capture post-upgrade slots
@@ -74,10 +72,6 @@ contract YuzuILPUpgradeForkTest is Test {
         assertEq(upgraded.poolSize(), poolSizeBefore, "poolSize drift");
         assertEq(upgraded.dailyLinearYieldRatePpm(), dailyLinearYieldRatePpmBefore, "dailyLinearYieldRatePpm drift");
         assertEq(upgraded.lastPoolUpdateTimestamp(), lastPoolUpdateTimestampBefore, "lastPoolUpdateTimestamp drift");
-        assertEq(upgraded.totalAssets(), totalAssetsBefore, "totalAssets drift"); // Assuming no time passed/yield accrued in same block
-
-        // Verify V2 initialization
-        YuzuILPV2 v2 = YuzuILPV2(address(proxy));
-        assertEq(v2.lastDistributionPeriod(), 1, "V2 initialization failed");
+        assertEq(upgraded.totalAssets(), totalAssetsBefore, "totalAssets drift");
     }
 }
