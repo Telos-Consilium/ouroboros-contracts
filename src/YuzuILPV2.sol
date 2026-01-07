@@ -3,17 +3,37 @@ pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {YuzuILP} from "./YuzuILP.sol";
+import {YuzuILP, Order, OrderStatus} from "./YuzuILP.sol";
 import {IYuzuILPV2Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 
 /**
  * @title YuzuILPV2
- * @notice YuzuILP with progressive distributions
+ * @notice YuzuILP with progressive distributions and forced cancellations
  */
 contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
     uint256 public lastDistributedAmount;
     uint256 public lastDistributionPeriod;
     uint256 public lastDistributionTimestamp;
+
+    function cancelRedeemOrder(uint256 orderId) public virtual override {
+        address caller = _msgSender();
+        Order storage order = _getOrder(orderId);
+        if (order.status != OrderStatus.Pending) {
+            revert OrderNotPending(orderId);
+        }
+        if (!hasRole(ORDER_FILLER_ROLE, caller)) {
+            if (caller != order.owner && caller != order.controller) {
+                revert UnauthorizedOrderManager(caller, order.owner, order.controller);
+            }
+            if (block.timestamp < order.dueTime) {
+                revert OrderNotDue(orderId);
+            }
+        }
+
+        _cancelRedeemOrder(order);
+
+        emit CancelledRedeemOrder(caller, orderId);
+    }
 
     /// @notice See {YuzuILP-updatePool}
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)

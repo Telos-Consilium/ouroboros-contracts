@@ -324,7 +324,7 @@ contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
 
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
-    function _deploy() internal override returns (address) {
+    function _deploy() internal virtual override returns (address) {
         return address(new YuzuILP());
     }
 

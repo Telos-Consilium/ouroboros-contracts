@@ -10,17 +10,19 @@ import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 
 import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 
+import {YuzuProtoTest} from "./YuzuProto.t.sol";
+import {YuzuProtoV2Test_Common, YuzuProtoV2Test_OrderBook} from "./YuzuProtoV2.t.sol";
 import {YuzuILPTest_Common, YuzuILPTest_OrderBook} from "./YuzuILP.t.sol";
 
-contract YuzuILPV2Test_Common is YuzuILPTest_Common, IYuzuILPV2Definitions {
+contract YuzuILPV2Test_Common is YuzuILPTest_Common, YuzuProtoV2Test_Common, IYuzuILPV2Definitions {
     YuzuILPV2 public ilpv2;
 
-    function setUp() public virtual override {
+    function setUp() public virtual override(YuzuProtoTest, YuzuILPTest_Common) {
         super.setUp();
         ilpv2 = YuzuILPV2(address(proto));
     }
 
-    function _deploy() internal virtual override returns (address) {
+    function _deploy() internal virtual override(YuzuProtoTest, YuzuILPTest_Common) returns (address) {
         return address(new YuzuILPV2());
     }
 
@@ -154,8 +156,8 @@ contract YuzuILPV2Test_Common is YuzuILPTest_Common, IYuzuILPV2Definitions {
     }
 }
 
-contract YuzuILPV2Test_OrderBook is YuzuILPTest_OrderBook {
-    function _deploy() internal virtual override returns (address) {
+contract YuzuILPV2Test_OrderBook is YuzuILPTest_OrderBook, YuzuProtoV2Test_OrderBook {
+    function _deploy() internal virtual override(YuzuProtoTest, YuzuILPTest_OrderBook) returns (address) {
         return address(new YuzuILPV2());
     }
 }
