@@ -24,6 +24,10 @@ interface IYuzuILP is IYuzuProto {
 }
 
 interface IYuzuILPV2 is IYuzuILP {
+    function lastDistributedAmount() external view returns (uint256);
+    function lastDistributionPeriod() external view returns (uint256);
+    function lastDistributionTimestamp() external view returns (uint256);
+
     function distribute(uint256 assets, uint256 period) external;
     function terminateDistribution(address receiver) external;
 }
