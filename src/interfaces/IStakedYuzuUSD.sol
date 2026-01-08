@@ -50,6 +50,7 @@ interface IStakedYuzuUSD is IERC4626 {
 }
 
 interface IStakedYuzuUSDV2 is IStakedYuzuUSD {
+    function lastDistributionTimestamp() external view returns (uint256);
     function getIntegration(address integration) external view returns (IntegrationConfig memory);
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external;
 }

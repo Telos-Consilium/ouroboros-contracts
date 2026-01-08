@@ -671,7 +671,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.lastDistributedAmount(), 10e18);
         assertEq(styz.lastDistributionPeriod(), 10 hours);
-        assertEq(styz.lastDistributionTimestamp(), initialTime);
+        assertEq(styz.lastDistributionTime(), initialTime);
 
         assertEq(yzusd.balanceOf(address(styz)), initialAssets + 10e18);
         assertEq(styz.totalAssets(), initialAssets);
@@ -745,7 +745,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
         assertEq(styz.lastDistributedAmount(), 1e18);
         assertEq(styz.lastDistributionPeriod(), 1 hours);
-        assertEq(styz.lastDistributionTimestamp(), initialTime);
+        assertEq(styz.lastDistributionTime(), initialTime);
 
         assertEq(yzusd.balanceOf(address(styz)), 1e18);
         assertEq(styz.totalAssets(), 1e18);

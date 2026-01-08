@@ -39,7 +39,7 @@ contract StakedYuzuUSD is
 
     uint256 public lastDistributedAmount;
     uint256 public lastDistributionPeriod;
-    uint256 public lastDistributionTimestamp;
+    uint256 public lastDistributionTime;
 
     uint256 public totalPendingOrderValue;
 
@@ -107,14 +107,14 @@ contract StakedYuzuUSD is
         }
         lastDistributedAmount = assets;
         lastDistributionPeriod = period;
-        lastDistributionTimestamp = block.timestamp;
+        lastDistributionTime = block.timestamp;
         SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), assets);
         emit Distributed(assets, period);
     }
 
     function terminateDistribution(address receiver) external onlyOwner {
-        uint256 elapsedTime = block.timestamp - lastDistributionTimestamp;
-        if (lastDistributionTimestamp == 0 || elapsedTime >= lastDistributionPeriod) {
+        uint256 elapsedTime = block.timestamp - lastDistributionTime;
+        if (lastDistributionTime == 0 || elapsedTime >= lastDistributionPeriod) {
             revert NoDistributionInProgress();
         }
         uint256 undistributed = _undistributedAssets();
@@ -379,14 +379,14 @@ contract StakedYuzuUSD is
     }
 
     function _isDistributionInProgress() internal view returns (bool) {
-        return block.timestamp < lastDistributionTimestamp + lastDistributionPeriod;
+        return block.timestamp < lastDistributionTime + lastDistributionPeriod;
     }
 
     function _undistributedAssets() internal view virtual returns (uint256) {
         uint256 distributed = Math.min(
             lastDistributedAmount,
             Math.mulDiv(
-                block.timestamp - lastDistributionTimestamp,
+                block.timestamp - lastDistributionTime,
                 lastDistributedAmount,
                 lastDistributionPeriod,
                 Math.Rounding.Floor

@@ -49,6 +49,10 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return assets;
     }
 
+    function lastDistributionTimestamp() external view returns (uint256) {
+        return lastDistributionTime;
+    }
+
     function getIntegration(address integration) external view returns (IntegrationConfig memory) {
         return integrations[integration];
     }
