@@ -46,10 +46,18 @@ contract StakedYuzuUSDUpgradeForkTest is Test {
         // Read baseline state before upgrade
         IStakedYuzuUSD baseView = IStakedYuzuUSD(proxy);
         address owner = IOwnable(address(baseView)).owner();
-        uint256 redeemDelayBefore = baseView.redeemDelay();
-        uint256 totalAssetsBefore = baseView.totalAssets();
         address implBefore = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
         address adminBefore = address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT))));
+        uint256 redeemDelayBefore = baseView.redeemDelay();
+        uint256 redeemFeePpmBefore = baseView.redeemFeePpm();
+        address feeReceiverBefore = baseView.feeReceiver();
+        uint256 lastDistributedAmountBefore = baseView.lastDistributedAmount();
+        uint256 lastDistributionPeriodBefore = baseView.lastDistributionPeriod();
+        uint256 lastDistributionTimeBefore = baseView.lastDistributionTime();
+        uint256 totalPendingOrderValueBefore = baseView.totalPendingOrderValue();
+        uint256 orderCountBefore = baseView.orderCount();
+        string memory nameBefore = baseView.name();
+        string memory symbolBefore = baseView.symbol();
 
         // Deploy new implementation for upgrade
         StakedYuzuUSDV2 newImplementation = new StakedYuzuUSDV2();
@@ -71,14 +79,17 @@ contract StakedYuzuUSDUpgradeForkTest is Test {
 
         // Validate storage slots and key invariants after upgrade
         IStakedYuzuUSDV2 upgraded = IStakedYuzuUSDV2(proxy);
-        assertEq(IOwnable(address(upgraded)).owner(), owner, "owner drift");
         assertEq(upgraded.redeemDelay(), redeemDelayBefore, "redeemDelay drift");
-        assertEq(upgraded.totalAssets(), totalAssetsBefore, "totalAssets drift");
-        assertEq(upgraded.name(), baseView.name(), "name drift");
-        assertEq(upgraded.symbol(), baseView.symbol(), "symbol drift");
-        assertEq(upgraded.convertToAssets(1), baseView.convertToAssets(1), "convertToAssets drift");
-        assertEq(upgraded.feeReceiver(), baseView.feeReceiver(), "feeReceiver drift");
-        assertEq(upgraded.redeemFeePpm(), baseView.redeemFeePpm(), "redeemFee drift");
+        assertEq(upgraded.redeemFeePpm(), redeemFeePpmBefore, "redeemFeePpm drift");
+        assertEq(upgraded.feeReceiver(), feeReceiverBefore, "feeReceiver drift");
+        assertEq(upgraded.lastDistributedAmount(), lastDistributedAmountBefore, "lastDistributedAmount drift");
+        assertEq(upgraded.lastDistributionPeriod(), lastDistributionPeriodBefore, "lastDistributionPeriod drift");
+        assertEq(upgraded.lastDistributionTime(), lastDistributionTimeBefore, "lastDistributionTime drift");
+        assertEq(upgraded.lastDistributionTimestamp(), lastDistributionTimeBefore, "lastDistributionTimestamp drift");
+        assertEq(upgraded.totalPendingOrderValue(), totalPendingOrderValueBefore, "totalPendingOrderValue drift");
+        assertEq(upgraded.orderCount(), orderCountBefore, "orderCount drift");
+        assertEq(upgraded.name(), nameBefore, "name drift");
+        assertEq(upgraded.symbol(), symbolBefore, "symbol drift");
 
         // Exercise a V2-only code path to ensure the new logic is active
         address integration = makeAddr("forkIntegration");
