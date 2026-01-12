@@ -6,8 +6,7 @@ import {Test, console2} from "forge-std/Test.sol";
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
 import {StakedYuzuUSDV2} from "../../src/StakedYuzuUSDV2.sol";
-import {IStakedYuzuUSD} from "../../src/interfaces/IStakedYuzuUSD.sol";
-import {IStakedYuzuUSDV2, IntegrationConfig} from "../../src/interfaces/IStakedYuzuUSD.sol";
+import {IStakedYuzuUSD, IStakedYuzuUSDV2, IntegrationConfig} from "../../src/interfaces/IStakedYuzuUSD.sol";
 
 interface IOwnable {
     function owner() external returns (address);

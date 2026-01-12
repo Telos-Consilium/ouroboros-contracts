@@ -7,7 +7,7 @@ import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {YuzuUSDV2} from "../../src/YuzuUSDV2.sol";
-import {IYuzuUSD} from "../../src/interfaces/IYuzuUSD.sol";
+import {IYuzuUSD, IYuzuUSDV2} from "../../src/interfaces/IYuzuUSD.sol";
 
 contract YuzuUSDUpgradeForkTest is Test {
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
@@ -74,7 +74,7 @@ contract YuzuUSDUpgradeForkTest is Test {
         assertEq(adminAfter, adminBefore, "admin drift");
 
         // Validate storage slots and key invariants after upgrade
-        IYuzuUSD upgraded = IYuzuUSD(proxy);
+        IYuzuUSDV2 upgraded = IYuzuUSDV2(proxy);
         assertEq(upgraded.asset(), assetBefore, "asset drift");
         assertEq(upgraded.treasury(), treasuryBefore, "treasury drift");
         assertEq(upgraded.redeemFeePpm(), redeemFeePpmBefore, "redeemFeePpm drift");

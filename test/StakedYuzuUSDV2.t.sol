@@ -15,18 +15,17 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {IntegrationConfig, IStakedYuzuUSDV2Definitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
-import {IStakedYuzuUSDV2} from "../src/interfaces/IStakedYuzuUSD.sol";
 
 import {StakedYuzuUSDV2} from "../src/StakedYuzuUSDV2.sol";
 
 import {StakedYuzuUSDTest} from "../test/StakedYuzuUSD.t.sol";
 
 contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
-    IStakedYuzuUSDV2 public styz2;
+    StakedYuzuUSDV2 public styz2;
 
     function setUp() public override {
         super.setUp();
-        styz2 = IStakedYuzuUSDV2(address(styz));
+        styz2 = StakedYuzuUSDV2(address(styz));
     }
 
     function _deploy() internal override returns (address) {
