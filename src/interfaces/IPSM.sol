@@ -23,6 +23,7 @@ interface IPSM {
 
     function deposit(uint256 assets, address receiver) external returns (uint256);
     function redeem(uint256 shares, address receiver) external returns (uint256);
+    function redeemWithSlippage(uint256 shares, address receiver, uint256 minAssets) external returns (uint256);
     function createRedeemOrder(uint256 shares, address receiver) external returns (uint256);
     function fillRedeemOrders(uint256 assets, uint256[] calldata orderIds) external;
     function cancelRedeemOrders(uint256[] calldata orderIds) external;

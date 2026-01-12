@@ -134,14 +134,23 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     /// @notice Deposit {assets} for shares minted to {receiver}
-    function deposit(uint256 assets, address receiver) external nonReentrant onlyRole(USER_ROLE) returns (uint256) {
+    function deposit(uint256 assets, address receiver) public nonReentrant onlyRole(USER_ROLE) returns (uint256) {
         return _deposit(_msgSender(), receiver, assets);
     }
 
     /// @notice Redeem {shares} for assets withdrawn to {receiver}
-    function redeem(uint256 shares, address receiver) external nonReentrant onlyRole(USER_ROLE) returns (uint256) {
+    function redeem(uint256 shares, address receiver) public nonReentrant onlyRole(USER_ROLE) returns (uint256) {
         address caller = _msgSender();
         return _redeem(caller, caller, receiver, shares);
+    }
+
+    /// @notice Redeem {shares} and revert if slippage is exceeded
+    function redeemWithSlippage(uint256 shares, address receiver, uint256 minAssets) external returns (uint256) {
+        uint256 assets = redeem(shares, receiver);
+        if (assets < minAssets) {
+            revert WithdrewLessThanMinAssets(assets, minAssets);
+        }
+        return assets;
     }
 
     /// @notice Create a redeem order of {shares} for {receiver}

@@ -121,6 +121,26 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
         styz2.withdraw(100e18, user1, user1);
     }
 
+    function test_WithdrawWithSlippage() public {
+        uint256 depositAmount = 200e18;
+
+        vm.prank(user1);
+        styz2.deposit(depositAmount, user1);
+
+        vm.prank(owner);
+        styz2.setRedeemDelay(0);
+
+        uint256 assets = 100e18;
+        uint256 maxShares = styz2.previewWithdraw(assets);
+        uint256 balanceBefore = yzusd.balanceOf(user1);
+
+        vm.prank(user1);
+        uint256 shares = styz2.withdrawWithSlippage(assets, user1, user1, maxShares);
+
+        assertEq(shares, maxShares);
+        assertEq(yzusd.balanceOf(user1) - balanceBefore, assets);
+    }
+
     function test_WithdrawWithSlippage_Revert_RedeemedMoreThanMaxShares() public {
         uint256 depositAmount = 200e18;
 
@@ -175,6 +195,26 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
     function test_Redeem_Revert_RedeemDelay() public {
         vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, 100e18, 0));
         styz2.redeem(100e18, user1, user1);
+    }
+
+    function test_RedeemWithSlippage() public {
+        uint256 depositAmount = 200e18;
+
+        vm.prank(user1);
+        uint256 shares = styz2.deposit(depositAmount, user1);
+
+        vm.prank(owner);
+        styz2.setRedeemDelay(0);
+
+        uint256 minAssets = styz2.previewRedeem(shares);
+        uint256 balanceBefore = yzusd.balanceOf(user1);
+
+        vm.prank(user1);
+        uint256 assets = styz2.redeemWithSlippage(shares, user1, user1, minAssets);
+
+        assertEq(assets, minAssets);
+        assertEq(styz2.balanceOf(user1), 0);
+        assertEq(yzusd.balanceOf(user1) - balanceBefore, depositAmount);
     }
 
     function test_RedeemWithSlippage_Revert_WithdrewLessThanMinAssets() public {

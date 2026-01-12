@@ -301,6 +301,37 @@ contract PSMTest is IPSMDefinitions, Test {
         psm.redeem(shares1, user1);
     }
 
+    function test_RedeemWithSlippage() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+
+        _approveStaked(user1, address(psm), shares1);
+        _depositLiquidity(expectedAssets);
+
+        vm.prank(user1);
+
+        uint256 assets = psm.redeemWithSlippage(shares1, user1, expectedAssets);
+        assertEq(assets, expectedAssets);
+    }
+
+    function test_RedeemWithSlippage_Revert_WithdrewLessThanMinAssets() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+
+        _approveStaked(user1, address(psm), shares1);
+        _depositLiquidity(expectedAssets);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(WithdrewLessThanMinAssets.selector, expectedAssets, expectedAssets + 1));
+        psm.redeemWithSlippage(shares1, user1, expectedAssets + 1);
+    }
+
     function test_CreateRedeemOrder() public {
         uint256 shares1 = 1e18;
         uint256 expectedAssets = 1e6;
