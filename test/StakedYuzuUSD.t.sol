@@ -30,6 +30,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     StakedYuzuUSD public styz;
     ERC20Mock public yzusd;
+
     address public owner;
     address public feeReceiver;
     address public user1;
@@ -783,6 +784,7 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
 
     StakedYuzuUSD internal styz;
     ERC20Mock internal yzusd;
+
     address internal owner;
 
     address[] public actors;
@@ -926,8 +928,8 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
 
 contract StakedYuzuUSDInvariantTest is Test {
     StakedYuzuUSD public styz;
-    StakedYuzuUSDHandler public handler;
     ERC20Mock public yzusd;
+    StakedYuzuUSDHandler public handler;
 
     function setUp() public {
         // Deploy mock asset
