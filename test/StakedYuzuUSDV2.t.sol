@@ -368,4 +368,25 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
         styz.terminateDistribution(owner);
         styz.totalAssets();
     }
+
+    function test_RescueTokens_Revert_ExceedsRescuableBalance() public {
+        uint256 depositAmount = 100e18;
+
+        vm.prank(user1);
+        uint256 shares = styz2.deposit(depositAmount, user1);
+
+        vm.prank(user1);
+        styz2.initiateRedeem(shares, user1, user1);
+
+        assertEq(styz2.totalSupply(), 0);
+        assertGt(styz2.totalPendingOrderValue(), 0);
+
+        uint256 contractBalance = yzusd.balanceOf(address(styz2));
+        uint256 pendingValue = styz2.totalPendingOrderValue();
+        uint256 rescuableBalance = contractBalance - pendingValue;
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(ExceededRescuableBalance.selector, pendingValue, rescuableBalance));
+        styz2.rescueTokens(address(yzusd), owner, pendingValue);
+    }
 }

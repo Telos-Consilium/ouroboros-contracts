@@ -64,5 +64,7 @@ interface IStakedYuzuUSDDefinitions {
 }
 
 interface IStakedYuzuUSDV2Definitions {
+    error ExceededRescuableBalance(uint256 rescue, uint256 max);
+
     event UpdatedIntegration(address indexed integration, bool canSkipRedeemDelay, bool waiveRedeemFee);
 }

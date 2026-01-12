@@ -240,7 +240,7 @@ contract StakedYuzuUSD is
     }
 
     /// @notice Transfer `amount` of `token` held by the vault to `receiver`
-    function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
+    function rescueTokens(address token, address receiver, uint256 amount) public virtual onlyOwner {
         if (token == asset()) {
             if (totalSupply() > 0) {
                 revert InvalidAssetRescue(token);

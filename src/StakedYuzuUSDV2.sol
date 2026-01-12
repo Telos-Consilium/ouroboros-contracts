@@ -98,6 +98,16 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         emit UpdatedIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
+    function rescueTokens(address token, address receiver, uint256 amount) public override onlyOwner {
+        if (token == asset()) {
+            uint256 rescuableBalance = IERC20(asset()).balanceOf(address(this)) - totalPendingOrderValue;
+            if (amount > rescuableBalance) {
+                revert ExceededRescuableBalance(amount, rescuableBalance);
+            }
+        }
+        super.rescueTokens(token, receiver, amount);
+    }
+
     function _callerRedeemFeePpm() internal view returns (uint256) {
         if (integrations[_msgSender()].waiveRedeemFee) {
             return 0;
