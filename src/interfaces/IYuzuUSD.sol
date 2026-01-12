@@ -16,3 +16,8 @@ interface IYuzuUSD is IYuzuProto {
         uint256 _minRedeemOrder
     ) external;
 }
+
+interface IYuzuUSDV2 is IYuzuUSD {
+    function reinitialize() external;
+    function burn(uint256 amount) external;
+}

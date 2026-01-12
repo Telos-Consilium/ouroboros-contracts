@@ -57,29 +57,19 @@ abstract contract YuzuProto is
         uint256 _fillWindow,
         uint256 _minRedeemOrder
     ) internal onlyInitializing {
-        __YuzuProto_init_unchained(
-            __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
-        );
-    }
-
-    function __YuzuProto_init_unchained(
-        address __asset,
-        string memory __name,
-        string memory __symbol,
-        address _admin,
-        address __treasury,
-        address _feeReceiver,
-        uint256 _supplyCap,
-        uint256 _fillWindow,
-        uint256 _minRedeemOrder
-    ) internal onlyInitializing {
         __ERC20_init(__name, __symbol);
         __ERC20Permit_init(__name);
         __YuzuIssuer_init(_supplyCap);
         __YuzuOrderBook_init(_fillWindow, _minRedeemOrder);
         __AccessControlDefaultAdminRules_init(0, _admin);
         __Pausable_init();
+        __YuzuProto_init_unchained(__asset, _admin, __treasury, _feeReceiver);
+    }
 
+    function __YuzuProto_init_unchained(address __asset, address _admin, address __treasury, address _feeReceiver)
+        internal
+        onlyInitializing
+    {
         if (__asset == address(0) || __treasury == address(0)) {
             revert InvalidZeroAddress();
         }
