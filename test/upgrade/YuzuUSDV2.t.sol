@@ -84,7 +84,11 @@ contract YuzuUSDUpgradeForkTest is Test {
         assertEq(upgraded.isRedeemRestricted(), isRedeemRestrictedBefore, "isRedeemRestricted drift");
 
         // Verify BURNER_ROLE admin is not set before reinitialize
-        assertEq(IAccessControl(proxy).getRoleAdmin(BURNER_ROLE), bytes32(0), "BURNER_ROLE admin should be unset before reinit");
+        assertEq(
+            IAccessControl(proxy).getRoleAdmin(BURNER_ROLE),
+            bytes32(0),
+            "BURNER_ROLE admin should be unset before reinit"
+        );
 
         // Call reinitialize to set up V2 state
         YuzuUSDV2(proxy).reinitialize();

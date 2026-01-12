@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-interface IRedeemFee {
-    function redeemFeePpm() external view returns (uint256);
-    function setRedeemFee(uint256 feePpm) external;
+interface IERC20Burnable {
+    function burn(uint256 value) external;
+    function burnFrom(address account, uint256 value) external;
 }
 
 enum OrderStatus {

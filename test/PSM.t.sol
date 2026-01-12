@@ -29,6 +29,7 @@ import {IPSMDefinitions} from "../src/interfaces/IPSMDefinitions.sol";
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV2} from "../src/StakedYuzuUSDV2.sol";
 import {YuzuUSD} from "../src/YuzuUSD.sol";
+import {YuzuUSDV2} from "../src/YuzuUSDV2.sol";
 import {PSM} from "../src/PSM.sol";
 
 contract USDCMock is ERC20Mock {
@@ -38,9 +39,11 @@ contract USDCMock is ERC20Mock {
 }
 
 contract PSMTest is IPSMDefinitions, Test {
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
     USDCMock public asset;
     StakedYuzuUSDV2 public styz;
-    YuzuUSD public yzusd;
+    YuzuUSDV2 public yzusd;
     PSM public psm;
 
     address public admin;
@@ -57,6 +60,7 @@ contract PSMTest is IPSMDefinitions, Test {
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
     bytes32 internal constant LIQUIDITY_MANAGER_ROLE = keccak256("LIQUIDITY_MANAGER_ROLE");
     bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
+    bytes32 internal constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
 
@@ -86,7 +90,7 @@ contract PSMTest is IPSMDefinitions, Test {
         asset.mint(orderFiller, 10_000_000e6);
         asset.mint(liquidityManager, 10_000_000e6);
 
-        _setupYuzuUSD();
+        _setupYuzuUSDV2();
         _setupStakedYuzuUSDV2();
         _setupPSM();
 
@@ -95,7 +99,7 @@ contract PSMTest is IPSMDefinitions, Test {
         styz.setIntegration(address(psm), true, true);
         yzusd.grantRole(MINTER_ROLE, address(psm));
         yzusd.grantRole(REDEEMER_ROLE, address(psm));
-        yzusd.grantRole(REDEEM_MANAGER_ROLE, address(psm));
+        yzusd.grantRole(BURNER_ROLE, address(psm));
         vm.stopPrank();
 
         // Label contracts
@@ -110,8 +114,8 @@ contract PSMTest is IPSMDefinitions, Test {
         _approveAssets(liquidityManager, address(psm), type(uint256).max);
     }
 
-    function _setupYuzuUSD() internal {
-        YuzuUSD implementation = new YuzuUSD();
+    function _setupYuzuUSDV2() internal {
+        YuzuUSDV2 implementation = new YuzuUSDV2();
         bytes memory initData = abi.encodeWithSelector(
             YuzuUSD.initialize.selector,
             address(asset),
@@ -125,7 +129,8 @@ contract PSMTest is IPSMDefinitions, Test {
             0
         );
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        yzusd = YuzuUSD(address(proxy));
+        yzusd = YuzuUSDV2(address(proxy));
+        yzusd.reinitialize();
 
         // Set redeem fee > 0
         vm.startPrank(admin);
@@ -268,7 +273,7 @@ contract PSMTest is IPSMDefinitions, Test {
         vm.expectEmit(true, true, true, true, address(styz));
         emit Withdraw(address(psm), address(psm), user1, expectedShares0, shares1);
         vm.expectEmit(true, true, true, true, address(yzusd));
-        emit Withdraw(address(psm), user1, address(psm), expectedAssets, expectedShares0);
+        emit Transfer(address(psm), address(0), expectedShares0);
         vm.expectEmit(true, true, true, true, address(psm));
         emit Withdraw(user1, user1, user1, expectedAssets, shares1);
 

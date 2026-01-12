@@ -9,7 +9,7 @@ import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import {IRedeemFee, OrderStatus, Order, IPSMDefinitions} from "./interfaces/IPSMDefinitions.sol";
+import {IERC20Burnable, OrderStatus, Order, IPSMDefinitions} from "./interfaces/IPSMDefinitions.sol";
 
 /**
  * @title PSM
@@ -213,14 +213,11 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     // slither-disable-next-line calls-loop
     function _redeem(address caller, address _owner, address receiver, uint256 shares) internal returns (uint256) {
         uint256 shares0 = _vault1.redeem(shares, address(this), _owner);
-        uint256 currentFee = IRedeemFee(vault0()).redeemFeePpm();
-        if (currentFee != 0) IRedeemFee(vault0()).setRedeemFee(0);
-        uint256 assets0 = _vault0.previewRedeem(shares0);
-        SafeERC20.safeTransfer(IERC20(asset()), vault0(), assets0);
-        uint256 assets = _vault0.redeem(shares0, receiver, address(this));
-        if (currentFee != 0) IRedeemFee(vault0()).setRedeemFee(currentFee);
-        emit Withdraw(caller, receiver, _owner, assets, shares);
-        return assets;
+        uint256 assets0 = _vault0.convertToAssets(shares0);
+        IERC20Burnable(address(_vault0)).burn(shares0);
+        SafeERC20.safeTransfer(IERC20(asset()), receiver, assets0);
+        emit Withdraw(caller, receiver, _owner, assets0, shares);
+        return assets0;
     }
 
     function _createRedeemOrder(address _owner, address receiver, uint256 shares) internal returns (uint256) {
