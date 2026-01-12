@@ -159,13 +159,13 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view virtual override returns (uint256) {
+    function previewWithdraw(uint256 assets) public view override returns (uint256) {
         (uint256 shares,) = _previewWithdraw(assets);
         return shares;
     }
 
     /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 shares) public view virtual override returns (uint256) {
+    function previewRedeem(uint256 shares) public view override returns (uint256) {
         (uint256 assets,) = _previewRedeem(shares);
         return assets;
     }
@@ -188,7 +188,11 @@ contract StakedYuzuUSD is
 
     /// @notice Initiate a 2-step redemption of `shares`
     // slither-disable-next-line pess-unprotected-initialize
-    function initiateRedeem(uint256 shares, address receiver, address _owner) public returns (uint256, uint256) {
+    function initiateRedeem(uint256 shares, address receiver, address _owner)
+        public
+        virtual
+        returns (uint256, uint256)
+    {
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -220,7 +224,7 @@ contract StakedYuzuUSD is
     }
 
     /// @notice Finalize a 2-step redemption order by `orderId`
-    function finalizeRedeem(uint256 orderId) external {
+    function finalizeRedeem(uint256 orderId) public virtual {
         address caller = _msgSender();
         Order storage order = orders[orderId];
         if (caller != order.receiver && caller != order.controller) {

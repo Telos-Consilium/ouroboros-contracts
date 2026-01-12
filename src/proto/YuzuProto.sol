@@ -226,8 +226,7 @@ abstract contract YuzuProto is
     }
 
     function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address _owner, uint256 maxFeePpm)
-        public
-        virtual
+        external
         returns (uint256)
     {
         if (redeemOrderFeePpm > maxFeePpm) {

@@ -77,7 +77,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     /// @notice See {IERC4626-maxDeposit}
-    function maxDeposit(address receiver) public view override returns (uint256) {
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
         uint256 _maxMint = maxMint(receiver);
         uint256 _totalSupply = totalSupply();
 
@@ -96,12 +96,12 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     }
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address) public view override returns (uint256) {
+    function maxWithdraw(address) public view virtual override returns (uint256) {
         return 0;
     }
 
     /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address) public view override returns (uint256) {
+    function maxRedeem(address) public view virtual override returns (uint256) {
         return 0;
     }
 

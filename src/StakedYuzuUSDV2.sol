@@ -15,7 +15,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     mapping(address => IntegrationConfig) internal integrations;
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address _owner) public view override returns (uint256) {
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
         }
@@ -35,18 +35,6 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
             return 0;
         }
         return ERC4626Upgradeable.maxRedeem(_owner);
-    }
-
-    /// @notice See {IERC4626-previewWithdraw}
-    function previewWithdraw(uint256 assets) public view override returns (uint256) {
-        (uint256 shares,) = _previewWithdraw(assets);
-        return shares;
-    }
-
-    /// @notice See {IERC4626-previewRedeem}
-    function previewRedeem(uint256 shares) public view override returns (uint256) {
-        (uint256 assets,) = _previewRedeem(shares);
-        return assets;
     }
 
     function lastDistributionTimestamp() external view returns (uint256) {
@@ -87,7 +75,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @notice Withdraw assets and revert if slippage is exceeded
     function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxShares)
-        public
+        external
         returns (uint256)
     {
         uint256 shares = withdraw(assets, receiver, owner);
@@ -99,8 +87,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @notice Redeem shares and revert if slippage is exceeded
     function redeemWithSlippage(uint256 shares, address receiver, address owner, uint256 minAssets)
-        public
-        virtual
+        external
         returns (uint256)
     {
         uint256 assets = redeem(shares, receiver, owner);
@@ -164,7 +151,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         emit Withdraw(caller, receiver, _owner, assets, shares);
     }
 
-    function _undistributedAssets() internal view virtual override returns (uint256) {
+    function _undistributedAssets() internal view override returns (uint256) {
         // slither-disable-next-line incorrect-equality
         if (lastDistributionPeriod == 0) {
             return 0;

@@ -38,6 +38,7 @@ contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
     /// @notice See {YuzuILP-updatePool}
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         public
+        virtual
         override
     {
         if (_isDistributionInProgress()) {
