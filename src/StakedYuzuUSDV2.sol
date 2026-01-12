@@ -57,9 +57,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return integrations[integration];
     }
 
-    /**
-     * @notice Instant withdraw for whitelisted integrations; regular users should use initiateRedeem().
-     */
+    /// @notice See {IERC4626-withdraw}
     function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
         uint256 maxAssets = maxWithdraw(_owner);
         if (assets > maxAssets) {
@@ -73,9 +71,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return shares;
     }
 
-    /**
-     * @notice Instant redeem for whitelisted integrations; regular users should use initiateRedeem().
-     */
+    /// @notice See {IERC4626-redeem}
     function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
         uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
