@@ -53,4 +53,10 @@ interface IStakedYuzuUSDV2 is IStakedYuzuUSD {
     function lastDistributionTimestamp() external view returns (uint256);
     function getIntegration(address integration) external view returns (IntegrationConfig memory);
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external;
+    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxShares)
+        external
+        returns (uint256);
+    function redeemWithSlippage(uint256 shares, address receiver, address owner, uint256 minAssets)
+        external
+        returns (uint256);
 }

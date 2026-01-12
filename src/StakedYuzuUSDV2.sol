@@ -89,6 +89,31 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return assets;
     }
 
+    /// @notice Withdraw assets and revert if slippage is exceeded
+    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxShares)
+        public
+        returns (uint256)
+    {
+        uint256 shares = withdraw(assets, receiver, owner);
+        if (shares > maxShares) {
+            revert RedeemedMoreThanMaxShares(shares, maxShares);
+        }
+        return shares;
+    }
+
+    /// @notice Redeem shares and revert if slippage is exceeded
+    function redeemWithSlippage(uint256 shares, address receiver, address owner, uint256 minAssets)
+        public
+        virtual
+        returns (uint256)
+    {
+        uint256 assets = redeem(shares, receiver, owner);
+        if (assets < minAssets) {
+            revert WithdrewLessThanMinAssets(assets, minAssets);
+        }
+        return assets;
+    }
+
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external onlyOwner {
         if (integration == address(0)) {
             revert InvalidZeroAddress();
