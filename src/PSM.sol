@@ -123,8 +123,8 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Preview shares minted for {assets}
     function previewDeposit(uint256 assets) external view returns (uint256) {
-        uint256 shares0 = _vault0.previewDeposit(assets);
-        return _vault1.previewDeposit(shares0);
+        uint256 assets1 = _vault0.previewDeposit(assets);
+        return _vault1.previewDeposit(assets1);
     }
 
     /// @notice Preview assets withdrawn for {shares}
@@ -212,9 +212,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     // slither-disable-next-line calls-loop
     function _redeem(address caller, address _owner, address receiver, uint256 shares) internal returns (uint256) {
-        uint256 shares0 = _vault1.redeem(shares, address(this), _owner);
-        uint256 assets0 = _vault0.convertToAssets(shares0);
-        IERC20Burnable(address(_vault0)).burn(shares0);
+        uint256 assets1 = _vault1.redeem(shares, address(this), _owner);
+        uint256 assets0 = _vault0.convertToAssets(assets1);
+        IERC20Burnable(address(_vault0)).burn(assets1);
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets0);
         emit Withdraw(caller, receiver, _owner, assets0, shares);
         return assets0;
