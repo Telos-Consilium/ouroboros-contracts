@@ -116,8 +116,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (poolSize == 0) {
             return assets * 10 ** _decimalsOffset();
         }
-        uint256 totalAsset_ = _totalAssets(Math.Rounding(1 - uint256(rounding)));
-        return Math.mulDiv(totalSupply(), assets, totalAsset_, rounding);
+        uint256 totalAssets_ = _totalAssets(Math.Rounding(1 - uint256(rounding)));
+        return Math.mulDiv(totalSupply(), assets, totalAssets_, rounding);
     }
 
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
@@ -125,8 +125,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (totalSupply() == 0) {
             return Math.ceilDiv(shares, 10 ** _decimalsOffset());
         }
-        uint256 totalAsset_ = _totalAssets(rounding);
-        return Math.mulDiv(totalAsset_, shares, totalSupply(), rounding);
+        uint256 totalAssets_ = _totalAssets(rounding);
+        return Math.mulDiv(totalAssets_, shares, totalSupply(), rounding);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual override {
