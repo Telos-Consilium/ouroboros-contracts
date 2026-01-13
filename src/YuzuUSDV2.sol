@@ -11,6 +11,7 @@ import {YuzuUSD} from "./YuzuUSD.sol";
  */
 contract YuzuUSDV2 is YuzuUSD, YuzuProtoV2 {
     /// @notice Reinitializes the contract for V2 upgrade
+    // slither-disable-next-line pess-unprotected-initialize
     function reinitialize() external reinitializer(2) {
         __YuzuProtoV2_init_unchained();
     }

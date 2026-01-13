@@ -20,6 +20,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     uint256 public lastDistributionTimestamp;
 
     /// @notice Reinitializes the contract for V2 upgrade
+    // slither-disable-next-line pess-unprotected-initialize
     function reinitialize() external reinitializer(2) {
         __YuzuProtoV2_init_unchained();
     }

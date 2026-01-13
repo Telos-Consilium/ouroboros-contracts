@@ -170,18 +170,14 @@ contract StakedYuzuUSD is
         return assets;
     }
 
-    /**
-     * @notice Withdraw function is disabled - instant withdrawals are not supported
-     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
-     */
+    /// @notice Withdraw function is disabled - instant withdrawals are not supported
+    /// @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
     function withdraw(uint256, address, address) public virtual override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
-    /**
-     * @notice Redeem function is disabled - instant redemptions are not supported
-     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
-     */
+    /// @notice Redeem function is disabled - instant redemptions are not supported
+    /// @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
     function redeem(uint256, address, address) public virtual override returns (uint256) {
         revert RedeemNotSupported();
     }

@@ -225,6 +225,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         uint256 assets0 = _vault0.convertToAssets(assets1);
         IERC20Burnable(address(_vault0)).burn(assets1);
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets0);
+        // slither-disable-next-line reentrancy-events
         emit Withdraw(caller, receiver, _owner, assets0, shares);
         return assets0;
     }

@@ -74,11 +74,11 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @notice Withdraw assets and revert if slippage is exceeded
-    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxShares)
+    function withdrawWithSlippage(uint256 assets, address receiver, address _owner, uint256 maxShares)
         external
         returns (uint256)
     {
-        uint256 shares = withdraw(assets, receiver, owner);
+        uint256 shares = withdraw(assets, receiver, _owner);
         if (shares > maxShares) {
             revert RedeemedMoreThanMaxShares(shares, maxShares);
         }
@@ -86,11 +86,11 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @notice Redeem shares and revert if slippage is exceeded
-    function redeemWithSlippage(uint256 shares, address receiver, address owner, uint256 minAssets)
+    function redeemWithSlippage(uint256 shares, address receiver, address _owner, uint256 minAssets)
         external
         returns (uint256)
     {
-        uint256 assets = redeem(shares, receiver, owner);
+        uint256 assets = redeem(shares, receiver, _owner);
         if (assets < minAssets) {
             revert WithdrewLessThanMinAssets(assets, minAssets);
         }
