@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Test, console2} from "forge-std/Test.sol";
 
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {YuzuILPV2} from "../../src/YuzuILPV2.sol";
 import {IYuzuILP, IYuzuILPV2} from "../../src/interfaces/IYuzuILP.sol";
@@ -11,6 +12,9 @@ import {IYuzuILP, IYuzuILPV2} from "../../src/interfaces/IYuzuILP.sol";
 contract YuzuILPUpgradeForkTest is Test {
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+
+    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 private constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     function test_ForkUpgrade() public {
         // Skip when RPC_URL is not provided
@@ -86,6 +90,24 @@ contract YuzuILPUpgradeForkTest is Test {
         assertEq(upgraded.lastPoolUpdateTimestamp(), lastPoolUpdateTimestampBefore, "lastPoolUpdateTimestamp drift");
         assertEq(upgraded.lastDistributedAmount(), 0, "lastDistributedAmount drift");
         assertEq(upgraded.lastDistributionPeriod(), 0, "lastDistributionPeriod drift");
+        assertEq(upgraded.lastDistributionPeriod(), 0, "lastDistributionPeriod drift");
         assertEq(upgraded.lastDistributionTimestamp(), 0, "lastDistributionTimestamp drift");
+
+        // Verify BURNER_ROLE admin is not set before reinitialize
+        assertEq(
+            IAccessControl(proxy).getRoleAdmin(BURNER_ROLE),
+            bytes32(0),
+            "BURNER_ROLE admin should be unset before reinit"
+        );
+
+        // Call reinitialize to set up V2 state
+        YuzuILPV2(proxy).reinitialize();
+
+        // Verify BURNER_ROLE admin is now ADMIN_ROLE
+        assertEq(IAccessControl(proxy).getRoleAdmin(BURNER_ROLE), ADMIN_ROLE, "BURNER_ROLE admin not set after reinit");
+
+        // Verify reinitialize cannot be called again
+        vm.expectRevert();
+        YuzuILPV2(proxy).reinitialize();
     }
 }

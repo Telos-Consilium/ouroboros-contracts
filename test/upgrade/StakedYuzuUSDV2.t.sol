@@ -97,5 +97,12 @@ contract StakedYuzuUSDUpgradeForkTest is Test {
         IntegrationConfig memory cfg = upgraded.getIntegration(integration);
         assertTrue(cfg.canSkipRedeemDelay, "skip flag");
         assertTrue(cfg.waiveRedeemFee, "waive flag");
+
+        // Call reinitialize to set up V2 state
+        StakedYuzuUSDV2(proxy).reinitialize();
+
+        // Verify reinitialize cannot be called again
+        vm.expectRevert();
+        StakedYuzuUSDV2(proxy).reinitialize();
     }
 }
