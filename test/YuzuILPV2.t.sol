@@ -56,6 +56,13 @@ contract YuzuILPV2Test_Common is YuzuILPTest_Common, YuzuProtoV2Test_Common, IYu
         vm.warp(initialTime + 15 hours);
         assertEq(ilp2.totalAssets(), initialAssets + 10e6);
         assertEq(ilp2.convertToAssets(mintedShares), 110e6);
+
+        vm.prank(poolManager);
+        ilp2.distribute(10e6, 10 hours);
+        assertEq(ilp2.totalAssets(), initialAssets + 10e6);
+
+        vm.warp(initialTime + 15 hours + 10 hours);
+        assertEq(ilp2.totalAssets(), initialAssets + 20e6);
     }
 
     function test_Distribute_Revert_NotPoolManager() public {

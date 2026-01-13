@@ -72,6 +72,8 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     }
 
     /// @inheritdoc YuzuILP
+    /// @dev {newPoolSize} SHOULD include accrued linear yield (set with {updatePool})
+    /// but SHOULD NOT include accrued distributions (set with {distribute})
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         public
         virtual
@@ -94,6 +96,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         if (_isDistributionInProgress()) {
             revert DistributionInProgress();
         }
+        poolSize += _distributedAssets(Math.Rounding.Floor);
         lastDistributedAmount = assets;
         lastDistributionPeriod = period;
         lastDistributionTimestamp = block.timestamp;
