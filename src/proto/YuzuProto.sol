@@ -152,7 +152,7 @@ abstract contract YuzuProto is
         return _treasury;
     }
 
-    /// @notice See {IERC4626-maxDeposit}
+    /// @inheritdoc YuzuIssuer
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -163,7 +163,7 @@ abstract contract YuzuProto is
         return super.maxDeposit(receiver);
     }
 
-    /// @notice See {IERC4626-maxMint}
+    /// @inheritdoc YuzuIssuer
     function maxMint(address receiver) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -174,7 +174,7 @@ abstract contract YuzuProto is
         return super.maxMint(receiver);
     }
 
-    /// @notice See {IERC4626-maxWithdraw}
+    /// @inheritdoc YuzuIssuer
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -187,7 +187,7 @@ abstract contract YuzuProto is
         return Math.min(previewRedeem(_maxRedeem(_owner)), maxAssets - fee);
     }
 
-    /// @notice See {IERC4626-maxRedeem}
+    /// @inheritdoc YuzuIssuer
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -198,7 +198,7 @@ abstract contract YuzuProto is
         return super.maxRedeem(_owner);
     }
 
-    /// @notice Return the maximum amount of shares that can be redeemed by `_owner` in a single order
+    /// @inheritdoc YuzuOrderBook
     function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -209,12 +209,13 @@ abstract contract YuzuProto is
         return super.maxRedeemOrder(_owner);
     }
 
-    /// @notice Preview the amount of assets to receive when redeeming `tokens` with an order after fees
+    /// @inheritdoc YuzuOrderBook
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
         return assets;
     }
 
+    /// @notice Create a redeem order and revert if the fee exceeds the maximum fee
     function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address _owner, uint256 maxFeePpm)
         external
         returns (uint256)
@@ -225,14 +226,17 @@ abstract contract YuzuProto is
         return createRedeemOrder(tokens, receiver, _owner);
     }
 
+    /// @inheritdoc YuzuOrderBook
     function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
         super.fillRedeemOrder(orderId);
     }
 
+    /// @inheritdoc YuzuIssuer
     function withdrawCollateral(uint256 assets, address receiver) public virtual override onlyRole(ADMIN_ROLE) {
         super.withdrawCollateral(assets, receiver);
     }
 
+    /// @notice Rescue tokens from the contract
     function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
         if (token == address(this)) {
             uint256 outstandingBalance = balanceOf(address(this)) - totalPendingOrderSize();

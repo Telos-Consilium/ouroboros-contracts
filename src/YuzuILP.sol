@@ -7,6 +7,7 @@ import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.s
 import {IYuzuILPDefinitions} from "./interfaces/IYuzuILPDefinitions.sol";
 
 import {YuzuProto} from "./proto/YuzuProto.sol";
+import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 
 /**
  * @title YuzuILP
@@ -71,12 +72,12 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         emit UpdatedPool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
     }
 
-    /// @notice See {IERC4626-totalAssets}
+    /// @inheritdoc YuzuIssuer
     function totalAssets() public view virtual override returns (uint256) {
         return _totalAssets(Math.Rounding.Floor);
     }
 
-    /// @notice See {IERC4626-maxDeposit}
+    /// @inheritdoc YuzuProto
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         uint256 _maxMint = maxMint(receiver);
         uint256 _totalSupply = totalSupply();
@@ -95,12 +96,12 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return Math.mulDiv(totalAssets_, _maxMint, _totalSupply, Math.Rounding.Floor);
     }
 
-    /// @notice See {IERC4626-maxWithdraw}
+    /// @inheritdoc YuzuProto
     function maxWithdraw(address) public view virtual override returns (uint256) {
         return 0;
     }
 
-    /// @notice See {IERC4626-maxRedeem}
+    /// @inheritdoc YuzuProto
     function maxRedeem(address) public view virtual override returns (uint256) {
         return 0;
     }

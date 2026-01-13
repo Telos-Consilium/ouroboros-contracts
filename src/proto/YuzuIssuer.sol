@@ -177,6 +177,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return assets;
     }
 
+    /// @notice Withdraw collateral from the liquidity buffer
     function withdrawCollateral(uint256 assets, address receiver) public virtual {
         uint256 liquidityBuffer = liquidityBufferSize();
         if (assets == type(uint256).max) {

@@ -71,7 +71,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         super._fillRedeemOrder(caller, order, assets, fee);
     }
 
-    /// @notice See {YuzuILP-updatePool}
+    /// @inheritdoc YuzuILP
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         public
         virtual
@@ -83,7 +83,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         super.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
     }
 
-    /// @notice See {YuzuILP-distribute}
+    /// @notice Initiate a gradual increase in total assets
     function distribute(uint256 assets, uint256 period) external onlyRole(POOL_MANAGER_ROLE) {
         if (period < 1) {
             revert DistributionPeriodTooLow(period, 1);
@@ -100,7 +100,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         emit Distributed(assets, period);
     }
 
-    /// @notice See {YuzuILP-terminateDistribution}
+    /// @notice Terminate an in-progress distribution
     function terminateDistribution() external onlyRole(POOL_MANAGER_ROLE) {
         uint256 elapsedTime = block.timestamp - lastDistributionTimestamp;
         if (lastDistributionTimestamp == 0 || elapsedTime >= lastDistributionPeriod) {

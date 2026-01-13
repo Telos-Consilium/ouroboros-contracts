@@ -7,7 +7,7 @@ import {YuzuUSD} from "./YuzuUSD.sol";
 
 /**
  * @title YuzuUSDV2
- * @notice YuzuUSD with forced cancellations
+ * @notice YuzuUSD with forced cancellations and token burning
  */
 contract YuzuUSDV2 is YuzuUSD, YuzuProtoV2 {
     /// @notice Reinitializes the contract for V2 upgrade
@@ -16,6 +16,7 @@ contract YuzuUSDV2 is YuzuUSD, YuzuProtoV2 {
         __YuzuProtoV2_init_unchained();
     }
 
+    /// @inheritdoc YuzuProtoV2
     function cancelRedeemOrder(uint256 orderId) public virtual override(YuzuOrderBook, YuzuProtoV2) {
         YuzuProtoV2.cancelRedeemOrder(orderId);
     }

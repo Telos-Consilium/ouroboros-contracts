@@ -14,7 +14,7 @@ import {IntegrationConfig, IStakedYuzuUSDV2Definitions} from "./interfaces/IStak
 contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     mapping(address => IntegrationConfig) internal integrations;
 
-    /// @notice See {IERC4626-maxWithdraw}
+    /// @inheritdoc StakedYuzuUSD
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -26,7 +26,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return assets;
     }
 
-    /// @notice See {IERC4626-maxRedeem}
+    /// @inheritdoc StakedYuzuUSD
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -37,15 +37,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return ERC4626Upgradeable.maxRedeem(_owner);
     }
 
-    function lastDistributionTimestamp() external view returns (uint256) {
-        return lastDistributionTime;
-    }
-
-    function getIntegration(address integration) external view returns (IntegrationConfig memory) {
-        return integrations[integration];
-    }
-
-    /// @notice See {IERC4626-withdraw}
+    /// @inheritdoc StakedYuzuUSD
     function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
         uint256 maxAssets = maxWithdraw(_owner);
         if (assets > maxAssets) {
@@ -59,7 +51,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return shares;
     }
 
-    /// @notice See {IERC4626-redeem}
+    /// @inheritdoc StakedYuzuUSD
     function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
         uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
@@ -97,6 +89,17 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return assets;
     }
 
+    /// @inheritdoc StakedYuzuUSD
+    function rescueTokens(address token, address receiver, uint256 amount) public override {
+        if (token == asset()) {
+            uint256 rescuableBalance = IERC20(asset()).balanceOf(address(this)) - totalPendingOrderValue;
+            if (amount > rescuableBalance) {
+                revert ExceededRescuableBalance(amount, rescuableBalance);
+            }
+        }
+        super.rescueTokens(token, receiver, amount);
+    }
+
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external onlyOwner {
         if (integration == address(0)) {
             revert InvalidZeroAddress();
@@ -106,14 +109,12 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         emit UpdatedIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
-    function rescueTokens(address token, address receiver, uint256 amount) public override {
-        if (token == asset()) {
-            uint256 rescuableBalance = IERC20(asset()).balanceOf(address(this)) - totalPendingOrderValue;
-            if (amount > rescuableBalance) {
-                revert ExceededRescuableBalance(amount, rescuableBalance);
-            }
-        }
-        super.rescueTokens(token, receiver, amount);
+    function getIntegration(address integration) external view returns (IntegrationConfig memory) {
+        return integrations[integration];
+    }
+
+    function lastDistributionTimestamp() external view returns (uint256) {
+        return lastDistributionTime;
     }
 
     function _callerRedeemFeePpm() internal view returns (uint256) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Order, OrderStatus} from "./YuzuOrderBook.sol";
+import {Order, OrderStatus, YuzuOrderBook} from "./YuzuOrderBook.sol";
 import {YuzuProto} from "./YuzuProto.sol";
 
 abstract contract YuzuProtoV2 is YuzuProto {
@@ -28,6 +28,7 @@ abstract contract YuzuProtoV2 is YuzuProto {
         _setRoleAdmin(BURNER_ROLE, ADMIN_ROLE);
     }
 
+    /// @inheritdoc YuzuOrderBook
     function cancelRedeemOrder(uint256 orderId) public virtual override {
         address caller = _msgSender();
         Order storage order = _getOrder(orderId);
@@ -48,6 +49,7 @@ abstract contract YuzuProtoV2 is YuzuProto {
         emit CancelledRedeemOrder(caller, orderId);
     }
 
+    /// @notice Burn tokens
     function burn(uint256 amount) public virtual onlyRole(BURNER_ROLE) {
         _burn(_msgSender(), amount);
     }

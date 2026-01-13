@@ -203,6 +203,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         _withdrawLiquidity(receiver, assets);
     }
 
+    /// @notice Set the minimum redeem order size to {newMin}
     function setMinRedeemOrder(uint256 newMin) external onlyRole(REDEEM_MANAGER_ROLE) {
         uint256 oldMin = minRedeemOrder;
         minRedeemOrder = newMin;
