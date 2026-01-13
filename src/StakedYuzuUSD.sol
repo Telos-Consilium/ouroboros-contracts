@@ -392,12 +392,12 @@ contract StakedYuzuUSD is
         return lastDistributedAmount - distributed;
     }
 
-    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
+    /// @dev Calculates the fees that should be added to an amount {assets} that does not already include fees
     function _feeOnRaw(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
     }
 
-    /// @dev Calculates the fee part of an amount `assets` that already includes fees
+    /// @dev Calculates the fee part of an amount {assets} that already includes fees
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
     }
