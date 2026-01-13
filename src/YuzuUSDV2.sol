@@ -20,4 +20,12 @@ contract YuzuUSDV2 is YuzuUSD, YuzuProtoV2 {
     function cancelRedeemOrder(uint256 orderId) public virtual override(YuzuOrderBook, YuzuProtoV2) {
         YuzuProtoV2.cancelRedeemOrder(orderId);
     }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    // slither-disable-next-line unused-state
+    uint256[50] private __gap;
 }
