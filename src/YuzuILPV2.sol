@@ -4,35 +4,70 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {YuzuILP, Order, OrderStatus} from "./YuzuILP.sol";
+import {YuzuProto} from "./proto/YuzuProto.sol";
+import {YuzuProtoV2} from "./proto/YuzuProtoV2.sol";
+import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
+import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
 import {IYuzuILPV2Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 
 /**
  * @title YuzuILPV2
  * @notice YuzuILP with progressive distributions and forced cancellations
  */
-contract YuzuILPV2 is YuzuILP, IYuzuILPV2Definitions {
+contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     uint256 public lastDistributedAmount;
     uint256 public lastDistributionPeriod;
     uint256 public lastDistributionTimestamp;
 
-    function cancelRedeemOrder(uint256 orderId) public virtual override {
-        address caller = _msgSender();
-        Order storage order = _getOrder(orderId);
-        if (order.status != OrderStatus.Pending) {
-            revert OrderNotPending(orderId);
-        }
-        if (!hasRole(ORDER_FILLER_ROLE, caller)) {
-            if (caller != order.owner && caller != order.controller) {
-                revert UnauthorizedOrderManager(caller, order.owner, order.controller);
-            }
-            if (block.timestamp < order.dueTime) {
-                revert OrderNotDue(orderId);
-            }
-        }
+    /// @notice Reinitializes the contract for V2 upgrade
+    function reinitialize() external reinitializer(2) {
+        __YuzuProtoV2_init_unchained();
+    }
 
-        _cancelRedeemOrder(order);
+    /// @inheritdoc YuzuProtoV2
+    function cancelRedeemOrder(uint256 orderId) public virtual override(YuzuProtoV2, YuzuOrderBook) {
+        YuzuProtoV2.cancelRedeemOrder(orderId);
+    }
 
-        emit CancelledRedeemOrder(caller, orderId);
+    /// @inheritdoc YuzuILP
+    function totalAssets() public view override(YuzuILP, YuzuIssuer) returns (uint256) {
+        return YuzuILP.totalAssets();
+    }
+
+    /// @inheritdoc YuzuILP
+    function maxDeposit(address receiver) public view override(YuzuILP, YuzuProto) returns (uint256) {
+        return YuzuILP.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc YuzuILP
+    function maxWithdraw(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
+        return YuzuILP.maxWithdraw(_owner);
+    }
+
+    /// @inheritdoc YuzuILP
+    function maxRedeem(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
+        return YuzuILP.maxRedeem(_owner);
+    }
+
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
+        internal
+        override(YuzuILP, YuzuIssuer)
+    {
+        YuzuILP._deposit(caller, receiver, assets, shares);
+    }
+
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares, uint256 fee)
+        internal
+        override(YuzuILP, YuzuProto)
+    {
+        YuzuILP._withdraw(caller, receiver, _owner, assets, shares, fee);
+    }
+
+    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
+        internal
+        override(YuzuILP, YuzuOrderBook)
+    {
+        YuzuILP._fillRedeemOrder(caller, order, assets, fee);
     }
 
     /// @notice See {YuzuILP-updatePool}
