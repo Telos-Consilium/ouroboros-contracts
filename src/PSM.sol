@@ -13,7 +13,7 @@ import {IERC20Burnable, OrderStatus, Order, IPSMDefinitions} from "./interfaces/
 
 /**
  * @title PSM
- * @notice Module enabling instant chained mint/redeem operations across two vaults with a dedicated liquidity pool
+ * @notice Module enabling instant chained mint/redeem operations across two vaults with a dedicated liquidity pool funding withdrawals
  */
 contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgradeable, IPSMDefinitions {
     using EnumerableSet for EnumerableSet.UintSet;
