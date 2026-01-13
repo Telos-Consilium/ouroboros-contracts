@@ -31,43 +31,43 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
 
     /// @inheritdoc YuzuILP
     function totalAssets() public view override(YuzuILP, YuzuIssuer) returns (uint256) {
-        return YuzuILP.totalAssets();
+        return super.totalAssets();
     }
 
     /// @inheritdoc YuzuILP
     function maxDeposit(address receiver) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return YuzuILP.maxDeposit(receiver);
+        return super.maxDeposit(receiver);
     }
 
     /// @inheritdoc YuzuILP
     function maxWithdraw(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return YuzuILP.maxWithdraw(_owner);
+        return super.maxWithdraw(_owner);
     }
 
     /// @inheritdoc YuzuILP
     function maxRedeem(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return YuzuILP.maxRedeem(_owner);
+        return super.maxRedeem(_owner);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
         internal
         override(YuzuILP, YuzuIssuer)
     {
-        YuzuILP._deposit(caller, receiver, assets, shares);
+        super._deposit(caller, receiver, assets, shares);
     }
 
     function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares, uint256 fee)
         internal
         override(YuzuILP, YuzuProto)
     {
-        YuzuILP._withdraw(caller, receiver, _owner, assets, shares, fee);
+        super._withdraw(caller, receiver, _owner, assets, shares, fee);
     }
 
     function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
         internal
         override(YuzuILP, YuzuOrderBook)
     {
-        YuzuILP._fillRedeemOrder(caller, order, assets, fee);
+        super._fillRedeemOrder(caller, order, assets, fee);
     }
 
     /// @notice See {YuzuILP-updatePool}
