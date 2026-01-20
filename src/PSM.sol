@@ -200,6 +200,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         nonReentrant
         onlyRole(LIQUIDITY_MANAGER_ROLE)
     {
+        if (assets == type(uint256).max) {
+            assets = IERC20(asset()).balanceOf(address(this));
+        }
         _withdrawLiquidity(receiver, assets);
     }
 
