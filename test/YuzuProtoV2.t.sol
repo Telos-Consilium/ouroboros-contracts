@@ -35,4 +35,38 @@ abstract contract YuzuProtoV2Test_OrderBook is YuzuProtoTest_OrderBook {
 
         _cancelRedeemOrderAndAssert(orderFiller, orderId);
     }
+
+    function test_CancelRedeemOrder_ByOrderFiller_Paused() public {
+        address controller = user1;
+        address owner = user2;
+        address receiver = makeAddr("receiver");
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(owner, assets);
+        _approveTokens(owner, controller, tokens);
+        uint256 orderId = _createRedeemOrder(controller, tokens, receiver, owner);
+
+        vm.warp(block.timestamp + proto.fillWindow());
+
+        vm.prank(admin);
+        proto.pause();
+
+        _cancelRedeemOrderAndAssert(orderFiller, orderId);
+    }
+
+    function test_CancelRedeemOrder_ByOrderFiller_NotDue_Paused() public {
+        address controller = user1;
+        address owner = user2;
+        address receiver = makeAddr("receiver");
+        uint256 assets = 100e6;
+        uint256 tokens = 100e18;
+        _deposit(owner, assets);
+        _approveTokens(owner, controller, tokens);
+        uint256 orderId = _createRedeemOrder(controller, tokens, receiver, owner);
+
+        vm.prank(admin);
+        proto.pause();
+
+        _cancelRedeemOrderAndAssert(orderFiller, orderId);
+    }
 }

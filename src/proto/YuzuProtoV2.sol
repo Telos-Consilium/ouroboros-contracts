@@ -36,6 +36,7 @@ abstract contract YuzuProtoV2 is YuzuProto {
             revert OrderNotPending(orderId);
         }
         if (!hasRole(ORDER_FILLER_ROLE, caller)) {
+            _requireNotPaused();
             if (caller != order.owner && caller != order.controller) {
                 revert UnauthorizedOrderManager(caller, order.owner, order.controller);
             }
@@ -44,7 +45,7 @@ abstract contract YuzuProtoV2 is YuzuProto {
             }
         }
 
-        _cancelRedeemOrder(order);
+        YuzuOrderBook._cancelRedeemOrder(order);
 
         emit CancelledRedeemOrder(caller, orderId);
     }
