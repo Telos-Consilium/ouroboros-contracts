@@ -7,7 +7,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Order} from "./IPSMDefinitions.sol";
 
 interface IPSM {
-    function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin) external;
+    function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin, uint256 _minRedeemOrder)
+        external;
 
     function asset() external view returns (address);
     function vault0() external view returns (address);
