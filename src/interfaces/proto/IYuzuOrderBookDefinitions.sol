@@ -27,7 +27,7 @@ interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error FillWindowTooHigh(uint256 provided, uint256 max);
     error UnderMinRedeemOrder(uint256 tokens, uint256 min);
     error UnauthorizedOrderManager(address account, address owner, address controller);
-    error UnauthorizedOrderFinalizer(address account, address receiver, address controller);
+    error UnauthorizedOrderFinalizer(address account, address owner, address controller);
     error OrderNotPending(uint256 orderId);
     error OrderNotFilled(uint256 orderId);
     error OrderNotDue(uint256 orderId);
