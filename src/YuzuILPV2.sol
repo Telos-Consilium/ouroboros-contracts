@@ -23,6 +23,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize() external reinitializer(2) {
         __YuzuProtoV2_init_unchained();
+        __EIP712_init(name(), "2");
     }
 
     /// @inheritdoc YuzuProtoV2

@@ -16,7 +16,9 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @notice Reinitializes the contract for V2 upgrade
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitialize() external reinitializer(2) {}
+    function reinitialize() external reinitializer(2) {
+        __EIP712_init(name(), "2");
+    }
 
     /// @inheritdoc StakedYuzuUSD
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
