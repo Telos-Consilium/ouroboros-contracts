@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -112,11 +113,14 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     /// @notice Returns all pending order ids
-    function getPendingOrderIds() external view returns (uint256[] memory) {
+    function getPendingOrderIds(uint256 start, uint256 end) external view returns (uint256[] memory) {
         uint256 length = _pendingOrderIds.length();
-        uint256[] memory ids = new uint256[](length);
-        for (uint256 idx = 0; idx < length; idx++) {
-            ids[idx] = _pendingOrderIds.at(idx);
+        uint256 adjEnd = Math.min(end, length);
+        uint256 adjStart = Math.min(start, adjEnd);
+        uint256 size = adjEnd - adjStart;
+        uint256[] memory ids = new uint256[](size);
+        for (uint256 idx = 0; idx < size; idx++) {
+            ids[idx] = _pendingOrderIds.at(adjStart + idx);
         }
         return ids;
     }

@@ -17,7 +17,7 @@ interface IPSM {
     function orderCount() external view returns (uint256);
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
     function pendingOrderCount() external view returns (uint256);
-    function getPendingOrderIds(uint256 offset, uint256 limit) external view returns (uint256[] memory);
+    function getPendingOrderIds(uint256 start, uint256 end) external view returns (uint256[] memory);
 
     function previewDeposit(uint256 assets) external view returns (uint256);
     function previewRedeem(uint256 shares) external view returns (uint256);

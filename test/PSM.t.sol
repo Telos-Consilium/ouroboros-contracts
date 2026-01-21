@@ -211,7 +211,7 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(psm.minRedeemOrder(), 0);
         assertEq(psm.orderCount(), 0);
         assertEq(psm.pendingOrderCount(), 0);
-        assertEq(psm.getPendingOrderIds().length, 0);
+        assertEq(psm.getPendingOrderIds(0, type(uint256).max).length, 0);
 
         assertEq(psm.getRoleAdmin(ADMIN_ROLE), psm.DEFAULT_ADMIN_ROLE());
         assertEq(psm.getRoleAdmin(ORDER_FILLER_ROLE), ADMIN_ROLE);
@@ -513,7 +513,7 @@ contract PSMTest is IPSMDefinitions, Test {
         vm.prank(user1);
         uint256 orderId3 = psm.createRedeemOrder(shares3, user1);
 
-        uint256[] memory allIds = psm.getPendingOrderIds();
+        uint256[] memory allIds = psm.getPendingOrderIds(0, type(uint256).max);
         assertEq(allIds.length, 3);
         assertEq(allIds[0], orderId1);
         assertEq(allIds[1], orderId2);
@@ -523,7 +523,7 @@ contract PSMTest is IPSMDefinitions, Test {
         vm.prank(orderFiller);
         psm.cancelRedeemOrders(_asArray(orderId2));
 
-        uint256[] memory afterCancel = psm.getPendingOrderIds();
+        uint256[] memory afterCancel = psm.getPendingOrderIds(0, type(uint256).max);
         assertEq(afterCancel.length, 2);
         assertNotEq(afterCancel[0], afterCancel[1]);
         assertTrue(afterCancel[0] == orderId1 || afterCancel[0] == orderId3);
