@@ -26,6 +26,10 @@ interface IYuzuILP is IYuzuProto {
 interface IYuzuILPV2 is IYuzuILP, IYuzuProtoV2 {
     function reinitialize() external;
 
+    function startPoolUpdate() external;
+    function endPoolUpdate() external;
+    function isUpdatingPool() external view returns (bool);
+
     function lastDistributedAmount() external view returns (uint256);
     function lastDistributionPeriod() external view returns (uint256);
     function lastDistributionTimestamp() external view returns (uint256);

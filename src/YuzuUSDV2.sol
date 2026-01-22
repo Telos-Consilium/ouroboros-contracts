@@ -48,6 +48,14 @@ contract YuzuUSDV2 is YuzuUSD, YuzuProtoV2 {
         YuzuProtoV2.cancelRedeemOrder(orderId);
     }
 
+    function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 tokens, uint256 fee)
+        internal
+        virtual
+        override(YuzuProto, YuzuProtoV2)
+    {
+        YuzuProtoV2._withdraw(caller, receiver, _owner, assets, tokens, fee);
+    }
+
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.

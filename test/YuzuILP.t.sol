@@ -53,7 +53,7 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
         ilp.unpause();
     }
 
-    function _updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) internal {
+    function _updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) internal virtual {
         _pause();
         uint256 currentPoolSize = ilp.poolSize();
         vm.prank(poolManager);
@@ -187,7 +187,7 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
     }
 
     // Admin Functions
-    function test_UpdatePool() public {
+    function test_UpdatePool() public virtual {
         _pause();
         vm.prank(poolManager);
         vm.expectEmit();
@@ -210,7 +210,7 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
         ilp.updatePool(0, 100e6, 100_000);
     }
 
-    function test_UpdatePool_Revert_NotPaused() public {
+    function test_UpdatePool_Revert_NotPaused() public virtual {
         vm.prank(poolManager);
         vm.expectRevert(PausableUpgradeable.ExpectedPause.selector);
         ilp.updatePool(0, 100e6, 1e6 + 1);
