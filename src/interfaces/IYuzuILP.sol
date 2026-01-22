@@ -32,4 +32,6 @@ interface IYuzuILPV2 is IYuzuILP, IYuzuProtoV2 {
 
     function distribute(uint256 assets, uint256 period) external;
     function terminateDistribution() external;
+    function distributedSinceUpdate() external view returns (uint256);
+    function netDistributedSinceUpdate() external view returns (uint256);
 }
