@@ -33,43 +33,58 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
 
     /// @inheritdoc YuzuILP
     function totalAssets() public view override(YuzuILP, YuzuIssuer) returns (uint256) {
-        return super.totalAssets();
+        return YuzuILP.totalAssets();
     }
 
-    /// @inheritdoc YuzuILP
-    function maxDeposit(address receiver) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return super.maxDeposit(receiver);
+    /// @inheritdoc YuzuProtoV2
+    function canRedeem(address _owner) public view override returns (bool) {
+        return false;
     }
 
-    /// @inheritdoc YuzuILP
-    function maxWithdraw(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return super.maxWithdraw(_owner);
+    /// @inheritdoc YuzuProtoV2
+    function maxDeposit(address receiver) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+        return YuzuILP.maxDeposit(receiver);
     }
 
-    /// @inheritdoc YuzuILP
-    function maxRedeem(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return super.maxRedeem(_owner);
+    /// @inheritdoc YuzuProtoV2
+    function maxMint(address receiver) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxMint(receiver);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxWithdraw(address _owner) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxWithdraw(_owner);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxRedeem(address _owner) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxRedeem(_owner);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxRedeemOrder(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxRedeemOrder(_owner);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
         internal
         override(YuzuILP, YuzuIssuer)
     {
-        super._deposit(caller, receiver, assets, shares);
+        YuzuILP._deposit(caller, receiver, assets, shares);
     }
 
     function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares, uint256 fee)
         internal
         override(YuzuILP, YuzuProto)
     {
-        super._withdraw(caller, receiver, _owner, assets, shares, fee);
+        YuzuILP._withdraw(caller, receiver, _owner, assets, shares, fee);
     }
 
     function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
         internal
         override(YuzuILP, YuzuOrderBook)
     {
-        super._fillRedeemOrder(caller, order, assets, fee);
+        YuzuILP._fillRedeemOrder(caller, order, assets, fee);
     }
 
     /// @inheritdoc YuzuILP

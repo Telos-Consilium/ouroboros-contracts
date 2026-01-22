@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IYuzuProtoV2Definitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+
 import {YuzuProtoTest_Common, YuzuProtoTest_Issuer, YuzuProtoTest_OrderBook} from "./YuzuProto.t.sol";
 
-abstract contract YuzuProtoV2Test_Common is YuzuProtoTest_Common {}
+abstract contract YuzuProtoV2Test_Common is YuzuProtoTest_Common, IYuzuProtoV2Definitions {}
 
-abstract contract YuzuProtoV2Test_Issuer is YuzuProtoTest_Issuer {}
+abstract contract YuzuProtoV2Test_Issuer is YuzuProtoTest_Issuer, IYuzuProtoV2Definitions {}
 
-abstract contract YuzuProtoV2Test_OrderBook is YuzuProtoTest_OrderBook {
+abstract contract YuzuProtoV2Test_OrderBook is YuzuProtoTest_OrderBook, IYuzuProtoV2Definitions {
     function test_CancelRedeemOrder_ByOrderFiller() public {
         address controller = user1;
         address owner = user2;

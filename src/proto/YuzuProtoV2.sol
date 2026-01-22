@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
+import {IYuzuProtoV2Definitions} from "../interfaces/proto/IYuzuProtoDefinitions.sol";
+
+import {YuzuIssuer} from "./YuzuIssuer.sol";
 import {Order, OrderStatus, YuzuOrderBook} from "./YuzuOrderBook.sol";
 import {YuzuProto} from "./YuzuProto.sol";
 
-abstract contract YuzuProtoV2 is YuzuProto {
+abstract contract YuzuProtoV2 is YuzuProto, IYuzuProtoV2Definitions {
     bytes32 internal constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     function __YuzuProtoV2_init(
@@ -26,6 +31,94 @@ abstract contract YuzuProtoV2 is YuzuProto {
 
     function __YuzuProtoV2_init_unchained() internal onlyInitializing {
         _setRoleAdmin(BURNER_ROLE, ADMIN_ROLE);
+    }
+
+    /// @notice Returns true if receiver is allowed to mint, false otherwise
+    function canMint(address receiver) public view virtual returns (bool) {
+        if (paused()) {
+            return false;
+        }
+        if (isMintRestricted && !hasRole(MINTER_ROLE, receiver)) {
+            return false;
+        }
+        return true;
+    }
+
+    /// @notice Returns true if owner is allowed to redeem, false otherwise
+    function canRedeem(address _owner) public view virtual returns (bool) {
+        if (paused()) {
+            return false;
+        }
+        if (isRedeemRestricted && !hasRole(REDEEMER_ROLE, _owner)) {
+            return false;
+        }
+        return true;
+    }
+
+    /// @notice Returns true if owner is allowed to create a redeem order, false otherwise
+    function canCreateRedeemOrder(address _owner) public view virtual returns (bool) {
+        if (paused()) {
+            return false;
+        }
+        if (isRedeemRestricted && !hasRole(REDEEMER_ROLE, _owner)) {
+            return false;
+        }
+        return true;
+    }
+
+    /// @notice Returns true if owner is allowed to burn tokens, false otherwise
+    function canBurn(address _owner) public view virtual returns (bool) {
+        return hasRole(BURNER_ROLE, _owner);
+    }
+
+    /// @inheritdoc YuzuProto
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        if (!canMint(receiver)) {
+            return 0;
+        }
+        return YuzuIssuer.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc YuzuProto
+    function maxMint(address receiver) public view virtual override returns (uint256) {
+        if (!canMint(receiver)) {
+            return 0;
+        }
+        return YuzuIssuer.maxMint(receiver);
+    }
+
+    /// @inheritdoc YuzuProto
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
+        if (!canRedeem(_owner)) {
+            return 0;
+        }
+        uint256 maxAssets = _maxWithdraw(_owner);
+        uint256 fee = _feeOnTotal(maxAssets, redeemFeePpm);
+        return Math.min(previewRedeem(_maxRedeem(_owner)), maxAssets - fee);
+    }
+
+    /// @inheritdoc YuzuProto
+    function maxRedeem(address _owner) public view virtual override returns (uint256) {
+        if (!canRedeem(_owner)) {
+            return 0;
+        }
+        return YuzuIssuer.maxRedeem(_owner);
+    }
+
+    /// @inheritdoc YuzuProto
+    function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
+        if (!canCreateRedeemOrder(_owner)) {
+            return 0;
+        }
+        return YuzuOrderBook.maxRedeemOrder(_owner);
+    }
+
+    /// @notice Returns the maximum amount of tokens that can be burned by an owner
+    function maxBurn(address _owner) public view virtual returns (uint256) {
+        if (!canBurn(_owner)) {
+            return 0;
+        }
+        return balanceOf(_owner);
     }
 
     /// @inheritdoc YuzuOrderBook
@@ -51,7 +144,12 @@ abstract contract YuzuProtoV2 is YuzuProto {
     }
 
     /// @notice Burn tokens
-    function burn(uint256 amount) public virtual onlyRole(BURNER_ROLE) {
-        _burn(_msgSender(), amount);
+    function burn(uint256 tokens) public virtual {
+        address _owner = _msgSender();
+        uint256 maxTokens = maxBurn(_owner);
+        if (tokens > maxTokens) {
+            revert ExceededMaxBurn(_owner, tokens, maxTokens);
+        }
+        _burn(_owner, tokens);
     }
 }

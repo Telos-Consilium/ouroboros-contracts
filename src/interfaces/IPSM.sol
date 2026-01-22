@@ -19,13 +19,20 @@ interface IPSM {
     function pendingOrderCount() external view returns (uint256);
     function getPendingOrderIds(uint256 start, uint256 end) external view returns (uint256[] memory);
 
+    function liquidity() external view returns (uint256);
+    function maxDeposit(address receiver) external view returns (uint256);
+    function maxRedeem(address _owner) external view returns (uint256);
+    function maxRedeemOrder(address _owner) external view returns (uint256);
+
     function previewDeposit(uint256 assets) external view returns (uint256);
     function previewRedeem(uint256 shares) external view returns (uint256);
 
     function deposit(uint256 assets, address receiver) external returns (uint256);
-    function redeem(uint256 shares, address receiver) external returns (uint256);
-    function redeemWithSlippage(uint256 shares, address receiver, uint256 minAssets) external returns (uint256);
-    function createRedeemOrder(uint256 shares, address receiver) external returns (uint256);
+    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+    function redeemWithSlippage(uint256 shares, address receiver, address owner, uint256 minAssets)
+        external
+        returns (uint256);
+    function createRedeemOrder(uint256 shares, address receiver, address owner) external returns (uint256);
     function fillRedeemOrders(uint256 assets, uint256[] calldata orderIds) external;
     function cancelRedeemOrders(uint256[] calldata orderIds) external;
     function depositLiquidity(uint256 assets) external;

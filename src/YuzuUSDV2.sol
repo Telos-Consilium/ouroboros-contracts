@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
+import {YuzuProto} from "./proto/YuzuProto.sol";
 import {YuzuProtoV2} from "./proto/YuzuProtoV2.sol";
 import {YuzuUSD} from "./YuzuUSD.sol";
 
@@ -15,6 +16,31 @@ contract YuzuUSDV2 is YuzuUSD, YuzuProtoV2 {
     function reinitialize() external reinitializer(2) {
         __YuzuProtoV2_init_unchained();
         __EIP712_init(name(), "2");
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxDeposit(address receiver) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxMint(address receiver) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxMint(receiver);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxWithdraw(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxWithdraw(_owner);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxRedeem(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxRedeem(_owner);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxRedeemOrder(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxRedeemOrder(_owner);
     }
 
     /// @inheritdoc YuzuProtoV2

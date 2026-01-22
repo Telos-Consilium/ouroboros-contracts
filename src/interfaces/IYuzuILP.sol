@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IYuzuProto} from "./proto/IYuzuProto.sol";
+import {IYuzuProto, IYuzuProtoV2} from "./proto/IYuzuProto.sol";
 
 interface IYuzuILP is IYuzuProto {
     function initialize(
@@ -23,7 +23,9 @@ interface IYuzuILP is IYuzuProto {
     function lastPoolUpdateTimestamp() external view returns (uint256);
 }
 
-interface IYuzuILPV2 is IYuzuILP {
+interface IYuzuILPV2 is IYuzuILP, IYuzuProtoV2 {
+    function reinitialize() external;
+
     function lastDistributedAmount() external view returns (uint256);
     function lastDistributionPeriod() external view returns (uint256);
     function lastDistributionTimestamp() external view returns (uint256);

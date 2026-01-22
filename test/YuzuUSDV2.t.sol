@@ -47,9 +47,7 @@ contract YuzuUSDV2Test_Common is YuzuUSDTest_Common, YuzuProtoV2Test_Common {
         uint256 burnAmount = proto.balanceOf(user2);
 
         vm.prank(user2);
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user2, BURNER_ROLE)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxBurn.selector, user2, burnAmount, 0));
         yzusd2.burn(burnAmount);
     }
 }
