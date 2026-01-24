@@ -538,25 +538,30 @@ contract PSMTest is IPSMDefinitions, Test {
 
     function test_Deposit_Revert_NotUser() public {
         uint256 assets = 1e6;
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
-        );
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxDeposit.selector, user1, assets, 0));
+        vm.prank(user1);
         psm.deposit(assets, user1);
     }
 
     function test_Redeem_Revert_NotUser() public {
-        uint256 shares1 = 1e18;
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
-        );
+        vm.prank(user1);
+        uint256 shares1 = psm.deposit(1e6, user1);
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, shares1, 0));
+        vm.prank(user1);
         psm.redeem(shares1, user1, user1);
     }
 
     function test_CreateRedeemOrder_Revert_NotUser() public {
-        uint256 shares1 = 1e18;
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
-        );
+        vm.prank(user1);
+        uint256 shares1 = psm.deposit(1e6, user1);
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, shares1, 0));
+        vm.prank(user1);
         psm.createRedeemOrder(shares1, user1, user1);
     }
 

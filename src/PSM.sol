@@ -138,6 +138,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         if (!_canDeposit()) {
             return 0;
         }
+        if (!hasRole(USER_ROLE, receiver)) {
+            return 0;
+        }
         uint256 maxAssets0 = _vault0.maxDeposit(address(this));
         uint256 maxAssets1 = _vault1.maxDeposit(address(this));
         return Math.min(maxAssets0, _vault0.convertToAssets(maxAssets1));
@@ -148,6 +151,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         if (!_canRedeem()) {
             return 0;
         }
+        if (!hasRole(USER_ROLE, _owner)) {
+            return 0;
+        }
         uint256 maxShares1 = _vault1.balanceOf(_owner);
         uint256 maxShares0 = _vault0.convertToShares(liquidity());
         return Math.min(maxShares1, _vault1.convertToShares(maxShares0));
@@ -156,6 +162,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     /// @notice Returns the maximum amount of shares that can be redeemed from {owner} in a single order
     function maxRedeemOrder(address _owner) public view virtual returns (uint256) {
         if (!_canRedeem()) {
+            return 0;
+        }
+        if (!hasRole(USER_ROLE, _owner)) {
             return 0;
         }
         return _vault1.balanceOf(_owner);
@@ -174,7 +183,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     /// @notice Deposit {assets} for shares minted to {receiver}
-    function deposit(uint256 assets, address receiver) public nonReentrant onlyRole(USER_ROLE) returns (uint256) {
+    function deposit(uint256 assets, address receiver) public nonReentrant returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
             revert ExceededMaxDeposit(receiver, assets, maxAssets);
@@ -184,12 +193,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Redeem {shares} from {owner} for assets withdrawn to {receiver}
     /// @dev Owner must be the caller
-    function redeem(uint256 shares, address receiver, address _owner)
-        public
-        nonReentrant
-        onlyRole(USER_ROLE)
-        returns (uint256)
-    {
+    function redeem(uint256 shares, address receiver, address _owner) public nonReentrant returns (uint256) {
         address caller = _msgSender();
         if (caller != _owner) {
             revert RedeemFromOtherOwnerNotAllowed(caller, _owner);
@@ -217,7 +221,6 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     function createRedeemOrder(uint256 shares, address receiver, address _owner)
         external
         nonReentrant
-        onlyRole(USER_ROLE)
         returns (uint256)
     {
         address caller = _msgSender();
