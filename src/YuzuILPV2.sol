@@ -124,6 +124,10 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         _fullyDistributedSinceUpdate = 0;
         _redeemedDistributionsSinceUpdate = 0;
 
+        lastDistributedAmount = 0;
+        lastDistributionPeriod = 0;
+        lastDistributionTimestamp = 0;
+
         poolSize = newPoolSize;
         dailyLinearYieldRatePpm = newDailyLinearYieldRatePpm;
         lastPoolUpdateTimestamp = block.timestamp;
