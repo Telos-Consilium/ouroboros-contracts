@@ -3,9 +3,12 @@ pragma solidity ^0.8.30;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {VaultComposerSync} from "@layerzerolabs/ovault-evm/contracts/VaultComposerSync.sol";
-import {IOFT} from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
+import {IOFT, SendParam} from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 
 import {IPSM} from "../interfaces/IPSM.sol";
 
@@ -16,6 +19,8 @@ import {IPSM} from "../interfaces/IPSM.sol";
 contract PSMOVaultComposer is VaultComposerSync {
     using SafeERC20 for IERC20;
 
+    bytes32 internal constant PSM_USER_ROLE = keccak256("USER_ROLE");
+
     /**
      * @notice Creates a new cross-chain vault composer
      * @dev Initializes the composer with vault and OFT contracts for omnichain operations
@@ -24,6 +29,36 @@ contract PSMOVaultComposer is VaultComposerSync {
      * @param _shareOFT The OFT contract for cross-chain share transfers
      */
     constructor(address _vault, address _assetOFT, address _shareOFT) VaultComposerSync(_vault, _assetOFT, _shareOFT) {}
+
+    /// @inheritdoc VaultComposerSync
+    function _depositAndSend(
+        bytes32 _depositor,
+        uint256 _assetAmount,
+        SendParam memory _sendParam,
+        address _refundAddress,
+        uint256 _msgValue
+    ) internal virtual override {
+        address receiverAddr = address(SafeCast.toUint160(uint256(_sendParam.to)));
+        if (!IAccessControl(address(VAULT)).hasRole(PSM_USER_ROLE, receiverAddr)) {
+            revert ERC4626.ERC4626ExceededMaxDeposit(receiverAddr, _assetAmount, 0);
+        }
+        super._depositAndSend(_depositor, _assetAmount, _sendParam, _refundAddress, _msgValue);
+    }
+
+    /// @inheritdoc VaultComposerSync
+    function _redeemAndSend(
+        bytes32 _redeemer,
+        uint256 _shareAmount,
+        SendParam memory _sendParam,
+        address _refundAddress,
+        uint256 _msgValue
+    ) internal virtual override {
+        address redeemerAddr = address(SafeCast.toUint160(uint256(_redeemer)));
+        if (!IAccessControl(address(VAULT)).hasRole(PSM_USER_ROLE, redeemerAddr)) {
+            revert ERC4626.ERC4626ExceededMaxRedeem(redeemerAddr, _shareAmount, 0);
+        }
+        super._redeemAndSend(_redeemer, _shareAmount, _sendParam, _refundAddress, _msgValue);
+    }
 
     /**
      * @dev Override to support decoupled share token (e.g., PSM.vault1()).
