@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {console2} from "forge-std/Test.sol";
+import {console2, stdError} from "forge-std/Test.sol";
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IYuzuILPV2Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
-import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
+import {Order, OrderStatus} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 
 import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 
@@ -24,6 +24,42 @@ contract YuzuILPV2Test_Common is YuzuILPTest_Common, YuzuProtoV2Test_Common, IYu
 
     function _deploy() internal virtual override(YuzuProtoTest, YuzuILPTest_Common) returns (address) {
         return address(new YuzuILPV2());
+    }
+
+    function _updatePool(uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) internal override {
+        vm.startPrank(poolManager);
+        ilp2.startPoolUpdate();
+        uint256 currentPoolSize = ilp2.poolSize();
+        ilp2.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+        ilp2.endPoolUpdate();
+        vm.stopPrank();
+    }
+
+    // Pool update
+    function test_UpdatePool() public override {
+        vm.startPrank(poolManager);
+
+        ilp2.startPoolUpdate();
+        assertTrue(ilp2.isUpdatingPool());
+
+        vm.expectEmit();
+        emit UpdatedPool(0, 100e6, 100_000);
+        ilp2.updatePool(0, 100e6, 100_000);
+
+        ilp2.endPoolUpdate();
+        assertFalse(ilp2.isUpdatingPool());
+
+        vm.stopPrank();
+
+        assertEq(ilp2.poolSize(), 100e6);
+        assertEq(ilp2.dailyLinearYieldRatePpm(), 100_000);
+        assertEq(ilp2.lastPoolUpdateTimestamp(), block.timestamp);
+
+        assertEq(ilp2.totalAssets(), 100e6);
+    }
+
+    function test_UpdatePool_Revert_NotPaused() public override {
+        vm.skip(true, "Not Applicable");
     }
 
     // Distribution
@@ -160,6 +196,45 @@ contract YuzuILPV2Test_Common is YuzuILPTest_Common, YuzuProtoV2Test_Common, IYu
         vm.prank(poolManager);
         ilp2.terminateDistribution();
         ilp2.totalAssets();
+    }
+
+    // Redeem orders
+    function test_FillRedeemOrder_DuringDistribution() public {
+        // Deposit assets and set poolSize
+        uint256 depositAmount = 100e6;
+        uint256 shares = _deposit(user1, depositAmount);
+        _updatePool(100e6, 100_000); // 10%
+
+        // Start distribution and advance halfway
+        vm.prank(poolManager);
+        ilp2.distribute(50e6, 1 hours);
+        vm.warp(block.timestamp + 30 minutes);
+
+        // Create redeem order for all shares
+        vm.prank(user1);
+        uint256 orderId = ilp2.createRedeemOrder(shares, user1, user1);
+
+        // Snapshot accounting before fill
+        uint256 poolSizeBefore = ilp2.poolSize();
+        uint256 distributedBefore = ilp2.distributedSinceUpdate();
+        uint256 totalAssetsBefore = ilp2.totalAssets();
+
+        // Fill the order
+        vm.prank(orderFiller);
+        ilp2.fillRedeemOrder(orderId);
+
+        // Verify order is filled
+        Order memory order = ilp2.getRedeemOrder(orderId);
+        assertEq(uint256(order.status), uint256(OrderStatus.Filled));
+
+        // Snapshot after fill
+        uint256 poolSizeAfter = ilp2.poolSize();
+        uint256 distributedAfter = ilp2.distributedSinceUpdate();
+        uint256 totalAssetsAfter = ilp2.totalAssets();
+
+        assertLt(poolSizeAfter, poolSizeBefore);
+        assertEq(distributedAfter, distributedBefore);
+        assertEq(totalAssetsAfter, totalAssetsBefore - order.assets); // - fee
     }
 }
 

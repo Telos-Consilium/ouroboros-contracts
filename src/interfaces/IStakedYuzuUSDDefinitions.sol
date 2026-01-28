@@ -32,7 +32,7 @@ interface IStakedYuzuUSDDefinitions {
     error InvalidAssetRescue(address token);
     error WithdrawNotSupported();
     error RedeemNotSupported();
-    error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
+    error ExceededMaxRedeemOrder(address owner, uint256 tokens, uint256 max);
     error WithdrewLessThanMinAssets(uint256 assets, uint256 min);
     error DistributionInProgress();
     error NoDistributionInProgress();

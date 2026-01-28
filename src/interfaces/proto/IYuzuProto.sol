@@ -33,3 +33,12 @@ interface IYuzuProto is IYuzuIssuer, IYuzuOrderBook {
     function isMintRestricted() external view returns (bool);
     function isRedeemRestricted() external view returns (bool);
 }
+
+interface IYuzuProtoV2 is IYuzuProto {
+    function canMint(address receiver) external view returns (bool);
+    function canRedeem(address owner) external view returns (bool);
+    function canCreateRedeemOrder(address owner) external view returns (bool);
+    function canBurn(address owner) external view returns (bool);
+
+    function burn(uint256 amount) external;
+}

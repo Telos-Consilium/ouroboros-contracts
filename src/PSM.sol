@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -9,13 +10,16 @@ import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import {IERC20Burnable, OrderStatus, Order, IPSMDefinitions} from "./interfaces/IPSMDefinitions.sol";
+import {IPSM} from "./interfaces/IPSM.sol";
+import {
+    IERC20Burnable, OrderStatus, Order, IPSMDefinitions, IVaultRestrictions
+} from "./interfaces/IPSMDefinitions.sol";
 
 /**
  * @title PSM
  * @notice Module enabling instant chained mint/redeem operations across two vaults with a dedicated liquidity pool funding withdrawals
  */
-contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgradeable, IPSMDefinitions {
+contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgradeable, IPSM, IPSMDefinitions {
     using EnumerableSet for EnumerableSet.UintSet;
 
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -112,13 +116,58 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     /// @notice Returns all pending order ids
-    function getPendingOrderIds() external view returns (uint256[] memory) {
+    function getPendingOrderIds(uint256 start, uint256 end) external view returns (uint256[] memory) {
         uint256 length = _pendingOrderIds.length();
-        uint256[] memory ids = new uint256[](length);
-        for (uint256 idx = 0; idx < length; idx++) {
-            ids[idx] = _pendingOrderIds.at(idx);
+        uint256 adjEnd = Math.min(end, length);
+        uint256 adjStart = Math.min(start, adjEnd);
+        uint256 size = adjEnd - adjStart;
+        uint256[] memory ids = new uint256[](size);
+        for (uint256 idx = 0; idx < size; idx++) {
+            ids[idx] = _pendingOrderIds.at(adjStart + idx);
         }
         return ids;
+    }
+
+    /// @notice Returns underlying asset liquidity available in the contract
+    function liquidity() public view virtual returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this));
+    }
+
+    /// @notice Returns the maximum amount of underlying assets that can be deposited for {receiver}
+    function maxDeposit(address receiver) public view virtual returns (uint256) {
+        if (!_canDeposit()) {
+            return 0;
+        }
+        if (!hasRole(USER_ROLE, receiver)) {
+            return 0;
+        }
+        uint256 maxAssets0 = _vault0.maxDeposit(address(this));
+        uint256 maxAssets1 = _vault1.maxDeposit(address(this));
+        return Math.min(maxAssets0, _vault0.convertToAssets(maxAssets1));
+    }
+
+    /// @notice Returns the maximum amount of shares that can be redeemed from {owner}
+    function maxRedeem(address _owner) public view virtual returns (uint256) {
+        if (!_canRedeem()) {
+            return 0;
+        }
+        if (!hasRole(USER_ROLE, _owner)) {
+            return 0;
+        }
+        uint256 maxShares1 = _vault1.balanceOf(_owner);
+        uint256 maxShares0 = _vault0.convertToShares(liquidity());
+        return Math.min(maxShares1, _vault1.convertToShares(maxShares0));
+    }
+
+    /// @notice Returns the maximum amount of shares that can be redeemed from {owner} in a single order
+    function maxRedeemOrder(address _owner) public view virtual returns (uint256) {
+        if (!_canRedeem()) {
+            return 0;
+        }
+        if (!hasRole(USER_ROLE, _owner)) {
+            return 0;
+        }
+        return _vault1.balanceOf(_owner);
     }
 
     /// @notice Preview shares minted for {assets}
@@ -129,24 +178,39 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Preview assets withdrawn for {shares}
     function previewRedeem(uint256 shares) external view returns (uint256) {
-        uint256 shares0 = _vault1.convertToAssets(shares);
+        uint256 shares0 = _vault1.previewRedeem(shares);
         return _vault0.convertToAssets(shares0);
     }
 
     /// @notice Deposit {assets} for shares minted to {receiver}
-    function deposit(uint256 assets, address receiver) public nonReentrant onlyRole(USER_ROLE) returns (uint256) {
+    function deposit(uint256 assets, address receiver) public nonReentrant returns (uint256) {
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) {
+            revert ExceededMaxDeposit(receiver, assets, maxAssets);
+        }
         return _deposit(_msgSender(), receiver, assets);
     }
 
-    /// @notice Redeem {shares} for assets withdrawn to {receiver}
-    function redeem(uint256 shares, address receiver) public nonReentrant onlyRole(USER_ROLE) returns (uint256) {
+    /// @notice Redeem {shares} from {owner} for assets withdrawn to {receiver}
+    /// @dev Owner must be the caller
+    function redeem(uint256 shares, address receiver, address _owner) public nonReentrant returns (uint256) {
         address caller = _msgSender();
-        return _redeem(caller, caller, receiver, shares);
+        if (caller != _owner) {
+            revert RedeemFromOtherOwnerNotAllowed(caller, _owner);
+        }
+        uint256 maxShares = maxRedeem(_owner);
+        if (shares > maxShares) {
+            revert ExceededMaxRedeem(_owner, shares, maxShares);
+        }
+        return _redeem(caller, receiver, _owner, shares);
     }
 
     /// @notice Redeem {shares} and revert if slippage is exceeded
-    function redeemWithSlippage(uint256 shares, address receiver, uint256 minAssets) external returns (uint256) {
-        uint256 assets = redeem(shares, receiver);
+    function redeemWithSlippage(uint256 shares, address receiver, address _owner, uint256 minAssets)
+        external
+        returns (uint256)
+    {
+        uint256 assets = redeem(shares, receiver, _owner);
         if (assets < minAssets) {
             revert WithdrewLessThanMinAssets(assets, minAssets);
         }
@@ -154,16 +218,26 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     /// @notice Create a redeem order of {shares} for {receiver}
-    function createRedeemOrder(uint256 shares, address receiver)
+    function createRedeemOrder(uint256 shares, address receiver, address _owner)
         external
         nonReentrant
-        onlyRole(USER_ROLE)
         returns (uint256)
     {
+        address caller = _msgSender();
+        if (caller != _owner) {
+            revert RedeemFromOtherOwnerNotAllowed(caller, _owner);
+        }
+        if (receiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        uint256 maxShares = maxRedeemOrder(_owner);
+        if (shares > maxShares) {
+            revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
+        }
         if (shares < minRedeemOrder) {
             revert UnderMinRedeemOrder(shares, minRedeemOrder);
         }
-        return _createRedeemOrder(_msgSender(), receiver, shares);
+        return _createRedeemOrder(caller, receiver, _owner, shares);
     }
 
     /// @notice Deposit {assets} in liquidity and fill pending redeem orders by {orderIds}
@@ -200,6 +274,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         nonReentrant
         onlyRole(LIQUIDITY_MANAGER_ROLE)
     {
+        if (assets == type(uint256).max) {
+            assets = liquidity();
+        }
         _withdrawLiquidity(receiver, assets);
     }
 
@@ -208,6 +285,16 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         uint256 oldMin = minRedeemOrder;
         minRedeemOrder = newMin;
         emit UpdatedMinRedeemOrder(oldMin, newMin);
+    }
+
+    function _canDeposit() internal view virtual returns (bool) {
+        return
+            IVaultRestrictions(vault0()).canMint(address(this)) && IVaultRestrictions(vault1()).canMint(address(this));
+    }
+
+    function _canRedeem() internal view virtual returns (bool) {
+        return IVaultRestrictions(vault1()).canRedeem(address(this))
+            && IVaultRestrictions(vault0()).canRedeem(address(this)) && IVaultRestrictions(vault0()).canBurn(address(this));
     }
 
     function _deposit(address caller, address receiver, uint256 assets) internal returns (uint256) {
@@ -221,7 +308,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     // slither-disable-next-line calls-loop
-    function _redeem(address caller, address _owner, address receiver, uint256 shares) internal returns (uint256) {
+    function _redeem(address caller, address receiver, address _owner, uint256 shares) internal returns (uint256) {
         uint256 assets1 = _vault1.redeem(shares, address(this), _owner);
         uint256 assets0 = _vault0.convertToAssets(assets1);
         IERC20Burnable(address(_vault0)).burn(assets1);
@@ -231,11 +318,10 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return assets0;
     }
 
-    function _createRedeemOrder(address _owner, address receiver, uint256 shares) internal returns (uint256) {
-        if (receiver == address(0)) {
-            revert InvalidZeroAddress();
-        }
-
+    function _createRedeemOrder(address caller, address receiver, address _owner, uint256 shares)
+        internal
+        returns (uint256)
+    {
         uint256 orderId = _orderCount;
         _orders[orderId] = Order({
             shares: shares,
@@ -248,6 +334,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         // slither-disable-next-line unused-return
         _pendingOrderIds.add(orderId);
 
+        // slither-disable-next-line arbitrary-send-erc20
         SafeERC20.safeTransferFrom(IERC20(vault1()), _owner, address(this), shares);
 
         emit CreatedRedeemOrder(_owner, receiver, _owner, orderId, shares);
@@ -264,7 +351,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         // slither-disable-next-line unused-return
         _pendingOrderIds.remove(orderId);
 
-        uint256 assets = _redeem(caller, address(this), order.receiver, order.shares);
+        uint256 assets = _redeem(caller, order.receiver, address(this), order.shares);
 
         emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, assets, order.shares);
     }

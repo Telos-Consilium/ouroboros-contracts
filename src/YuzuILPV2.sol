@@ -15,14 +15,50 @@ import {IYuzuILPV2Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
  * @notice YuzuILP with progressive distributions and forced cancellations
  */
 contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
+    bool public isUpdatingPool;
+
     uint256 public lastDistributedAmount;
     uint256 public lastDistributionPeriod;
     uint256 public lastDistributionTimestamp;
+
+    uint256 internal _fullyDistributedSinceUpdate;
+    uint256 internal _redeemedDistributionsSinceUpdate;
 
     /// @notice Reinitializes the contract for V2 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize() external reinitializer(2) {
         __YuzuProtoV2_init_unchained();
+        __EIP712_init(name(), "2");
+    }
+
+    /// @inheritdoc YuzuILP
+    function totalAssets() public view override(YuzuILP, YuzuIssuer) returns (uint256) {
+        return YuzuILP.totalAssets();
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxDeposit(address receiver) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+        return YuzuILP.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxMint(address receiver) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxMint(receiver);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxWithdraw(address _owner) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxWithdraw(_owner);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxRedeem(address _owner) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxRedeem(_owner);
+    }
+
+    /// @inheritdoc YuzuProtoV2
+    function maxRedeemOrder(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+        return YuzuProtoV2.maxRedeemOrder(_owner);
     }
 
     /// @inheritdoc YuzuProtoV2
@@ -30,59 +66,73 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         YuzuProtoV2.cancelRedeemOrder(orderId);
     }
 
-    /// @inheritdoc YuzuILP
-    function totalAssets() public view override(YuzuILP, YuzuIssuer) returns (uint256) {
-        return super.totalAssets();
+    /// @inheritdoc YuzuProtoV2
+    function canMint(address _owner) public view override returns (bool) {
+        return !isUpdatingPool && super.canMint(_owner);
     }
 
-    /// @inheritdoc YuzuILP
-    function maxDeposit(address receiver) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return super.maxDeposit(receiver);
-    }
-
-    /// @inheritdoc YuzuILP
-    function maxWithdraw(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return super.maxWithdraw(_owner);
-    }
-
-    /// @inheritdoc YuzuILP
-    function maxRedeem(address _owner) public view override(YuzuILP, YuzuProto) returns (uint256) {
-        return super.maxRedeem(_owner);
+    /// @inheritdoc YuzuProtoV2
+    function canRedeem(address _owner) public view override returns (bool) {
+        return false;
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
         internal
         override(YuzuILP, YuzuIssuer)
     {
-        super._deposit(caller, receiver, assets, shares);
+        YuzuILP._deposit(caller, receiver, assets, shares);
     }
 
     function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares, uint256 fee)
         internal
-        override(YuzuILP, YuzuProto)
+        override(YuzuILP, YuzuProtoV2)
     {
-        super._withdraw(caller, receiver, _owner, assets, shares, fee);
+        YuzuILP._withdraw(caller, receiver, _owner, assets, shares, fee);
     }
 
-    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
-        internal
-        override(YuzuILP, YuzuOrderBook)
-    {
-        super._fillRedeemOrder(caller, order, assets, fee);
+    function startPoolUpdate() external onlyRole(POOL_MANAGER_ROLE) {
+        isUpdatingPool = true;
+    }
+
+    function endPoolUpdate() external onlyRole(POOL_MANAGER_ROLE) {
+        isUpdatingPool = false;
     }
 
     /// @inheritdoc YuzuILP
-    /// @dev {newPoolSize} SHOULD include accrued linear yield (set with {updatePool})
-    /// but SHOULD NOT include accrued distributions (set with {distribute})
+    /// @dev Daily yield starts accruing on top of distributions at the next update after they are completed.
+    /// @dev {newPoolSize} SHOULD include accrued linear yield (set with {updatePool}).
+    /// @dev {newPoolSize} SHOULD include net distributed assets since the last update (set with {distribute}).
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         public
         virtual
         override
+        onlyRole(POOL_MANAGER_ROLE)
     {
+        if (currentPoolSize != poolSize) {
+            revert InvalidCurrentPoolSize(currentPoolSize, poolSize);
+        }
+        if (newDailyLinearYieldRatePpm > 1e6) {
+            revert InvalidYield(newDailyLinearYieldRatePpm);
+        }
         if (_isDistributionInProgress()) {
             revert DistributionInProgress();
         }
-        super.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+        if (!isUpdatingPool) {
+            revert NoPoolUpdateInProgress();
+        }
+
+        _fullyDistributedSinceUpdate = 0;
+        _redeemedDistributionsSinceUpdate = 0;
+
+        lastDistributedAmount = 0;
+        lastDistributionPeriod = 0;
+        lastDistributionTimestamp = 0;
+
+        poolSize = newPoolSize;
+        dailyLinearYieldRatePpm = newDailyLinearYieldRatePpm;
+        lastPoolUpdateTimestamp = block.timestamp;
+
+        emit UpdatedPool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
     }
 
     /// @notice Initiate a gradual increase in total assets
@@ -96,7 +146,12 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         if (_isDistributionInProgress()) {
             revert DistributionInProgress();
         }
-        poolSize += _distributedAssets(Math.Rounding.Floor);
+        /* 
+         * Multiple distributions can take place between updates.
+         * When a new one is initiated, the total distributed by the previous one is added to the accumulator,
+         * which is reset on update.
+         */
+        _fullyDistributedSinceUpdate += _distributedAssets(Math.Rounding.Floor);
         lastDistributedAmount = assets;
         lastDistributionPeriod = period;
         lastDistributionTimestamp = block.timestamp;
@@ -116,8 +171,17 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         emit TerminatedDistribution(undistributed);
     }
 
+    function distributedSinceUpdate() public view returns (uint256) {
+        return _fullyDistributedSinceUpdate + _distributedAssets(Math.Rounding.Floor);
+    }
+
+    function netDistributedSinceUpdate() public view returns (uint256) {
+        return distributedSinceUpdate() - _redeemedDistributionsSinceUpdate;
+    }
+
     function _totalAssets(Math.Rounding rounding) internal view override returns (uint256) {
-        return super._totalAssets(rounding) + _distributedAssets(rounding);
+        return super._totalAssets(rounding) + _fullyDistributedSinceUpdate + _distributedAssets(rounding)
+            - _redeemedDistributionsSinceUpdate;
     }
 
     function _isDistributionInProgress() internal view returns (bool) {
@@ -135,6 +199,26 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
                 block.timestamp - lastDistributionTimestamp, lastDistributedAmount, lastDistributionPeriod, rounding
             )
         );
+    }
+
+    /// @notice Override to avoid double-counting distributed assets when decreasing poolSize
+    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
+        internal
+        override(YuzuILP, YuzuOrderBook)
+    {
+        uint256 totalAssetsFromPool = super._totalAssets(Math.Rounding.Floor);
+        uint256 totalAssetsFromDistributions = netDistributedSinceUpdate();
+        uint256 __totalAssets = totalAssetsFromPool + totalAssetsFromDistributions;
+        uint256 redeemFromDistributions = 0;
+        if (__totalAssets > 0) {
+            redeemFromDistributions = Math.mulDiv(assets + fee, totalAssetsFromDistributions, __totalAssets);
+        }
+        uint256 redeemedFromPool = assets + fee - redeemFromDistributions;
+
+        YuzuOrderBook._fillRedeemOrder(caller, order, assets, fee);
+
+        _redeemedDistributionsSinceUpdate += redeemFromDistributions;
+        poolSize -= _discountYield(redeemedFromPool, Math.Rounding.Ceil);
     }
 
     /**

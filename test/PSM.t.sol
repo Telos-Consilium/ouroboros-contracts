@@ -211,7 +211,7 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(psm.minRedeemOrder(), 0);
         assertEq(psm.orderCount(), 0);
         assertEq(psm.pendingOrderCount(), 0);
-        assertEq(psm.getPendingOrderIds().length, 0);
+        assertEq(psm.getPendingOrderIds(0, type(uint256).max).length, 0);
 
         assertEq(psm.getRoleAdmin(ADMIN_ROLE), psm.DEFAULT_ADMIN_ROLE());
         assertEq(psm.getRoleAdmin(ORDER_FILLER_ROLE), ADMIN_ROLE);
@@ -277,7 +277,7 @@ contract PSMTest is IPSMDefinitions, Test {
         vm.expectEmit(true, true, true, true, address(psm));
         emit Withdraw(user1, user1, user1, expectedAssets, shares1);
 
-        uint256 assets = psm.redeem(shares1, user1);
+        uint256 assets = psm.redeem(shares1, user1, user1);
         assertEq(assets, expectedAssets);
         assertEq(styz.balanceOf(user1), 0);
         assertEq(asset.balanceOf(feeReceiver), 0);
@@ -295,10 +295,8 @@ contract PSMTest is IPSMDefinitions, Test {
         _approveStaked(user1, address(psm), shares1);
 
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, address(psm), 0, expectedAssets)
-        );
-        psm.redeem(shares1, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, shares1, 0));
+        psm.redeem(shares1, user1, user1);
     }
 
     function test_RedeemWithSlippage() public {
@@ -313,7 +311,7 @@ contract PSMTest is IPSMDefinitions, Test {
 
         vm.prank(user1);
 
-        uint256 assets = psm.redeemWithSlippage(shares1, user1, expectedAssets);
+        uint256 assets = psm.redeemWithSlippage(shares1, user1, user1, expectedAssets);
         assertEq(assets, expectedAssets);
     }
 
@@ -329,7 +327,7 @@ contract PSMTest is IPSMDefinitions, Test {
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(WithdrewLessThanMinAssets.selector, expectedAssets, expectedAssets + 1));
-        psm.redeemWithSlippage(shares1, user1, expectedAssets + 1);
+        psm.redeemWithSlippage(shares1, user1, user1, expectedAssets + 1);
     }
 
     function test_CreateRedeemOrder() public {
@@ -342,7 +340,7 @@ contract PSMTest is IPSMDefinitions, Test {
         _approveStaked(user1, address(psm), shares1);
 
         vm.prank(user1);
-        uint256 orderId = psm.createRedeemOrder(shares1, user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
 
         Order memory order = psm.getRedeemOrder(orderId);
         assertEq(order.owner, user1);
@@ -362,7 +360,7 @@ contract PSMTest is IPSMDefinitions, Test {
 
         vm.prank(user1);
         vm.expectRevert(InvalidZeroAddress.selector);
-        psm.createRedeemOrder(shares1, address(0));
+        psm.createRedeemOrder(shares1, address(0), user1);
     }
 
     function test_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
@@ -377,7 +375,7 @@ contract PSMTest is IPSMDefinitions, Test {
 
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(UnderMinRedeemOrder.selector, minOrder - 1, minOrder));
-        psm.createRedeemOrder(minOrder - 1, user1);
+        psm.createRedeemOrder(minOrder - 1, user1, user1);
     }
 
     function test_FillRedeemOrders() public {
@@ -391,7 +389,7 @@ contract PSMTest is IPSMDefinitions, Test {
         uint256 balanceBefore = asset.balanceOf(user1);
 
         vm.prank(user1);
-        uint256 orderId = psm.createRedeemOrder(shares1, user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
 
         _depositLiquidity(expectedAssets);
 
@@ -413,7 +411,7 @@ contract PSMTest is IPSMDefinitions, Test {
         _approveStaked(user1, address(psm), shares1);
 
         vm.prank(user1);
-        uint256 orderId = psm.createRedeemOrder(shares1, user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
 
         _depositLiquidity(expectedAssets);
 
@@ -434,7 +432,7 @@ contract PSMTest is IPSMDefinitions, Test {
         _approveStaked(user1, address(psm), shares1);
 
         vm.prank(user1);
-        uint256 orderId = psm.createRedeemOrder(shares1, user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
 
         vm.prank(orderFiller);
         psm.cancelRedeemOrders(_asArray(orderId));
@@ -454,7 +452,7 @@ contract PSMTest is IPSMDefinitions, Test {
         _approveStaked(user1, address(psm), shares1);
 
         vm.prank(user1);
-        uint256 orderId = psm.createRedeemOrder(shares1, user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
 
         vm.prank(orderFiller);
         psm.cancelRedeemOrders(_asArray(orderId));
@@ -499,21 +497,21 @@ contract PSMTest is IPSMDefinitions, Test {
         psm.deposit(1e6, user1);
         _approveStaked(user1, address(psm), shares1);
         vm.prank(user1);
-        uint256 orderId1 = psm.createRedeemOrder(shares1, user1);
+        uint256 orderId1 = psm.createRedeemOrder(shares1, user1, user1);
 
         vm.prank(user2);
         psm.deposit(2e6, user2);
         _approveStaked(user2, address(psm), shares2);
         vm.prank(user2);
-        uint256 orderId2 = psm.createRedeemOrder(shares2, user2);
+        uint256 orderId2 = psm.createRedeemOrder(shares2, user2, user2);
 
         vm.prank(user1);
         psm.deposit(3e6, user1);
         _approveStaked(user1, address(psm), shares3);
         vm.prank(user1);
-        uint256 orderId3 = psm.createRedeemOrder(shares3, user1);
+        uint256 orderId3 = psm.createRedeemOrder(shares3, user1, user1);
 
-        uint256[] memory allIds = psm.getPendingOrderIds();
+        uint256[] memory allIds = psm.getPendingOrderIds(0, type(uint256).max);
         assertEq(allIds.length, 3);
         assertEq(allIds[0], orderId1);
         assertEq(allIds[1], orderId2);
@@ -523,7 +521,7 @@ contract PSMTest is IPSMDefinitions, Test {
         vm.prank(orderFiller);
         psm.cancelRedeemOrders(_asArray(orderId2));
 
-        uint256[] memory afterCancel = psm.getPendingOrderIds();
+        uint256[] memory afterCancel = psm.getPendingOrderIds(0, type(uint256).max);
         assertEq(afterCancel.length, 2);
         assertNotEq(afterCancel[0], afterCancel[1]);
         assertTrue(afterCancel[0] == orderId1 || afterCancel[0] == orderId3);
@@ -540,26 +538,31 @@ contract PSMTest is IPSMDefinitions, Test {
 
     function test_Deposit_Revert_NotUser() public {
         uint256 assets = 1e6;
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
-        );
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxDeposit.selector, user1, assets, 0));
+        vm.prank(user1);
         psm.deposit(assets, user1);
     }
 
     function test_Redeem_Revert_NotUser() public {
-        uint256 shares1 = 1e18;
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
-        );
-        psm.redeem(shares1, user1);
+        vm.prank(user1);
+        uint256 shares1 = psm.deposit(1e6, user1);
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, shares1, 0));
+        vm.prank(user1);
+        psm.redeem(shares1, user1, user1);
     }
 
     function test_CreateRedeemOrder_Revert_NotUser() public {
-        uint256 shares1 = 1e18;
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), USER_ROLE)
-        );
-        psm.createRedeemOrder(shares1, user1);
+        vm.prank(user1);
+        uint256 shares1 = psm.deposit(1e6, user1);
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, shares1, 0));
+        vm.prank(user1);
+        psm.createRedeemOrder(shares1, user1, user1);
     }
 
     function test_FillRedeemOrders_Revert_NotFiller() public {

@@ -14,3 +14,7 @@ interface IYuzuProtoDefinitions {
     event UpdatedIsRedeemRestricted(bool oldValue, bool newValue);
     event UpdatedTreasury(address oldTreasury, address newTreasury);
 }
+
+interface IYuzuProtoV2Definitions {
+    error ExceededMaxBurn(address owner, uint256 tokens, uint256 max);
+}

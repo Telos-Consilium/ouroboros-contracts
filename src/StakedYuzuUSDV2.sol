@@ -16,14 +16,50 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @notice Reinitializes the contract for V2 upgrade
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitialize() external reinitializer(2) {}
+    function reinitialize() external reinitializer(2) {
+        __EIP712_init(name(), "2");
+    }
+
+    /// @notice Returns true if receiver is allowed to mint, false otherwise
+    function canMint(address receiver) public view returns (bool) {
+        return !paused();
+    }
+
+    /// @notice Returns true if receiver is allowed to redeem, false otherwise
+    function canRedeem(address _owner) public view returns (bool) {
+        if (paused()) {
+            return false;
+        }
+        if (redeemDelay > 0 && !integrations[_msgSender()].canSkipRedeemDelay) {
+            return false;
+        }
+        return true;
+    }
+
+    /// @notice Returns true if receiver is allowed to create a redeem order, false otherwise
+    function canCreateRedeemOrder(address _owner) public view returns (bool) {
+        return !paused();
+    }
+
+    /// @inheritdoc StakedYuzuUSD
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        if (!canMint(receiver)) {
+            return 0;
+        }
+        return ERC4626Upgradeable.maxDeposit(receiver);
+    }
+
+    /// @inheritdoc StakedYuzuUSD
+    function maxMint(address receiver) public view virtual override returns (uint256) {
+        if (!canMint(receiver)) {
+            return 0;
+        }
+        return ERC4626Upgradeable.maxMint(receiver);
+    }
 
     /// @inheritdoc StakedYuzuUSD
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
-        if (paused()) {
-            return 0;
-        }
-        if (redeemDelay > 0 && !integrations[_msgSender()].canSkipRedeemDelay) {
+        if (!canRedeem(_owner)) {
             return 0;
         }
         (uint256 assets,) = _previewRedeem(balanceOf(_owner));
@@ -32,10 +68,15 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @inheritdoc StakedYuzuUSD
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
-        if (paused()) {
+        if (!canRedeem(_owner)) {
             return 0;
         }
-        if (redeemDelay > 0 && !integrations[_msgSender()].canSkipRedeemDelay) {
+        return ERC4626Upgradeable.maxRedeem(_owner);
+    }
+
+    /// @inheritdoc StakedYuzuUSD
+    function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
+        if (!canCreateRedeemOrder(_owner)) {
             return 0;
         }
         return ERC4626Upgradeable.maxRedeem(_owner);

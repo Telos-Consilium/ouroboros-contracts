@@ -11,6 +11,7 @@ interface IYuzuILPDefinitions {
 interface IYuzuILPV2Definitions {
     error DistributionInProgress();
     error NoDistributionInProgress();
+    error NoPoolUpdateInProgress();
     error DistributionPeriodTooLow(uint256 provided, uint256 min);
     error DistributionPeriodTooHigh(uint256 provided, uint256 max);
 
