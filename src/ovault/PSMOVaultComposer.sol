@@ -3,67 +3,44 @@ pragma solidity ^0.8.30;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-
-import {VaultComposerSync} from "@layerzerolabs/ovault-evm/contracts/VaultComposerSync.sol";
-import {IOFT, SendParam} from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
+import {IOFT} from "@layerzerolabs/oft-evm/contracts/interfaces/IOFT.sol";
 
 import {IPSM} from "../interfaces/IPSM.sol";
 
+import {ProtoOVaultComposer} from "./ProtoOVaultComposer.sol";
+
 /**
  * @title PSMOVaultComposer
- * @notice Cross-chain vault composer enabling omnichain vault operations via LayerZero
+ * @notice Cross-chain vault composer enabling omnichain PSM operations via LayerZero
  */
-contract PSMOVaultComposer is VaultComposerSync {
+contract PSMOVaultComposer is ProtoOVaultComposer {
     using SafeERC20 for IERC20;
 
-    bytes32 internal constant PSM_USER_ROLE = keccak256("USER_ROLE");
+    bytes32 private constant PSM_USER_ROLE = keccak256("USER_ROLE");
 
     /**
-     * @notice Creates a new cross-chain vault composer
-     * @dev Initializes the composer with vault and OFT contracts for omnichain operations
-     * @param _vault The vault contract implementing ERC4626 for deposit/redeem operations
+     * @notice Creates a new cross-chain PSM composer
+     * @dev Initializes the composer with PSM and OFT contracts for omnichain operations
+     * @param _vault The PSM contract implementing the relevant subset of ERC4626 for deposit/redeem operations
      * @param _assetOFT The OFT contract for cross-chain asset transfers
      * @param _shareOFT The OFT contract for cross-chain share transfers
      */
-    constructor(address _vault, address _assetOFT, address _shareOFT) VaultComposerSync(_vault, _assetOFT, _shareOFT) {}
+    constructor(address _vault, address _assetOFT, address _shareOFT)
+        ProtoOVaultComposer(_vault, _assetOFT, _shareOFT)
+    {}
 
-    /// @inheritdoc VaultComposerSync
-    function _depositAndSend(
-        bytes32 _depositor,
-        uint256 _assetAmount,
-        SendParam memory _sendParam,
-        address _refundAddress,
-        uint256 _msgValue
-    ) internal virtual override {
-        address receiverAddr = address(SafeCast.toUint160(uint256(_sendParam.to)));
-        if (!IAccessControl(address(VAULT)).hasRole(PSM_USER_ROLE, receiverAddr)) {
-            revert ERC4626.ERC4626ExceededMaxDeposit(receiverAddr, _assetAmount, 0);
-        }
-        super._depositAndSend(_depositor, _assetAmount, _sendParam, _refundAddress, _msgValue);
+    function _depositRequiredRole() internal pure virtual override returns (bytes32) {
+        return PSM_USER_ROLE;
     }
 
-    /// @inheritdoc VaultComposerSync
-    function _redeemAndSend(
-        bytes32 _redeemer,
-        uint256 _shareAmount,
-        SendParam memory _sendParam,
-        address _refundAddress,
-        uint256 _msgValue
-    ) internal virtual override {
-        address redeemerAddr = address(SafeCast.toUint160(uint256(_redeemer)));
-        if (!IAccessControl(address(VAULT)).hasRole(PSM_USER_ROLE, redeemerAddr)) {
-            revert ERC4626.ERC4626ExceededMaxRedeem(redeemerAddr, _shareAmount, 0);
-        }
-        super._redeemAndSend(_redeemer, _shareAmount, _sendParam, _refundAddress, _msgValue);
+    function _redeemRequiredRole() internal pure virtual override returns (bytes32) {
+        return PSM_USER_ROLE;
     }
 
     /**
-     * @dev Override to support decoupled share token (e.g., PSM.vault1()).
+     * @dev Override to support a decoupled share token
      * @return shareERC20 The address of the share ERC20 token
-     * @dev requirement Share token must be the VAULT.vault1()
+     * @dev requirement Share token must match VAULT.vault1()
      * @dev requirement Share OFT must be an adapter (approvalRequired() returns true)
      */
     function _initializeShareToken() internal virtual override returns (address shareERC20) {

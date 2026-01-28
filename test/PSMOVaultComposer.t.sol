@@ -6,7 +6,7 @@ import {Vm} from "forge-std/Vm.sol";
 
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-contract PSMOVaultComposerTest is Test {
+contract YuzuOVaultComposerTest is Test {
     function bytes32toAddress(bytes32 b) public pure returns (address) {
         return address(SafeCast.toUint160(uint256(b)));
     }
