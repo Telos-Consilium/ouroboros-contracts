@@ -7,6 +7,7 @@ import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.s
 import {IYuzuILPDefinitions} from "./interfaces/IYuzuILPDefinitions.sol";
 
 import {YuzuProto} from "./proto/YuzuProto.sol";
+import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 
 /**
  * @title YuzuILP
@@ -52,7 +53,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
 
     /// @notice Update the pool parameters including size and yield rate
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
-        external
+        public
+        virtual
         whenPaused
         onlyRole(POOL_MANAGER_ROLE)
     {
@@ -70,13 +72,13 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         emit UpdatedPool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
     }
 
-    /// @notice See {IERC4626-totalAssets}
-    function totalAssets() public view override returns (uint256) {
+    /// @inheritdoc YuzuIssuer
+    function totalAssets() public view virtual override returns (uint256) {
         return _totalAssets(Math.Rounding.Floor);
     }
 
-    /// @notice See {IERC4626-maxDeposit}
-    function maxDeposit(address receiver) public view override returns (uint256) {
+    /// @inheritdoc YuzuProto
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
         uint256 _maxMint = maxMint(receiver);
         uint256 _totalSupply = totalSupply();
 
@@ -94,17 +96,17 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return Math.mulDiv(totalAssets_, _maxMint, _totalSupply, Math.Rounding.Floor);
     }
 
-    /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address) public view override returns (uint256) {
+    /// @inheritdoc YuzuProto
+    function maxWithdraw(address) public view virtual override returns (uint256) {
         return 0;
     }
 
-    /// @notice See {IERC4626-maxRedeem}
-    function maxRedeem(address) public view override returns (uint256) {
+    /// @inheritdoc YuzuProto
+    function maxRedeem(address) public view virtual override returns (uint256) {
         return 0;
     }
 
-    function _totalAssets(Math.Rounding rounding) internal view returns (uint256) {
+    function _totalAssets(Math.Rounding rounding) internal view virtual returns (uint256) {
         uint256 yieldSinceUpdate = _yieldSinceUpdate(rounding);
         return poolSize + yieldSinceUpdate;
     }
@@ -114,8 +116,8 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (poolSize == 0) {
             return assets * 10 ** _decimalsOffset();
         }
-        uint256 totalAsset_ = _totalAssets(Math.Rounding(1 - uint256(rounding)));
-        return Math.mulDiv(totalSupply(), assets, totalAsset_, rounding);
+        uint256 totalAssets_ = _totalAssets(Math.Rounding(1 - uint256(rounding)));
+        return Math.mulDiv(totalSupply(), assets, totalAssets_, rounding);
     }
 
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
@@ -123,17 +125,18 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         if (totalSupply() == 0) {
             return Math.ceilDiv(shares, 10 ** _decimalsOffset());
         }
-        uint256 totalAsset_ = _totalAssets(rounding);
-        return Math.mulDiv(totalAsset_, shares, totalSupply(), rounding);
+        uint256 totalAssets_ = _totalAssets(rounding);
+        return Math.mulDiv(totalAssets_, shares, totalSupply(), rounding);
     }
 
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual override {
         poolSize += _discountYield(assets, Math.Rounding.Floor);
         super._deposit(caller, receiver, assets, shares);
     }
 
     function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares, uint256 fee)
         internal
+        virtual
         override
     {
         revert();
@@ -171,5 +174,5 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[50] private __gap;
+    uint256[42] private __gap;
 }

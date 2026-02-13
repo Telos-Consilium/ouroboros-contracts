@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IYuzuProto} from "./proto/IYuzuProto.sol";
+import {IYuzuProto, IYuzuProtoV2} from "./proto/IYuzuProto.sol";
 
 interface IYuzuUSD is IYuzuProto {
     function initialize(
@@ -15,4 +15,8 @@ interface IYuzuUSD is IYuzuProto {
         uint256 _fillWindow,
         uint256 _minRedeemOrder
     ) external;
+}
+
+interface IYuzuUSDV2 is IYuzuUSD, IYuzuProtoV2 {
+    function reinitialize() external;
 }

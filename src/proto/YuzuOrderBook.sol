@@ -43,15 +43,18 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
 
     function _previewRedeemOrder(uint256 tokens, uint256 feePpm) internal view virtual returns (uint256, uint256);
 
+    /// @notice Returns the maximum amount of tokens that can be redeemed by an owner in a single order
     function maxRedeemOrder(address owner) public view virtual returns (uint256) {
         return __yuzu_balanceOf(owner);
     }
 
+    /// @notice Preview the amount of assets to receive when redeeming tokens with an order
     function previewRedeemOrder(uint256 tokens) public view virtual returns (uint256) {
         (uint256 assets,) = _previewRedeemOrder(tokens, 0);
         return assets;
     }
 
+    /// @notice Create a redeem order
     function createRedeemOrder(uint256 tokens, address receiver, address owner) public virtual returns (uint256) {
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
@@ -73,6 +76,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         return (orderId);
     }
 
+    /// @notice Fill a redeem order
     function fillRedeemOrder(uint256 orderId) public virtual {
         Order storage order = _getOrder(orderId);
         if (order.status != OrderStatus.Pending) {
@@ -86,6 +90,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         emit FilledRedeemOrder(caller, order.receiver, order.owner, orderId, assets, order.tokens, fee);
     }
 
+    /// @notice Finalize a redeem order
     function finalizeRedeemOrder(uint256 orderId) public virtual {
         address caller = _msgSender();
         Order storage order = _getOrder(orderId);
@@ -102,6 +107,7 @@ abstract contract YuzuOrderBook is ContextUpgradeable, IYuzuOrderBookDefinitions
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.tokens);
     }
 
+    /// @notice Cancel a redeem order
     function cancelRedeemOrder(uint256 orderId) public virtual {
         address caller = _msgSender();
         Order storage order = _getOrder(orderId);

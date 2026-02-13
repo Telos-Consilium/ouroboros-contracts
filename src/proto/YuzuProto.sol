@@ -57,29 +57,19 @@ abstract contract YuzuProto is
         uint256 _fillWindow,
         uint256 _minRedeemOrder
     ) internal onlyInitializing {
-        __YuzuProto_init_unchained(
-            __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
-        );
-    }
-
-    function __YuzuProto_init_unchained(
-        address __asset,
-        string memory __name,
-        string memory __symbol,
-        address _admin,
-        address __treasury,
-        address _feeReceiver,
-        uint256 _supplyCap,
-        uint256 _fillWindow,
-        uint256 _minRedeemOrder
-    ) internal onlyInitializing {
         __ERC20_init(__name, __symbol);
         __ERC20Permit_init(__name);
         __YuzuIssuer_init(_supplyCap);
         __YuzuOrderBook_init(_fillWindow, _minRedeemOrder);
         __AccessControlDefaultAdminRules_init(0, _admin);
         __Pausable_init();
+        __YuzuProto_init_unchained(__asset, _admin, __treasury, _feeReceiver);
+    }
 
+    function __YuzuProto_init_unchained(address __asset, address _admin, address __treasury, address _feeReceiver)
+        internal
+        onlyInitializing
+    {
         if (__asset == address(0) || __treasury == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -162,7 +152,7 @@ abstract contract YuzuProto is
         return _treasury;
     }
 
-    /// @notice See {IERC4626-maxDeposit}
+    /// @inheritdoc YuzuIssuer
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -173,7 +163,7 @@ abstract contract YuzuProto is
         return super.maxDeposit(receiver);
     }
 
-    /// @notice See {IERC4626-maxMint}
+    /// @inheritdoc YuzuIssuer
     function maxMint(address receiver) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -184,7 +174,7 @@ abstract contract YuzuProto is
         return super.maxMint(receiver);
     }
 
-    /// @notice See {IERC4626-maxWithdraw}
+    /// @inheritdoc YuzuIssuer
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -197,7 +187,7 @@ abstract contract YuzuProto is
         return Math.min(previewRedeem(_maxRedeem(_owner)), maxAssets - fee);
     }
 
-    /// @notice See {IERC4626-maxRedeem}
+    /// @inheritdoc YuzuIssuer
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -208,7 +198,7 @@ abstract contract YuzuProto is
         return super.maxRedeem(_owner);
     }
 
-    /// @notice Return the maximum amount of shares that can be redeemed by `_owner` in a single order
+    /// @inheritdoc YuzuOrderBook
     function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
         if (paused()) {
             return 0;
@@ -219,15 +209,15 @@ abstract contract YuzuProto is
         return super.maxRedeemOrder(_owner);
     }
 
-    /// @notice Preview the amount of assets to receive when redeeming `tokens` with an order after fees
+    /// @inheritdoc YuzuOrderBook
     function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
         (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
         return assets;
     }
 
+    /// @notice Create a redeem order and revert if the fee exceeds the maximum fee
     function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address _owner, uint256 maxFeePpm)
-        public
-        virtual
+        external
         returns (uint256)
     {
         if (redeemOrderFeePpm > maxFeePpm) {
@@ -236,14 +226,17 @@ abstract contract YuzuProto is
         return createRedeemOrder(tokens, receiver, _owner);
     }
 
+    /// @inheritdoc YuzuOrderBook
     function fillRedeemOrder(uint256 orderId) public virtual override onlyRole(ORDER_FILLER_ROLE) {
         super.fillRedeemOrder(orderId);
     }
 
+    /// @inheritdoc YuzuIssuer
     function withdrawCollateral(uint256 assets, address receiver) public virtual override onlyRole(ADMIN_ROLE) {
         super.withdrawCollateral(assets, receiver);
     }
 
+    /// @notice Rescue tokens from the contract
     function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
         if (token == address(this)) {
             uint256 outstandingBalance = balanceOf(address(this)) - totalPendingOrderSize();
@@ -318,8 +311,8 @@ abstract contract YuzuProto is
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setMinRedeemOrder(uint256 newValue) external onlyRole(REDEEM_MANAGER_ROLE) {
-        _setMinRedeemOrder(newValue);
+    function setMinRedeemOrder(uint256 newMin) external onlyRole(REDEEM_MANAGER_ROLE) {
+        _setMinRedeemOrder(newMin);
     }
 
     function setIsMintRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
@@ -414,12 +407,12 @@ abstract contract YuzuProto is
         return true;
     }
 
-    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
+    /// @dev Calculates the fees that should be added to an amount {assets} that does not already include fees
     function _feeOnRaw(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
     }
 
-    /// @dev Calculates the fee part of an amount `assets` that already includes fees
+    /// @dev Calculates the fee part of an amount {assets} that already includes fees
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
     }
@@ -434,5 +427,6 @@ abstract contract YuzuProto is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[50] private __gap;
+    uint256[45] private __gap0;
+    uint256[5] private __gap1;
 }

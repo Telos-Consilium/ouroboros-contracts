@@ -30,6 +30,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     StakedYuzuUSD public styz;
     ERC20Mock public yzusd;
+
     address public owner;
     address public feeReceiver;
     address public user1;
@@ -38,7 +39,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     uint256 public user1key;
     uint256 public user2key;
 
-    function setUp() public {
+    function setUp() public virtual {
         owner = makeAddr("owner");
         feeReceiver = makeAddr("feeReceiver");
 
@@ -57,7 +58,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         yzusd.mint(user2, 10_000_000e18);
 
         // Deploy implementation and proxy-initialize
-        StakedYuzuUSD implementation = new StakedYuzuUSD();
+        address implementationAddress = _deploy();
         bytes memory initData = abi.encodeWithSelector(
             StakedYuzuUSD.initialize.selector,
             IERC20(address(yzusd)),
@@ -67,13 +68,17 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
             feeReceiver,
             1 days
         );
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        ERC1967Proxy proxy = new ERC1967Proxy(implementationAddress, initData);
         styz = StakedYuzuUSD(address(proxy));
 
         // Approvals for deposits/orders
         _approveAssets(owner, address(styz), type(uint256).max);
         _approveAssets(user1, address(styz), type(uint256).max);
         _approveAssets(user2, address(styz), type(uint256).max);
+    }
+
+    function _deploy() internal virtual returns (address) {
+        return address(new StakedYuzuUSD());
     }
 
     // Helpers
@@ -538,12 +543,12 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         assertEq(styz.previewRedeem(mintedShares), uint256(100e18) * 10 / 11);
     }
 
-    function test_Withdraw_Revert() public {
+    function test_Withdraw_Revert() public virtual {
         vm.expectRevert(WithdrawNotSupported.selector);
         styz.withdraw(100e18, user1, user1);
     }
 
-    function test_Redeem_Revert() public {
+    function test_Redeem_Revert() public virtual {
         vm.expectRevert(RedeemNotSupported.selector);
         styz.redeem(100e18, user1, user1);
     }
@@ -779,6 +784,7 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
 
     StakedYuzuUSD internal styz;
     ERC20Mock internal yzusd;
+
     address internal owner;
 
     address[] public actors;
@@ -922,8 +928,8 @@ contract StakedYuzuUSDHandler is CommonBase, StdCheats, StdUtils {
 
 contract StakedYuzuUSDInvariantTest is Test {
     StakedYuzuUSD public styz;
-    StakedYuzuUSDHandler public handler;
     ERC20Mock public yzusd;
+    StakedYuzuUSDHandler public handler;
 
     function setUp() public {
         // Deploy mock asset

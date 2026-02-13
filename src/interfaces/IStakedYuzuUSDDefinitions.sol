@@ -17,6 +17,11 @@ struct Order {
     OrderStatus status;
 }
 
+struct IntegrationConfig {
+    bool canSkipRedeemDelay;
+    bool waiveRedeemFee;
+}
+
 interface IStakedYuzuUSDDefinitions {
     error InvalidZeroAddress();
     error RedeemDelayTooHigh(uint256 provided, uint256 max);
@@ -27,7 +32,7 @@ interface IStakedYuzuUSDDefinitions {
     error InvalidAssetRescue(address token);
     error WithdrawNotSupported();
     error RedeemNotSupported();
-    error ExceededMaxRedeemOrder(address owner, uint256 token, uint256 max);
+    error ExceededMaxRedeemOrder(address owner, uint256 tokens, uint256 max);
     error WithdrewLessThanMinAssets(uint256 assets, uint256 min);
     error DistributionInProgress();
     error NoDistributionInProgress();
@@ -56,4 +61,11 @@ interface IStakedYuzuUSDDefinitions {
     event UpdatedFeeReceiver(address oldFeeReceiver, address newFeeReceiver);
     event Distributed(uint256 assets, uint256 period);
     event TerminatedDistribution(uint256 undistributed, address receiver);
+}
+
+interface IStakedYuzuUSDV2Definitions {
+    error ExceededRescuableBalance(uint256 rescue, uint256 max);
+    error RedeemedMoreThanMaxShares(uint256 shares, uint256 max);
+
+    event UpdatedIntegration(address indexed integration, bool canSkipRedeemDelay, bool waiveRedeemFee);
 }

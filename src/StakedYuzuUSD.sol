@@ -93,8 +93,7 @@ contract StakedYuzuUSD is
         return super.totalAssets() - totalPendingOrderValue - _undistributedAssets();
     }
 
-    /// @notice Transfer `amount` of assets from the caller into the vault and schedule it for
-    // gradual distribution
+    /// @notice Transfer assets from the caller into the vault and schedule them for gradual distribution
     function distribute(uint256 assets, uint256 period) external onlyOwner {
         if (period < 1) {
             revert DistributionPeriodTooLow(period, 1);
@@ -112,6 +111,7 @@ contract StakedYuzuUSD is
         emit Distributed(assets, period);
     }
 
+    /// @notice Terminate an in-progress distribution and transfer the undistributed assets to a receiver
     function terminateDistribution(address receiver) external onlyOwner {
         uint256 elapsedTime = block.timestamp - lastDistributionTime;
         if (lastDistributionTime == 0 || elapsedTime >= lastDistributionPeriod) {
@@ -141,7 +141,7 @@ contract StakedYuzuUSD is
     }
 
     /// @notice See {IERC4626-maxWithdraw}
-    function maxWithdraw(address _owner) public view override returns (uint256) {
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         return 0;
     }
 
@@ -150,7 +150,7 @@ contract StakedYuzuUSD is
         return 0;
     }
 
-    /// @notice Returns the maximum amount of shares that can be redeemed by `_owner` in a single order
+    /// @notice Returns the maximum amount of shares that can be redeemed by an owner in a single order
     function maxRedeemOrder(address _owner) public view virtual returns (uint256) {
         if (paused()) {
             return 0;
@@ -170,25 +170,25 @@ contract StakedYuzuUSD is
         return assets;
     }
 
-    /**
-     * @notice Withdraw function is disabled - instant withdrawals are not supported
-     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
-     */
-    function withdraw(uint256, address, address) public pure override returns (uint256) {
+    /// @notice Instant withdrawals are not supported
+    /// @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
+    function withdraw(uint256, address, address) public virtual override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
-    /**
-     * @notice Redeem function is disabled - instant redemptions are not supported
-     * @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
-     */
-    function redeem(uint256, address, address) public pure override returns (uint256) {
+    /// @notice Instant redemptions are not supported
+    /// @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
+    function redeem(uint256, address, address) public virtual override returns (uint256) {
         revert RedeemNotSupported();
     }
 
-    /// @notice Initiate a 2-step redemption of `shares`
+    /// @notice Initiate a 2-step redemption of shares
     // slither-disable-next-line pess-unprotected-initialize
-    function initiateRedeem(uint256 shares, address receiver, address _owner) public returns (uint256, uint256) {
+    function initiateRedeem(uint256 shares, address receiver, address _owner)
+        public
+        virtual
+        returns (uint256, uint256)
+    {
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -206,7 +206,7 @@ contract StakedYuzuUSD is
         return (orderId, assets);
     }
 
-    /// @notice Initiate a 2-step redemption of `shares` and revert if slippage is exceeded
+    /// @notice Initiate a 2-step redemption of shares and revert if slippage is exceeded
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeemWithSlippage(uint256 shares, address receiver, address _owner, uint256 minAssets)
         external
@@ -219,8 +219,8 @@ contract StakedYuzuUSD is
         return (orderId, assets);
     }
 
-    /// @notice Finalize a 2-step redemption order by `orderId`
-    function finalizeRedeem(uint256 orderId) external {
+    /// @notice Finalize a 2-step redeem order by order id
+    function finalizeRedeem(uint256 orderId) public virtual {
         address caller = _msgSender();
         Order storage order = orders[orderId];
         if (caller != order.receiver && caller != order.controller) {
@@ -239,8 +239,8 @@ contract StakedYuzuUSD is
         emit Withdraw(caller, order.receiver, order.owner, order.assets, order.shares);
     }
 
-    /// @notice Transfer `amount` of `token` held by the vault to `receiver`
-    function rescueTokens(address token, address receiver, uint256 amount) external onlyOwner {
+    /// @notice Rescue tokens from the contract
+    function rescueTokens(address token, address receiver, uint256 amount) public virtual onlyOwner {
         if (token == asset()) {
             if (totalSupply() > 0) {
                 revert InvalidAssetRescue(token);
@@ -252,12 +252,11 @@ contract StakedYuzuUSD is
         SafeERC20.safeTransfer(IERC20(token), receiver, amount);
     }
 
-    /// @notice Returns a redeem order by `orderId`
+    /// @notice Returns a redeem order by order id
     function getRedeemOrder(uint256 orderId) external view returns (Order memory) {
         return orders[orderId];
     }
 
-    /// @notice Set the redemption delay to `newDelay`
     function setRedeemDelay(uint256 newDelay) external onlyOwner {
         if (newDelay > 365 days) {
             revert RedeemDelayTooHigh(newDelay, 365 days);
@@ -267,7 +266,6 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemDelay(oldDelay, newDelay);
     }
 
-    /// @notice Set the redeem fee to `newFeePpm`
     function setRedeemFee(uint256 newFeePpm) external onlyOwner {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
@@ -277,7 +275,6 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
     }
 
-    /// @notice Set the fee receiver to `newFeeReceiver`
     function setFeeReceiver(address newFeeReceiver) external onlyOwner {
         if (newFeeReceiver == address(0)) {
             revert InvalidZeroAddress();
@@ -328,13 +325,13 @@ contract StakedYuzuUSD is
         return _domainSeparatorV4();
     }
 
-    function _previewWithdraw(uint256 assets) internal view returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view virtual returns (uint256, uint256) {
         uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 shares = super.previewWithdraw(assets + fee);
         return (shares, fee);
     }
 
-    function _previewRedeem(uint256 shares) internal view returns (uint256, uint256) {
+    function _previewRedeem(uint256 shares) internal view virtual returns (uint256, uint256) {
         uint256 assets = super.previewRedeem(shares);
         uint256 fee = _feeOnTotal(assets, redeemFeePpm);
         return (assets - fee, fee);
@@ -382,7 +379,7 @@ contract StakedYuzuUSD is
         return block.timestamp < lastDistributionTime + lastDistributionPeriod;
     }
 
-    function _undistributedAssets() internal view returns (uint256) {
+    function _undistributedAssets() internal view virtual returns (uint256) {
         uint256 distributed = Math.min(
             lastDistributedAmount,
             Math.mulDiv(
@@ -395,12 +392,12 @@ contract StakedYuzuUSD is
         return lastDistributedAmount - distributed;
     }
 
-    /// @dev Calculates the fees that should be added to an amount `assets` that does not already include fees
+    /// @dev Calculates the fees that should be added to an amount {assets} that does not already include fees
     function _feeOnRaw(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
     }
 
-    /// @dev Calculates the fee part of an amount `assets` that already includes fees
+    /// @dev Calculates the fee part of an amount {assets} that already includes fees
     function _feeOnTotal(uint256 assets, uint256 feePpm) internal pure returns (uint256) {
         return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
     }
@@ -411,5 +408,5 @@ contract StakedYuzuUSD is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[50] private __gap;
+    uint256[41] private __gap;
 }

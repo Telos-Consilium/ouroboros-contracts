@@ -22,7 +22,7 @@ interface IYuzuIssuer is IYuzu {
     function deposit(uint256 assets, address receiver) external returns (uint256 tokens);
     function mint(uint256 tokens, address receiver) external returns (uint256 assets);
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 tokens);
-    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 minAssets)
+    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxTokens)
         external
         returns (uint256 tokens);
     function redeem(uint256 tokens, address receiver, address owner) external returns (uint256 assets);

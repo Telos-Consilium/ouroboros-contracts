@@ -13,7 +13,7 @@ import {
 } from "./YuzuProto.t.sol";
 
 contract YuzuUSDTest_Common is YuzuProtoTest_Common {
-    function _deploy() internal override returns (address) {
+    function _deploy() internal virtual override returns (address) {
         return address(new YuzuUSD());
     }
 
@@ -75,19 +75,19 @@ contract YuzuUSDTest_Common is YuzuProtoTest_Common {
 }
 
 contract YuzuUSDTest_Issuer is YuzuProtoTest_Issuer {
-    function _deploy() internal override returns (address) {
+    function _deploy() internal virtual override returns (address) {
         return address(new YuzuUSD());
     }
 }
 
 contract YuzuUSDTest_OrderBook is YuzuProtoTest_OrderBook {
-    function _deploy() internal override returns (address) {
+    function _deploy() internal virtual override returns (address) {
         return address(new YuzuUSD());
     }
 }
 
 contract YuzuUSDInvariantTest is YuzuProtoInvariantTest {
-    function _deploy() internal override returns (address) {
+    function _deploy() internal virtual override returns (address) {
         return address(new YuzuUSD());
     }
 }

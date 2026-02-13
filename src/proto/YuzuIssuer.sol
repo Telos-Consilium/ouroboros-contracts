@@ -50,12 +50,12 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
     }
 
     /// @notice See {IERC4626-convertToShares}
-    function convertToShares(uint256 assets) public view virtual returns (uint256) {
+    function convertToShares(uint256 assets) public view returns (uint256) {
         return _convertToShares(assets, Math.Rounding.Floor);
     }
 
     /// @notice See {IERC4626-convertToAssets}
-    function convertToAssets(uint256 shares) public view virtual returns (uint256) {
+    function convertToAssets(uint256 shares) public view returns (uint256) {
         return _convertToAssets(shares, Math.Rounding.Floor);
     }
 
@@ -142,7 +142,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
 
     /// @notice Withdraw assets and revert if slippage is exceeded
     function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxTokens)
-        public
+        external
         returns (uint256)
     {
         uint256 tokens = withdraw(assets, receiver, owner);
@@ -167,8 +167,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
 
     /// @notice Redeem tokens and revert if slippage is exceeded
     function redeemWithSlippage(uint256 tokens, address receiver, address owner, uint256 minAssets)
-        public
-        virtual
+        external
         returns (uint256)
     {
         uint256 assets = redeem(tokens, receiver, owner);
@@ -178,6 +177,7 @@ abstract contract YuzuIssuer is ContextUpgradeable, IYuzuIssuerDefinitions {
         return assets;
     }
 
+    /// @notice Withdraw collateral from the liquidity buffer
     function withdrawCollateral(uint256 assets, address receiver) public virtual {
         uint256 liquidityBuffer = liquidityBufferSize();
         if (assets == type(uint256).max) {

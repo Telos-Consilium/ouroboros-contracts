@@ -796,7 +796,7 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         proto.setFillWindow(2 days);
     }
 
-    function test_setMinRedeemOrder() public {
+    function test_SetMinRedeemOrder() public {
         vm.prank(redeemManager);
         vm.expectEmit();
         emit UpdatedMinRedeemOrder(0, 100e18);
@@ -804,7 +804,7 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
         assertEq(proto.minRedeemOrder(), 100e18);
     }
 
-    function test_setMinRedeemOrder_Revert_NotRedeemManager() public {
+    function test_SetMinRedeemOrder_Revert_NotRedeemManager() public {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, REDEEM_MANAGER_ROLE)
@@ -993,6 +993,19 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         proto.withdraw(liquidityBuffer, user2, user1);
     }
 
+    function test_WithdrawWithSlippage() public {
+        _depositAndMint(user1, 200e6, 200e6);
+        uint256 assets = 100e6;
+        uint256 maxTokens = proto.previewWithdraw(assets);
+        uint256 balanceBefore = asset.balanceOf(user1);
+
+        vm.prank(user1);
+        uint256 tokens = proto.withdrawWithSlippage(assets, user1, user1, maxTokens);
+
+        assertEq(tokens, maxTokens);
+        assertEq(asset.balanceOf(user1) - balanceBefore, assets);
+    }
+
     function test_WithdrawWithSlippage_Revert_RedeemedMoreThanMaxTokens() public {
         _depositAndMint(user1, 200e6, 200e6);
         uint256 assets = 100e6;
@@ -1072,6 +1085,19 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, tokens + 1, tokens));
         proto.redeem(tokens + 1, user2, user1);
+    }
+
+    function test_RedeemWithSlippage() public {
+        _depositAndMint(user1, 200e6, 200e6);
+        uint256 tokens = 100e18;
+        uint256 minAssets = proto.previewRedeem(tokens);
+        uint256 balanceBefore = asset.balanceOf(user1);
+
+        vm.prank(user1);
+        uint256 assets = proto.redeemWithSlippage(tokens, user1, user1, minAssets);
+
+        assertEq(assets, minAssets);
+        assertEq(asset.balanceOf(user1) - balanceBefore, assets);
     }
 
     function test_RedeemWithSlippage_Revert_WithdrewLessThanMinAssets() public {

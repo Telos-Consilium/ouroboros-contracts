@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {Order} from "./IStakedYuzuUSDDefinitions.sol";
+import {Order, IntegrationConfig} from "./IStakedYuzuUSDDefinitions.sol";
 
 interface IStakedYuzuUSD is IERC4626 {
     function initialize(
@@ -47,4 +47,22 @@ interface IStakedYuzuUSD is IERC4626 {
     function pause() external;
     function unpause() external;
     function paused() external view returns (bool);
+}
+
+interface IStakedYuzuUSDV2 is IStakedYuzuUSD {
+    function reinitialize() external;
+
+    function canMint(address receiver) external view returns (bool);
+    function canRedeem(address owner) external view returns (bool);
+    function canCreateRedeemOrder(address owner) external view returns (bool);
+
+    function lastDistributionTimestamp() external view returns (uint256);
+    function getIntegration(address integration) external view returns (IntegrationConfig memory);
+    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external;
+    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxShares)
+        external
+        returns (uint256);
+    function redeemWithSlippage(uint256 shares, address receiver, address owner, uint256 minAssets)
+        external
+        returns (uint256);
 }
