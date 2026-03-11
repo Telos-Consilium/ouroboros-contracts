@@ -30,7 +30,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         if (paused()) {
             return false;
         }
-        if (redeemDelay > 0) {
+        if (redeemDelay > 0 && !integrations[_owner].canSkipRedeemDelay) {
             return false;
         }
         return true;

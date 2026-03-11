@@ -424,23 +424,28 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
 
     function test_MaxWithdrawRedeem_Integration() public {
         address integration = makeAddr("integration");
-        uint256 mintedShares = _deposit(user1, 90e18);
+        _deposit(user1, 90e18);
 
         vm.prank(owner);
         styz2.setIntegration(integration, true, false);
 
-        vm.prank(user1);
+        // Non-integration owner: returns 0 when redeemDelay > 0, regardless of caller
         assertEq(styz2.maxWithdraw(user1), 0);
-        vm.prank(user1);
         assertEq(styz2.maxRedeem(user1), 0);
 
+        // View is now deterministic: caller identity doesn't affect the result
         vm.prank(integration);
-        uint256 maxWithdraw = styz2.maxWithdraw(user1);
+        assertEq(styz2.maxWithdraw(user1), 0);
         vm.prank(integration);
-        uint256 maxRedeem = styz2.maxRedeem(user1);
+        assertEq(styz2.maxRedeem(user1), 0);
 
-        assertGt(maxWithdraw, 0);
-        assertEq(maxRedeem, mintedShares);
+        // Integration as _owner can skip delay: deposit shares for integration and verify non-zero max
+        yzusd.mint(integration, 90e18);
+        _approveAssets(integration, address(styz2), type(uint256).max);
+        uint256 integrationShares = _deposit(integration, 90e18);
+
+        assertGt(styz2.maxWithdraw(integration), 0);
+        assertEq(styz2.maxRedeem(integration), integrationShares);
     }
 
     function test_TerminateDistribution_SameBlock() public {
