@@ -30,7 +30,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         if (paused()) {
             return false;
         }
-        if (redeemDelay > 0 && !integrations[_msgSender()].canSkipRedeemDelay) {
+        if (redeemDelay > 0) {
             return false;
         }
         return true;
@@ -86,7 +86,14 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
         uint256 maxAssets = maxWithdraw(_owner);
         if (assets > maxAssets) {
-            revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssets);
+            // Integrations can bypass the redeem delay at execution time
+            if (!integrations[_msgSender()].canSkipRedeemDelay || paused()) {
+                revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssets);
+            }
+            (uint256 maxAssetsForIntegration,) = _previewRedeem(balanceOf(_owner));
+            if (assets > maxAssetsForIntegration) {
+                revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssetsForIntegration);
+            }
         }
 
         (uint256 shares, uint256 fee) = _previewWithdraw(assets);
@@ -100,7 +107,14 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
         uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
-            revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+            // Integrations can bypass the redeem delay at execution time
+            if (!integrations[_msgSender()].canSkipRedeemDelay || paused()) {
+                revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+            }
+            maxShares = ERC4626Upgradeable.maxRedeem(_owner);
+            if (shares > maxShares) {
+                revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+            }
         }
 
         (uint256 assets, uint256 fee) = _previewRedeem(shares);
