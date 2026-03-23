@@ -177,8 +177,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     /// @notice Preview assets withdrawn for {shares}
+    /// @dev Uses convertToAssets instead of previewRedeem because the PSM is a fee-waived integration
     function previewRedeem(uint256 shares) external view returns (uint256) {
-        uint256 shares0 = _vault1.previewRedeem(shares);
+        uint256 shares0 = _vault1.convertToAssets(shares);
         return _vault0.convertToAssets(shares0);
     }
 

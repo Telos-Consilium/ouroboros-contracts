@@ -302,20 +302,22 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
         uint256 withdrawAssets = 80e18;
         _approveShares(user1, integration, mintedShares);
 
-        vm.startPrank(integration);
-        uint256 expectedShares = styz2.previewWithdraw(withdrawAssets); // fee waived for this caller
-        vm.stopPrank();
+        uint256 previewShares = styz2.previewWithdraw(withdrawAssets);
+        uint256 noFeeShares = styz2.convertToShares(withdrawAssets);
+        // previewWithdraw includes the fee regardless of caller
+        assertGt(previewShares, noFeeShares);
 
         uint256 receiverBalanceBefore = yzusd.balanceOf(user1);
         uint256 feeReceiverBalanceBefore = yzusd.balanceOf(feeReceiver);
         uint256 ownerSharesBefore = styz2.balanceOf(user1);
 
+        // Fee-waived integration pays no fee at execution time
         vm.prank(integration);
         styz2.withdraw(withdrawAssets, user1, user1);
 
         assertEq(yzusd.balanceOf(user1) - receiverBalanceBefore, withdrawAssets);
         assertEq(yzusd.balanceOf(feeReceiver) - feeReceiverBalanceBefore, 0);
-        assertEq(ownerSharesBefore - styz2.balanceOf(user1), expectedShares);
+        assertEq(ownerSharesBefore - styz2.balanceOf(user1), noFeeShares);
     }
 
     function test_Redeem_Integration_WithFee() public {
@@ -360,19 +362,20 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
         uint256 mintedShares = _deposit(user1, 150e18);
         _approveShares(user1, integration, mintedShares);
 
-        vm.startPrank(integration);
-        uint256 expectedAssets = styz2.previewRedeem(mintedShares); // fee waived for this caller
         uint256 grossAssets = styz2.convertToAssets(mintedShares);
-        vm.stopPrank();
+        uint256 previewAssets = styz2.previewRedeem(mintedShares);
+
+        // previewRedeem includes the fee regardless of caller
+        assertLt(previewAssets, grossAssets);
 
         uint256 receiverBalanceBefore = yzusd.balanceOf(user1);
         uint256 feeReceiverBalanceBefore = yzusd.balanceOf(feeReceiver);
 
+        // Fee-waived integration pays no fee at execution time
         vm.prank(integration);
         styz2.redeem(mintedShares, user1, user1);
 
-        assertEq(expectedAssets, grossAssets); // no fee applied
-        assertEq(yzusd.balanceOf(user1) - receiverBalanceBefore, expectedAssets);
+        assertEq(yzusd.balanceOf(user1) - receiverBalanceBefore, grossAssets); // full amount, no fee
         assertEq(yzusd.balanceOf(feeReceiver) - feeReceiverBalanceBefore, 0);
         assertEq(styz2.balanceOf(user1), 0);
     }
@@ -417,9 +420,9 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
         uint256 waivedPreviewWithdraw = styz2.previewWithdraw(50e18);
 
         assertLt(userPreviewRedeem, mintedShares); // fee applied
-        assertGt(waivedPreviewRedeem, userPreviewRedeem); // fee waived
+        assertEq(waivedPreviewRedeem, userPreviewRedeem); // same result regardless of caller
         assertGt(userPreviewWithdraw, 50e18); // fee adds to shares required
-        assertEq(waivedPreviewWithdraw, 50e18); // no fee when waived
+        assertEq(waivedPreviewWithdraw, userPreviewWithdraw); // same result regardless of caller
     }
 
     function test_MaxWithdrawRedeem_Integration() public {

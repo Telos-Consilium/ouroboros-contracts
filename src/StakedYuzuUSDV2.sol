@@ -84,20 +84,20 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @inheritdoc StakedYuzuUSD
     function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
+        address caller = _msgSender();
         uint256 maxAssets = maxWithdraw(_owner);
         if (assets > maxAssets) {
             // Integrations can bypass the redeem delay at execution time
-            if (!integrations[_msgSender()].canSkipRedeemDelay || paused()) {
+            if (!integrations[caller].canSkipRedeemDelay || paused()) {
                 revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssets);
             }
-            (uint256 maxAssetsForIntegration,) = _previewRedeem(balanceOf(_owner));
+            (uint256 maxAssetsForIntegration,) = _previewRedeemFor(balanceOf(_owner), caller);
             if (assets > maxAssetsForIntegration) {
                 revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssetsForIntegration);
             }
         }
 
-        (uint256 shares, uint256 fee) = _previewWithdraw(assets);
-        address caller = _msgSender();
+        (uint256 shares, uint256 fee) = _previewWithdrawFor(assets, caller);
         _withdraw(caller, receiver, _owner, shares, assets, fee);
 
         return shares;
@@ -105,10 +105,11 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @inheritdoc StakedYuzuUSD
     function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
+        address caller = _msgSender();
         uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
             // Integrations can bypass the redeem delay at execution time
-            if (!integrations[_msgSender()].canSkipRedeemDelay || paused()) {
+            if (!integrations[caller].canSkipRedeemDelay || paused()) {
                 revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
             }
             maxShares = ERC4626Upgradeable.maxRedeem(_owner);
@@ -117,8 +118,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
             }
         }
 
-        (uint256 assets, uint256 fee) = _previewRedeem(shares);
-        address caller = _msgSender();
+        (uint256 assets, uint256 fee) = _previewRedeemFor(shares, caller);
         _withdraw(caller, receiver, _owner, shares, assets, fee);
 
         return assets;
@@ -176,22 +176,34 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return lastDistributionTime;
     }
 
-    function _callerRedeemFeePpm() internal view returns (uint256) {
-        if (integrations[_msgSender()].waiveRedeemFee) {
+    function _redeemFeePpmFor(address account) internal view returns (uint256) {
+        if (integrations[account].waiveRedeemFee) {
             return 0;
         }
         return redeemFeePpm;
     }
 
     function _previewWithdraw(uint256 assets) internal view override returns (uint256, uint256) {
-        uint256 fee = _feeOnRaw(assets, _callerRedeemFeePpm());
+        uint256 fee = _feeOnRaw(assets, redeemFeePpm);
         uint256 shares = ERC4626Upgradeable.previewWithdraw(assets + fee);
         return (shares, fee);
     }
 
     function _previewRedeem(uint256 shares) internal view override returns (uint256, uint256) {
         uint256 assets = ERC4626Upgradeable.previewRedeem(shares);
-        uint256 fee = _feeOnTotal(assets, _callerRedeemFeePpm());
+        uint256 fee = _feeOnTotal(assets, redeemFeePpm);
+        return (assets - fee, fee);
+    }
+
+    function _previewWithdrawFor(uint256 assets, address caller) internal view returns (uint256, uint256) {
+        uint256 fee = _feeOnRaw(assets, _redeemFeePpmFor(caller));
+        uint256 shares = ERC4626Upgradeable.previewWithdraw(assets + fee);
+        return (shares, fee);
+    }
+
+    function _previewRedeemFor(uint256 shares, address caller) internal view returns (uint256, uint256) {
+        uint256 assets = ERC4626Upgradeable.previewRedeem(shares);
+        uint256 fee = _feeOnTotal(assets, _redeemFeePpmFor(caller));
         return (assets - fee, fee);
     }
 
