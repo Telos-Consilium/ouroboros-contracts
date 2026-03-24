@@ -432,17 +432,17 @@ contract StakedYuzuUSDV2Test is StakedYuzuUSDTest, IStakedYuzuUSDV2Definitions {
         vm.prank(owner);
         styz2.setIntegration(integration, true, false);
 
-        // Non-integration owner: returns 0 when redeemDelay > 0, regardless of caller
+        // Non-integration caller, owner
         assertEq(styz2.maxWithdraw(user1), 0);
         assertEq(styz2.maxRedeem(user1), 0);
 
-        // View is now deterministic: caller identity doesn't affect the result
+        // Integration caller
         vm.prank(integration);
         assertEq(styz2.maxWithdraw(user1), 0);
         vm.prank(integration);
         assertEq(styz2.maxRedeem(user1), 0);
 
-        // Integration as _owner can skip delay: deposit shares for integration and verify non-zero max
+        // Integration can skip delay
         yzusd.mint(integration, 90e18);
         _approveAssets(integration, address(styz2), type(uint256).max);
         uint256 integrationShares = _deposit(integration, 90e18);
