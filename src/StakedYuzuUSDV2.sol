@@ -25,7 +25,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return !paused();
     }
 
-    /// @notice Returns true if receiver is allowed to redeem, false otherwise
+    /// @notice Returns true if owner is allowed to redeem, false otherwise
     function canRedeem(address _owner) public view returns (bool) {
         if (paused()) {
             return false;
@@ -36,7 +36,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return true;
     }
 
-    /// @notice Returns true if receiver is allowed to create a redeem order, false otherwise
+    /// @notice Returns true if owner is allowed to create a redeem order, false otherwise
     function canCreateRedeemOrder(address _owner) public view returns (bool) {
         return !paused();
     }

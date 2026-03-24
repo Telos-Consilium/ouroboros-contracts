@@ -50,6 +50,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
      * @param __vault0 The first ERC4626 vault (yzUSD)
      * @param __vault1 The second ERC4626 vault (syzUSD)
      * @param _admin The admin of the contract
+     * @param _minRedeemOrder The minimum redeem order size
      */
     // slither-disable-next-line pess-multiple-storage-read
     function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin, uint256 _minRedeemOrder)
@@ -115,7 +116,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         return _pendingOrderIds.length();
     }
 
-    /// @notice Returns all pending order ids
+    /// @notice Returns pending order ids in the given range
     function getPendingOrderIds(uint256 start, uint256 end) external view returns (uint256[] memory) {
         uint256 length = _pendingOrderIds.length();
         uint256 adjEnd = Math.min(end, length);
