@@ -125,6 +125,29 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return assets;
     }
 
+    /// @inheritdoc StakedYuzuUSD
+    function initiateRedeem(uint256 shares, address receiver, address _owner)
+        public
+        override
+        returns (uint256, uint256)
+    {
+        if (receiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        uint256 maxShares = maxRedeemOrder(_owner);
+        if (shares > maxShares) {
+            revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
+        }
+
+        address caller = _msgSender();
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(caller));
+        uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
+
+        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares, fee);
+
+        return (orderId, assets);
+    }
+
     /// @notice Withdraw assets and revert if slippage is exceeded
     function withdrawWithSlippage(uint256 assets, address receiver, address _owner, uint256 maxShares)
         external
