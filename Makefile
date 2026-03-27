@@ -40,7 +40,7 @@ coverage-html:
 	open coverage/html/index.html
 
 slither:
-	slitherin ./src --config-file slither.config.json
+	slitherin . --config-file slither.config.json
 
 build:
 	forge build

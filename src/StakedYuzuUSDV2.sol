@@ -126,6 +126,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @inheritdoc StakedYuzuUSD
+    // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
         override
