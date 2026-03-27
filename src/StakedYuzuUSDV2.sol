@@ -62,7 +62,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         if (!canRedeem(_owner)) {
             return 0;
         }
-        (uint256 assets,) = _previewRedeem(balanceOf(_owner));
+        (uint256 assets,) = _previewRedeemWithFee(balanceOf(_owner), _redeemFeePpmFor(_owner));
         return assets;
     }
 
