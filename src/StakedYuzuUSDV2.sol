@@ -25,18 +25,18 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return !paused();
     }
 
-    /// @notice Returns true if receiver is allowed to redeem, false otherwise
+    /// @notice Returns true if owner is allowed to redeem, false otherwise
     function canRedeem(address _owner) public view returns (bool) {
         if (paused()) {
             return false;
         }
-        if (redeemDelay > 0 && !integrations[_msgSender()].canSkipRedeemDelay) {
+        if (redeemDelay > 0 && !integrations[_owner].canSkipRedeemDelay) {
             return false;
         }
         return true;
     }
 
-    /// @notice Returns true if receiver is allowed to create a redeem order, false otherwise
+    /// @notice Returns true if owner is allowed to create a redeem order, false otherwise
     function canCreateRedeemOrder(address _owner) public view returns (bool) {
         return !paused();
     }
@@ -62,7 +62,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         if (!canRedeem(_owner)) {
             return 0;
         }
-        (uint256 assets,) = _previewRedeem(balanceOf(_owner));
+        (uint256 assets,) = _previewRedeemWithFee(balanceOf(_owner), _redeemFeePpmFor(_owner));
         return assets;
     }
 
@@ -84,13 +84,21 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @inheritdoc StakedYuzuUSD
     function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
+        address caller = _msgSender();
+        uint256 callerFeePpm = _redeemFeePpmFor(caller);
         uint256 maxAssets = maxWithdraw(_owner);
         if (assets > maxAssets) {
-            revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssets);
+            // Integrations can bypass the redeem delay at execution time
+            if (!integrations[caller].canSkipRedeemDelay || paused()) {
+                revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssets);
+            }
+            (uint256 maxAssetsForIntegration,) = _previewRedeemWithFee(balanceOf(_owner), callerFeePpm);
+            if (assets > maxAssetsForIntegration) {
+                revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssetsForIntegration);
+            }
         }
 
-        (uint256 shares, uint256 fee) = _previewWithdraw(assets);
-        address caller = _msgSender();
+        (uint256 shares, uint256 fee) = _previewWithdrawWithFee(assets, callerFeePpm);
         _withdraw(caller, receiver, _owner, shares, assets, fee);
 
         return shares;
@@ -98,16 +106,47 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
 
     /// @inheritdoc StakedYuzuUSD
     function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
+        address caller = _msgSender();
         uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
-            revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+            // Integrations can bypass the redeem delay at execution time
+            if (!integrations[caller].canSkipRedeemDelay || paused()) {
+                revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+            }
+            maxShares = ERC4626Upgradeable.maxRedeem(_owner);
+            if (shares > maxShares) {
+                revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+            }
         }
 
-        (uint256 assets, uint256 fee) = _previewRedeem(shares);
-        address caller = _msgSender();
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(caller));
         _withdraw(caller, receiver, _owner, shares, assets, fee);
 
         return assets;
+    }
+
+    /// @inheritdoc StakedYuzuUSD
+    // slither-disable-next-line pess-unprotected-initialize
+    function initiateRedeem(uint256 shares, address receiver, address _owner)
+        public
+        override
+        returns (uint256, uint256)
+    {
+        if (receiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        uint256 maxShares = maxRedeemOrder(_owner);
+        if (shares > maxShares) {
+            revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
+        }
+
+        address caller = _msgSender();
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(caller));
+        uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
+
+        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares, fee);
+
+        return (orderId, assets);
     }
 
     /// @notice Withdraw assets and revert if slippage is exceeded
@@ -162,23 +201,31 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return lastDistributionTime;
     }
 
-    function _callerRedeemFeePpm() internal view returns (uint256) {
-        if (integrations[_msgSender()].waiveRedeemFee) {
+    function _redeemFeePpmFor(address account) internal view returns (uint256) {
+        if (integrations[account].waiveRedeemFee) {
             return 0;
         }
         return redeemFeePpm;
     }
 
-    function _previewWithdraw(uint256 assets) internal view override returns (uint256, uint256) {
-        uint256 fee = _feeOnRaw(assets, _callerRedeemFeePpm());
+    function _previewWithdrawWithFee(uint256 assets, uint256 feePpm) internal view returns (uint256, uint256) {
+        uint256 fee = _feeOnRaw(assets, feePpm);
         uint256 shares = ERC4626Upgradeable.previewWithdraw(assets + fee);
         return (shares, fee);
     }
 
-    function _previewRedeem(uint256 shares) internal view override returns (uint256, uint256) {
+    function _previewRedeemWithFee(uint256 shares, uint256 feePpm) internal view returns (uint256, uint256) {
         uint256 assets = ERC4626Upgradeable.previewRedeem(shares);
-        uint256 fee = _feeOnTotal(assets, _callerRedeemFeePpm());
+        uint256 fee = _feeOnTotal(assets, feePpm);
         return (assets - fee, fee);
+    }
+
+    function _previewWithdraw(uint256 assets) internal view override returns (uint256, uint256) {
+        return _previewWithdrawWithFee(assets, redeemFeePpm);
+    }
+
+    function _previewRedeem(uint256 shares) internal view override returns (uint256, uint256) {
+        return _previewRedeemWithFee(shares, redeemFeePpm);
     }
 
     function _withdraw(address caller, address receiver, address _owner, uint256 shares, uint256 assets, uint256 fee)
