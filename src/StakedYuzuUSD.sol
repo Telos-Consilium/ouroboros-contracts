@@ -94,7 +94,7 @@ contract StakedYuzuUSD is
     }
 
     /// @notice Transfer assets from the caller into the vault and schedule them for gradual distribution
-    function distribute(uint256 assets, uint256 period) external onlyOwner {
+    function distribute(uint256 assets, uint256 period) external virtual onlyOwner {
         if (period < 1) {
             revert DistributionPeriodTooLow(period, 1);
         }
@@ -112,7 +112,7 @@ contract StakedYuzuUSD is
     }
 
     /// @notice Terminate an in-progress distribution and transfer the undistributed assets to a receiver
-    function terminateDistribution(address receiver) external onlyOwner {
+    function terminateDistribution(address receiver) external virtual onlyOwner {
         uint256 elapsedTime = block.timestamp - lastDistributionTime;
         if (lastDistributionTime == 0 || elapsedTime >= lastDistributionPeriod) {
             revert NoDistributionInProgress();
@@ -257,7 +257,7 @@ contract StakedYuzuUSD is
         return orders[orderId];
     }
 
-    function setRedeemDelay(uint256 newDelay) external onlyOwner {
+    function setRedeemDelay(uint256 newDelay) external virtual onlyOwner {
         if (newDelay > 365 days) {
             revert RedeemDelayTooHigh(newDelay, 365 days);
         }
@@ -266,7 +266,7 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemDelay(oldDelay, newDelay);
     }
 
-    function setRedeemFee(uint256 newFeePpm) external onlyOwner {
+    function setRedeemFee(uint256 newFeePpm) external virtual onlyOwner {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
@@ -275,7 +275,7 @@ contract StakedYuzuUSD is
         emit UpdatedRedeemFee(oldFeePpm, newFeePpm);
     }
 
-    function setFeeReceiver(address newFeeReceiver) external onlyOwner {
+    function setFeeReceiver(address newFeeReceiver) external virtual onlyOwner {
         if (newFeeReceiver == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -285,12 +285,12 @@ contract StakedYuzuUSD is
     }
 
     /// @notice Pause all mint and redeem functions
-    function pause() external onlyOwner {
+    function pause() external virtual onlyOwner {
         _pause();
     }
 
     /// @notice Unpause all mint and redeem functions
-    function unpause() external onlyOwner {
+    function unpause() external virtual onlyOwner {
         _unpause();
     }
 

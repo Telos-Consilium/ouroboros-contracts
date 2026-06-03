@@ -83,7 +83,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @inheritdoc StakedYuzuUSD
-    function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         address caller = _msgSender();
         uint256 callerFeePpm = _redeemFeePpmFor(caller);
         uint256 maxAssets = maxWithdraw(_owner);
@@ -105,7 +105,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @inheritdoc StakedYuzuUSD
-    function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
         address caller = _msgSender();
         uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
@@ -129,6 +129,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
+        virtual
         override
         returns (uint256, uint256)
     {
@@ -174,7 +175,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @inheritdoc StakedYuzuUSD
-    function rescueTokens(address token, address receiver, uint256 amount) public override {
+    function rescueTokens(address token, address receiver, uint256 amount) public virtual override {
         if (token == asset()) {
             uint256 rescuableBalance = IERC20(asset()).balanceOf(address(this)) - totalPendingOrderValue;
             if (amount > rescuableBalance) {
@@ -184,7 +185,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         super.rescueTokens(token, receiver, amount);
     }
 
-    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external onlyOwner {
+    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external virtual onlyOwner {
         if (integration == address(0)) {
             revert InvalidZeroAddress();
         }

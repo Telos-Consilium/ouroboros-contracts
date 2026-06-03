@@ -185,7 +185,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     /// @notice Deposit {assets} for shares minted to {receiver}
-    function deposit(uint256 assets, address receiver) public nonReentrant returns (uint256) {
+    function deposit(uint256 assets, address receiver) public virtual nonReentrant returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
             revert ExceededMaxDeposit(receiver, assets, maxAssets);
@@ -195,7 +195,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Redeem {shares} from {owner} for assets withdrawn to {receiver}
     /// @dev Owner must be the caller
-    function redeem(uint256 shares, address receiver, address _owner) public nonReentrant returns (uint256) {
+    function redeem(uint256 shares, address receiver, address _owner) public virtual nonReentrant returns (uint256) {
         address caller = _msgSender();
         if (caller != _owner) {
             revert RedeemFromOtherOwnerNotAllowed(caller, _owner);
@@ -222,6 +222,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     /// @notice Create a redeem order of {shares} for {receiver}
     function createRedeemOrder(uint256 shares, address receiver, address _owner)
         external
+        virtual
         nonReentrant
         returns (uint256)
     {
