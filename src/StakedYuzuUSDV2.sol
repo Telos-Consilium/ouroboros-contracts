@@ -185,7 +185,11 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         super.rescueTokens(token, receiver, amount);
     }
 
-    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external virtual onlyOwner {
+    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
+        public
+        virtual
+        onlyOwner
+    {
         if (integration == address(0)) {
             revert InvalidZeroAddress();
         }
