@@ -69,3 +69,7 @@ interface IStakedYuzuUSDV2Definitions {
 
     event UpdatedIntegration(address indexed integration, bool canSkipRedeemDelay, bool waiveRedeemFee);
 }
+
+interface IStakedYuzuUSDV3Definitions {
+    error OwnershipMigratedToAccessControl();
+}
