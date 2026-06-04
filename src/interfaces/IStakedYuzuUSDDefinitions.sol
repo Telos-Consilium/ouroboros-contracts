@@ -72,6 +72,10 @@ interface IStakedYuzuUSDV2Definitions {
 
 interface IStakedYuzuUSDV3Definitions {
     error OwnershipMigratedToAccessControl();
+    error UnderMinDeposit(uint256 assets, uint256 min);
+    error UnderMinWithdraw(uint256 assets, uint256 min);
 
     event Recovered(address indexed from, address indexed to, uint256 amount);
+    event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
+    event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
 }

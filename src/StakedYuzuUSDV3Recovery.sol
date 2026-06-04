@@ -24,10 +24,14 @@ contract StakedYuzuUSDV3Recovery is
     bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
 
     address private constant LOST_ADDRESS = 0x0000000000000000000000000000000000000001;
     address private constant RECOVERY_RECEIVER = 0x0000000000000000000000000000000000000002;
     uint256 private constant RECOVERY_AMOUNT = 1;
+
+    uint256 public minDeposit;
+    uint256 public minWithdraw;
 
     /// @notice Reinitializes the contract for V3 upgrade and runs a one-shot recovery
     /// @param _admin The admin of the contract
@@ -39,6 +43,7 @@ contract StakedYuzuUSDV3Recovery is
         _setRoleAdmin(PAUSE_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
 
         // Clear Ownable2Step state
         _transferOwnership(address(0));
@@ -62,6 +67,18 @@ contract StakedYuzuUSDV3Recovery is
 
     /// @dev Neutralized
     function _checkOwner() internal view override {}
+
+    function transferOwnership(address) public override(Ownable2StepUpgradeable) {
+        revert OwnershipMigratedToAccessControl();
+    }
+
+    function acceptOwnership() public override(Ownable2StepUpgradeable) {
+        revert OwnershipMigratedToAccessControl();
+    }
+
+    function renounceOwnership() public override(OwnableUpgradeable) {
+        revert OwnershipMigratedToAccessControl();
+    }
 
     function distribute(uint256 assets, uint256 period) public override onlyRole(POOL_MANAGER_ROLE) {
         super.distribute(assets, period);
@@ -107,16 +124,38 @@ contract StakedYuzuUSDV3Recovery is
         super.setIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
-    function transferOwnership(address) public override(Ownable2StepUpgradeable) {
-        revert OwnershipMigratedToAccessControl();
+    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+        if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
+        return super.deposit(assets, receiver);
     }
 
-    function acceptOwnership() public override(Ownable2StepUpgradeable) {
-        revert OwnershipMigratedToAccessControl();
+    function mint(uint256 shares, address receiver) public override returns (uint256) {
+        uint256 assets = previewMint(shares);
+        if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
+        return super.mint(shares, receiver);
     }
 
-    function renounceOwnership() public override(OwnableUpgradeable) {
-        revert OwnershipMigratedToAccessControl();
+    function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
+        if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
+        return super.withdraw(assets, receiver, _owner);
+    }
+
+    function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
+        (uint256 assets,) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_msgSender()));
+        if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
+        return super.redeem(shares, receiver, _owner);
+    }
+
+    function setMinDeposit(uint256 newMin) external onlyRole(LIMIT_MANAGER_ROLE) {
+        uint256 oldMin = minDeposit;
+        minDeposit = newMin;
+        emit UpdatedMinDeposit(oldMin, newMin);
+    }
+
+    function setMinWithdraw(uint256 newMin) external onlyRole(LIMIT_MANAGER_ROLE) {
+        uint256 oldMin = minWithdraw;
+        minWithdraw = newMin;
+        emit UpdatedMinWithdraw(oldMin, newMin);
     }
 
     /**
@@ -125,5 +164,5 @@ contract StakedYuzuUSDV3Recovery is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }
