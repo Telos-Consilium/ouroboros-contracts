@@ -75,14 +75,17 @@ contract StakedYuzuUSDV3Recovery is
         super.rescueTokens(token, receiver, amount);
     }
 
+    // slither-disable-next-line pess-strange-setter
     function setRedeemDelay(uint256 newDelay) public override onlyRole(REDEEM_MANAGER_ROLE) {
         super.setRedeemDelay(newDelay);
     }
 
+    // slither-disable-next-line pess-strange-setter
     function setRedeemFee(uint256 newFeePpm) public override onlyRole(REDEEM_MANAGER_ROLE) {
         super.setRedeemFee(newFeePpm);
     }
 
+    // slither-disable-next-line pess-strange-setter
     function setFeeReceiver(address newFeeReceiver) public override onlyRole(ADMIN_ROLE) {
         super.setFeeReceiver(newFeeReceiver);
     }
@@ -95,6 +98,7 @@ contract StakedYuzuUSDV3Recovery is
         super.unpause();
     }
 
+    // slither-disable-next-line pess-strange-setter
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
         public
         override

@@ -10,6 +10,7 @@ import {StakedYuzuUSDV3Recovery} from "./StakedYuzuUSDV3Recovery.sol";
  * @notice Post-recovery implementation of StakedYuzuUSDV3; reinitialize is disabled and recovery code is dead.
  */
 contract StakedYuzuUSDV3 is StakedYuzuUSDV3Recovery {
+    // slither-disable-next-line pess-unprotected-initialize
     function reinitialize(address) external override {
         revert Initializable.InvalidInitialization();
     }
