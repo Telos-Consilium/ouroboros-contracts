@@ -72,4 +72,6 @@ interface IStakedYuzuUSDV2Definitions {
 
 interface IStakedYuzuUSDV3Definitions {
     error OwnershipMigratedToAccessControl();
+
+    event Recovered(address indexed from, address indexed to, uint256 amount);
 }
