@@ -26,7 +26,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @notice Returns true if owner is allowed to redeem, false otherwise
-    function canRedeem(address _owner) public view returns (bool) {
+    function canRedeem(address _owner) public view virtual returns (bool) {
         if (paused()) {
             return false;
         }
@@ -206,7 +206,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return lastDistributionTime;
     }
 
-    function _redeemFeePpmFor(address account) internal view returns (uint256) {
+    function _redeemFeePpmFor(address account) internal view virtual returns (uint256) {
         if (integrations[account].waiveRedeemFee) {
             return 0;
         }
