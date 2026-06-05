@@ -72,7 +72,7 @@ contract StakedYuzuUSDV3Recovery is
     function _checkOwner() internal view override {}
 
     /// @inheritdoc StakedYuzuUSDV2
-    function canRedeem(address) public view override returns (bool) {
+    function canRedeem(address) public view virtual override returns (bool) {
         return !paused();
     }
 
@@ -88,29 +88,34 @@ contract StakedYuzuUSDV3Recovery is
         revert OwnershipMigratedToAccessControl();
     }
 
-    function distribute(uint256 assets, uint256 period) public override onlyRole(POOL_MANAGER_ROLE) {
+    function distribute(uint256 assets, uint256 period) public virtual override onlyRole(POOL_MANAGER_ROLE) {
         super.distribute(assets, period);
     }
 
-    function terminateDistribution(address receiver) public override onlyRole(POOL_MANAGER_ROLE) {
+    function terminateDistribution(address receiver) public virtual override onlyRole(POOL_MANAGER_ROLE) {
         super.terminateDistribution(receiver);
     }
 
-    function rescueTokens(address token, address receiver, uint256 amount) public override onlyRole(ADMIN_ROLE) {
+    function rescueTokens(address token, address receiver, uint256 amount)
+        public
+        virtual
+        override
+        onlyRole(ADMIN_ROLE)
+    {
         super.rescueTokens(token, receiver, amount);
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setRedeemDelay(uint256 newDelay) public override onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemDelay(uint256 newDelay) public virtual override onlyRole(REDEEM_MANAGER_ROLE) {
         super.setRedeemDelay(newDelay);
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setRedeemFee(uint256 newFeePpm) public override onlyRole(FEE_MANAGER_ROLE) {
+    function setRedeemFee(uint256 newFeePpm) public virtual override onlyRole(FEE_MANAGER_ROLE) {
         super.setRedeemFee(newFeePpm);
     }
 
-    function setInstantRedeemFee(uint256 newFeePpm) external onlyRole(FEE_MANAGER_ROLE) {
+    function setInstantRedeemFee(uint256 newFeePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
         if (newFeePpm > 1e6) revert FeeTooHigh(newFeePpm, 1e6);
         uint256 oldFee = instantRedeemFeePpm;
         instantRedeemFeePpm = newFeePpm;
@@ -118,44 +123,45 @@ contract StakedYuzuUSDV3Recovery is
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setFeeReceiver(address newFeeReceiver) public override onlyRole(FEE_MANAGER_ROLE) {
+    function setFeeReceiver(address newFeeReceiver) public virtual override onlyRole(FEE_MANAGER_ROLE) {
         super.setFeeReceiver(newFeeReceiver);
     }
 
-    function pause() public override onlyRole(PAUSE_MANAGER_ROLE) {
+    function pause() public virtual override onlyRole(PAUSE_MANAGER_ROLE) {
         super.pause();
     }
 
-    function unpause() public override onlyRole(PAUSE_MANAGER_ROLE) {
+    function unpause() public virtual override onlyRole(PAUSE_MANAGER_ROLE) {
         super.unpause();
     }
 
     // slither-disable-next-line pess-strange-setter
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
         public
+        virtual
         override
         onlyRole(ADMIN_ROLE)
     {
         super.setIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
-    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+    function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
         return super.deposit(assets, receiver);
     }
 
-    function mint(uint256 shares, address receiver) public override returns (uint256) {
+    function mint(uint256 shares, address receiver) public virtual override returns (uint256) {
         uint256 assets = previewMint(shares);
         if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
         return super.mint(shares, receiver);
     }
 
-    function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
         return super.withdraw(assets, receiver, _owner);
     }
 
-    function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
         (uint256 assets,) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_msgSender()));
         if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
         return super.redeem(shares, receiver, _owner);
@@ -165,6 +171,7 @@ contract StakedYuzuUSDV3Recovery is
     /// redeem fee logic.
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
+        virtual
         override
         returns (uint256, uint256)
     {
@@ -183,7 +190,7 @@ contract StakedYuzuUSDV3Recovery is
     }
 
     /// @dev V3 narrows this helper to the instant redeem path only.
-    function _redeemFeePpmFor(address account) internal view override returns (uint256) {
+    function _redeemFeePpmFor(address account) internal view virtual override returns (uint256) {
         if (integrations[account].waiveRedeemFee) {
             return 0;
         }
@@ -193,13 +200,13 @@ contract StakedYuzuUSDV3Recovery is
         return instantRedeemFeePpm;
     }
 
-    function setMinDeposit(uint256 newMin) external onlyRole(LIMIT_MANAGER_ROLE) {
+    function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         uint256 oldMin = minDeposit;
         minDeposit = newMin;
         emit UpdatedMinDeposit(oldMin, newMin);
     }
 
-    function setMinWithdraw(uint256 newMin) external onlyRole(LIMIT_MANAGER_ROLE) {
+    function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         uint256 oldMin = minWithdraw;
         minWithdraw = newMin;
         emit UpdatedMinWithdraw(oldMin, newMin);
