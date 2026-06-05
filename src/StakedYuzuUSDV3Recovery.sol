@@ -25,6 +25,7 @@ contract StakedYuzuUSDV3Recovery is
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 
     address private constant LOST_ADDRESS = 0x0000000000000000000000000000000000000001;
     address private constant RECOVERY_RECEIVER = 0x0000000000000000000000000000000000000002;
@@ -32,6 +33,7 @@ contract StakedYuzuUSDV3Recovery is
 
     uint256 public minDeposit;
     uint256 public minWithdraw;
+    uint256 public instantRedeemFeePpm;
 
     /// @notice Reinitializes the contract for V3 upgrade and runs a one-shot recovery
     /// @param _admin The admin of the contract
@@ -44,6 +46,7 @@ contract StakedYuzuUSDV3Recovery is
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
 
         // Clear Ownable2Step state
         _transferOwnership(address(0));
@@ -67,6 +70,11 @@ contract StakedYuzuUSDV3Recovery is
 
     /// @dev Neutralized
     function _checkOwner() internal view override {}
+
+    /// @inheritdoc StakedYuzuUSDV2
+    function canRedeem(address) public view override returns (bool) {
+        return !paused();
+    }
 
     function transferOwnership(address) public override(Ownable2StepUpgradeable) {
         revert OwnershipMigratedToAccessControl();
@@ -98,12 +106,19 @@ contract StakedYuzuUSDV3Recovery is
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setRedeemFee(uint256 newFeePpm) public override onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemFee(uint256 newFeePpm) public override onlyRole(FEE_MANAGER_ROLE) {
         super.setRedeemFee(newFeePpm);
     }
 
+    function setInstantRedeemFee(uint256 newFeePpm) external onlyRole(FEE_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) revert FeeTooHigh(newFeePpm, 1e6);
+        uint256 oldFee = instantRedeemFeePpm;
+        instantRedeemFeePpm = newFeePpm;
+        emit UpdatedInstantRedeemFee(oldFee, newFeePpm);
+    }
+
     // slither-disable-next-line pess-strange-setter
-    function setFeeReceiver(address newFeeReceiver) public override onlyRole(ADMIN_ROLE) {
+    function setFeeReceiver(address newFeeReceiver) public override onlyRole(FEE_MANAGER_ROLE) {
         super.setFeeReceiver(newFeeReceiver);
     }
 
@@ -146,6 +161,38 @@ contract StakedYuzuUSDV3Recovery is
         return super.redeem(shares, receiver, _owner);
     }
 
+    /// @dev Applies `redeemFeePpm` (or 0 if waived), independent of the instant
+    /// redeem fee logic.
+    function initiateRedeem(uint256 shares, address receiver, address _owner)
+        public
+        override
+        returns (uint256, uint256)
+    {
+        if (receiver == address(0)) revert InvalidZeroAddress();
+        uint256 maxShares = maxRedeemOrder(_owner);
+        if (shares > maxShares) revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
+
+        address caller = _msgSender();
+        uint256 callerFeePpm = integrations[caller].waiveRedeemFee ? 0 : redeemFeePpm;
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, callerFeePpm);
+        uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
+
+        emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares, fee);
+
+        return (orderId, assets);
+    }
+
+    /// @dev V3 narrows this helper to the instant redeem path only.
+    function _redeemFeePpmFor(address account) internal view override returns (uint256) {
+        if (integrations[account].waiveRedeemFee) {
+            return 0;
+        }
+        if (integrations[account].canSkipRedeemDelay) {
+            return redeemFeePpm;
+        }
+        return instantRedeemFeePpm;
+    }
+
     function setMinDeposit(uint256 newMin) external onlyRole(LIMIT_MANAGER_ROLE) {
         uint256 oldMin = minDeposit;
         minDeposit = newMin;
@@ -164,5 +211,5 @@ contract StakedYuzuUSDV3Recovery is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[48] private __gap;
+    uint256[47] private __gap;
 }

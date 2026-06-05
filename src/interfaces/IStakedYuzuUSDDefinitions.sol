@@ -78,4 +78,5 @@ interface IStakedYuzuUSDV3Definitions {
     event Recovered(address indexed from, address indexed to, uint256 amount);
     event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
     event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
+    event UpdatedInstantRedeemFee(uint256 oldFee, uint256 newFee);
 }
