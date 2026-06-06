@@ -5,6 +5,7 @@ import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
 import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -37,8 +38,12 @@ contract StakedYuzuUSDV3Recovery is
 
     /// @notice Reinitializes the contract for V3 upgrade and runs a one-shot recovery
     /// @param _admin The admin of the contract
+    /// @dev Gated to the proxy admin
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize(address _admin) external virtual reinitializer(3) whenPaused {
+        if (msg.sender != ERC1967Utils.getAdmin()) revert UnauthorizedReinitializer(msg.sender);
+        if (_admin == address(0)) revert InvalidZeroAddress();
+
         __AccessControlDefaultAdminRules_init(0, _admin);
 
         _grantRole(ADMIN_ROLE, _admin);

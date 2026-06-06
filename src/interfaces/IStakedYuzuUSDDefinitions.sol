@@ -74,6 +74,7 @@ interface IStakedYuzuUSDV3Definitions {
     error OwnershipMigratedToAccessControl();
     error UnderMinDeposit(uint256 assets, uint256 min);
     error UnderMinWithdraw(uint256 assets, uint256 min);
+    error UnauthorizedReinitializer(address caller);
 
     event Recovered(address indexed from, address indexed to, uint256 amount);
     event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
