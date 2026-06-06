@@ -172,6 +172,14 @@ contract StakedYuzuUSDV3Recovery is
         return super.redeem(shares, receiver, _owner);
     }
 
+    function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
+        return _previewWithdrawWithFee(assets, instantRedeemFeePpm);
+    }
+
+    function _previewRedeem(uint256 shares) internal view virtual override returns (uint256, uint256) {
+        return _previewRedeemWithFee(shares, instantRedeemFeePpm);
+    }
+
     /// @dev Applies `redeemFeePpm` (or 0 if waived), independent of the instant
     /// redeem fee logic.
     function initiateRedeem(uint256 shares, address receiver, address _owner)
@@ -194,13 +202,9 @@ contract StakedYuzuUSDV3Recovery is
         return (orderId, assets);
     }
 
-    /// @dev V3 narrows this helper to the instant redeem path only.
     function _redeemFeePpmFor(address account) internal view virtual override returns (uint256) {
         if (integrations[account].waiveRedeemFee) {
             return 0;
-        }
-        if (integrations[account].canSkipRedeemDelay) {
-            return redeemFeePpm;
         }
         return instantRedeemFeePpm;
     }

@@ -116,6 +116,46 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions {
         assertEq(styz3.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT);
     }
 
+    // Reinitialize gate
+    function test_Reinitialize_Revert_NotProxyAdmin() public {
+        address freshOwner = makeAddr("freshOwner");
+        address attacker = makeAddr("attacker");
+        address freshAdmin = makeAddr("freshAdmin");
+
+        address v1Impl = address(new StakedYuzuUSD());
+        bytes memory initData = abi.encodeWithSelector(
+            StakedYuzuUSD.initialize.selector,
+            IERC20(address(yzusd)),
+            "Staked Yuzu USD",
+            "st-yzUSD",
+            freshOwner,
+            feeReceiver,
+            1 days
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, freshOwner, initData);
+        ProxyAdmin freshProxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
+        StakedYuzuUSDV3Recovery freshStyz = StakedYuzuUSDV3Recovery(address(proxy));
+
+        _approveAssets(user1, address(freshStyz), type(uint256).max);
+        vm.prank(user1);
+        freshStyz.deposit(RECOVERY_AMOUNT, LOST_ADDRESS);
+
+        vm.prank(freshOwner);
+        freshStyz.pause();
+
+        address v3Impl = _deploy();
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), v3Impl, bytes(""));
+
+        vm.prank(attacker);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, attacker));
+        freshStyz.reinitialize(attacker);
+
+        vm.prank(freshAdmin);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, freshAdmin));
+        freshStyz.reinitialize(freshAdmin);
+    }
+
     // AccessControl migration
     function test_Owner_ReturnsAdmin() public view {
         assertEq(styz3.owner(), admin);
@@ -205,50 +245,40 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions {
         assertApproxEqAbs(yzusd.balanceOf(feeReceiver) - feeReceiverBefore, expectedFee, 1);
     }
 
-    function test_FrontrunReinitialize_Revert_NotProxyAdmin() public {
-        // Simulate the non-atomic upgrade window: deploy a fresh V1 proxy, upgrade to
-        // V3Recovery WITHOUT the atomic init payload, then attempt to front-run
-        // reinitialize from a non-proxy-admin caller.
-        address freshOwner = makeAddr("freshOwner");
-        address attacker = makeAddr("attacker");
-        address freshAdmin = makeAddr("freshAdmin");
+    function test_PreviewRedeem_UsesInstantFee() public {
+        vm.startPrank(admin);
+        styz3.grantRole(FEE_MANAGER_ROLE, admin);
+        styz3.setRedeemFee(50_000); // 5% delayed fee
+        styz3.setInstantRedeemFee(200_000); // 20% instant fee
+        vm.stopPrank();
 
-        address v1Impl = address(new StakedYuzuUSD());
-        bytes memory initData = abi.encodeWithSelector(
-            StakedYuzuUSD.initialize.selector,
-            IERC20(address(yzusd)),
-            "Staked Yuzu USD",
-            "st-yzUSD",
-            freshOwner,
-            feeReceiver,
-            1 days
-        );
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, freshOwner, initData);
-        ProxyAdmin freshProxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
-        StakedYuzuUSDV3Recovery freshStyz = StakedYuzuUSDV3Recovery(address(proxy));
+        uint256 shares = _deposit(user1, 100e18);
 
-        // Seed LOST_ADDRESS so the recovery burn would succeed if reached
-        _approveAssets(user1, address(freshStyz), type(uint256).max);
+        uint256 previewed = styz3.previewRedeem(shares);
+        uint256 expected = uint256(100e18) - uint256(100e18) * 200_000 / (1_000_000 + 200_000);
+        assertApproxEqAbs(previewed, expected, 1);
+    }
+
+    function test_Redeem_SkipDelayIntegration_PaysInstantFee() public {
+        vm.startPrank(admin);
+        styz3.grantRole(FEE_MANAGER_ROLE, admin);
+        styz3.setRedeemFee(50_000); // 5% delayed fee
+        styz3.setInstantRedeemFee(200_000); // 20% instant fee
+        styz3.setIntegration(user1, true, false); // skipDelay, not waived
+        vm.stopPrank();
+
+        uint256 shares = _deposit(user1, 100e18);
+
+        uint256 user1AssetsBefore = yzusd.balanceOf(user1);
+        uint256 feeReceiverBefore = yzusd.balanceOf(feeReceiver);
+
         vm.prank(user1);
-        freshStyz.deposit(RECOVERY_AMOUNT, LOST_ADDRESS);
+        uint256 assetsOut = styz3.redeem(shares, user1, user1);
 
-        vm.prank(freshOwner);
-        freshStyz.pause();
-
-        // Upgrade WITHOUT the atomic reinit payload (the non-atomic operator mistake)
-        address v3Impl = _deploy();
-        vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), v3Impl, bytes(""));
-
-        // Attacker front-runs the legitimate reinit; gate rejects
-        vm.prank(attacker);
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, attacker));
-        freshStyz.reinitialize(attacker);
-
-        // Even the intended admin EOA cannot bypass; only the ProxyAdmin contract can drive reinit
-        vm.prank(freshAdmin);
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, freshAdmin));
-        freshStyz.reinitialize(freshAdmin);
+        uint256 expectedAssets = uint256(100e18) - uint256(100e18) * 200_000 / (1_000_000 + 200_000);
+        assertApproxEqAbs(assetsOut, expectedAssets, 1);
+        assertApproxEqAbs(yzusd.balanceOf(user1) - user1AssetsBefore, expectedAssets, 1);
+        assertApproxEqAbs(yzusd.balanceOf(feeReceiver) - feeReceiverBefore, 100e18 - expectedAssets, 1);
     }
 
     function test_InitiateRedeem_UsesRedeemFee_NotInstantFee() public {

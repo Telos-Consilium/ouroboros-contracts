@@ -225,11 +225,11 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return (assets - fee, fee);
     }
 
-    function _previewWithdraw(uint256 assets) internal view override returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
         return _previewWithdrawWithFee(assets, redeemFeePpm);
     }
 
-    function _previewRedeem(uint256 shares) internal view override returns (uint256, uint256) {
+    function _previewRedeem(uint256 shares) internal view virtual override returns (uint256, uint256) {
         return _previewRedeemWithFee(shares, redeemFeePpm);
     }
 
