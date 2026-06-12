@@ -10,6 +10,8 @@ import {IntegrationConfig, IStakedYuzuUSDV2Definitions} from "./interfaces/IStak
 /**
  * @title StakedYuzuUSDV2
  * @notice StakedYuzuUSD with integration support and instant redeem/withdraw paths
+ * @dev Integration permissions are checked against the owner in view functions
+ * and against the caller in state-changing functions.
  */
 contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     mapping(address => IntegrationConfig) internal integrations;
