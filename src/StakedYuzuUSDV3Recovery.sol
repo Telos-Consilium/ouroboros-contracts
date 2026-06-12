@@ -35,6 +35,7 @@ contract StakedYuzuUSDV3Recovery is
     uint256 public minDeposit;
     uint256 public minWithdraw;
     uint256 public instantRedeemFeePpm;
+    bool public isInstantRedeemEnabled;
 
     /// @notice Reinitializes the contract for V3 upgrade and runs a one-shot recovery
     /// @param _admin The admin of the contract
@@ -52,6 +53,8 @@ contract StakedYuzuUSDV3Recovery is
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
+
+        isInstantRedeemEnabled = true;
 
         // Clear Ownable2Step state
         _transferOwnership(address(0));
@@ -77,8 +80,13 @@ contract StakedYuzuUSDV3Recovery is
     function _checkOwner() internal view override {}
 
     /// @inheritdoc StakedYuzuUSDV2
-    function canRedeem(address) public view virtual override returns (bool) {
-        return !paused();
+    /// @dev The public instant redeem path is gated by `isInstantRedeemEnabled`. Skip-delay
+    /// integrations keep instant access while the public path is disabled.
+    function canRedeem(address _owner) public view virtual override returns (bool) {
+        if (paused()) {
+            return false;
+        }
+        return isInstantRedeemEnabled || integrations[_owner].canSkipRedeemDelay;
     }
 
     function transferOwnership(address) public override(Ownable2StepUpgradeable) {
@@ -118,6 +126,12 @@ contract StakedYuzuUSDV3Recovery is
     // slither-disable-next-line pess-strange-setter
     function setRedeemFee(uint256 newFeePpm) public virtual override onlyRole(FEE_MANAGER_ROLE) {
         super.setRedeemFee(newFeePpm);
+    }
+
+    function setIsInstantRedeemEnabled(bool enabled) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
+        bool oldValue = isInstantRedeemEnabled;
+        isInstantRedeemEnabled = enabled;
+        emit UpdatedIsInstantRedeemEnabled(oldValue, enabled);
     }
 
     function setInstantRedeemFee(uint256 newFeePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
@@ -227,5 +241,5 @@ contract StakedYuzuUSDV3Recovery is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }

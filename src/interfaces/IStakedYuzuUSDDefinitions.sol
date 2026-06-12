@@ -80,4 +80,5 @@ interface IStakedYuzuUSDV3Definitions {
     event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
     event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
     event UpdatedInstantRedeemFee(uint256 oldFee, uint256 newFee);
+    event UpdatedIsInstantRedeemEnabled(bool oldValue, bool newValue);
 }

@@ -93,6 +93,9 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         assertEq(v3R.balanceOf(LOST_ADDRESS), 0, "lost balance not burned");
         assertEq(v3R.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT, "recovery receiver not credited");
 
+        // Public instant redeem enabled at upgrade time
+        assertTrue(v3R.isInstantRedeemEnabled(), "isInstantRedeemEnabled not set");
+
         // AccessControl migration
         assertEq(v3R.owner(), admin, "owner not migrated to admin");
         assertTrue(v3R.hasRole(v3R.DEFAULT_ADMIN_ROLE(), admin), "DEFAULT_ADMIN_ROLE not granted");

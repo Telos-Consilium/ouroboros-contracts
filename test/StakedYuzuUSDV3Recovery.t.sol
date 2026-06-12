@@ -9,6 +9,7 @@ import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3Recovery} from "../src/StakedYuzuUSDV3Recovery.sol";
@@ -297,5 +298,103 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions {
         // Net assets locked ~= 100e18 * 1e6 / (1e6 + 50_000) = 100e18 * 1_000_000 / 1_050_000
         uint256 expectedNet = uint256(100e18) * 1_000_000 / 1_050_000;
         assertApproxEqRel(lockedAssets, expectedNet, 0.001e18); // 0.1% tolerance
+    }
+
+    // Instant redeem toggle
+    function test_IsInstantRedeemEnabled_DefaultTrue() public view {
+        assertTrue(styz3.isInstantRedeemEnabled());
+    }
+
+    function test_SetIsInstantRedeemEnabled_Revert_NotRedeemManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, REDEEM_MANAGER_ROLE)
+        );
+        styz3.setIsInstantRedeemEnabled(false);
+    }
+
+    function test_SetIsInstantRedeemEnabled_EmitsEvent() public {
+        vm.prank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+
+        vm.expectEmit(false, false, false, true);
+        emit UpdatedIsInstantRedeemEnabled(true, false);
+        vm.prank(admin);
+        styz3.setIsInstantRedeemEnabled(false);
+        assertFalse(styz3.isInstantRedeemEnabled());
+    }
+
+    function test_InstantRedeemDisabled_PublicUser_Reverts() public {
+        vm.prank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+
+        uint256 shares = _deposit(user1, 100e18);
+
+        vm.prank(admin);
+        styz3.setIsInstantRedeemEnabled(false);
+
+        assertFalse(styz3.canRedeem(user1));
+        assertEq(styz3.maxWithdraw(user1), 0);
+        assertEq(styz3.maxRedeem(user1), 0);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
+        styz3.redeem(shares, user1, user1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user1, 50e18, 0));
+        styz3.withdraw(50e18, user1, user1);
+    }
+
+    function test_InstantRedeemDisabled_SkipDelayIntegration_StillRedeems() public {
+        vm.startPrank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+        styz3.setIntegration(user2, true, false);
+        styz3.setIsInstantRedeemEnabled(false);
+        vm.stopPrank();
+
+        // Integration owner retains view-level access
+        assertTrue(styz3.canRedeem(user2));
+
+        // Integration caller redeems on behalf of a public user
+        uint256 shares = _deposit(user1, 100e18);
+        vm.prank(user1);
+        styz3.approve(user2, shares);
+
+        vm.prank(user2);
+        uint256 assetsOut = styz3.redeem(shares, user1, user1);
+        assertGt(assetsOut, 0);
+        assertEq(styz3.balanceOf(user1), 0);
+    }
+
+    function test_InstantRedeemDisabled_InitiateRedeem_Unaffected() public {
+        vm.prank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+
+        uint256 shares = _deposit(user1, 100e18);
+
+        vm.prank(admin);
+        styz3.setIsInstantRedeemEnabled(false);
+
+        vm.prank(user1);
+        (uint256 orderId, uint256 lockedAssets) = styz3.initiateRedeem(shares, user1, user1);
+        assertGt(lockedAssets, 0);
+        assertEq(orderId, 0);
+    }
+
+    function test_InstantRedeemReEnabled_PublicUser_Redeems() public {
+        vm.prank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+
+        uint256 shares = _deposit(user1, 100e18);
+
+        vm.startPrank(admin);
+        styz3.setIsInstantRedeemEnabled(false);
+        styz3.setIsInstantRedeemEnabled(true);
+        vm.stopPrank();
+
+        vm.prank(user1);
+        uint256 assetsOut = styz3.redeem(shares, user1, user1);
+        assertGt(assetsOut, 0);
     }
 }
