@@ -40,6 +40,7 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions, IYuzu
     bytes32 constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
     bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
+    bytes32 constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     function setUp() public virtual {
         owner = makeAddr("owner");
@@ -711,5 +712,88 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions, IYuzu
         vm.prank(user1);
         (, uint256 lockedAssets) = styz3.initiateRedeem(shares, user1, user1);
         assertGt(lockedAssets, 0);
+    }
+
+    // Max view exactness (ERC-4626 compliance)
+    function test_MaxMint_UnlimitedByDefault_NoRevert() public view {
+        assertEq(styz3.maxMint(user1), type(uint256).max);
+    }
+
+    function test_MaxMint_Throttled_ConvertsRemaining() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMintThrottle(100e18, type(uint256).max);
+
+        assertEq(styz3.maxMint(user1), styz3.previewDeposit(100e18));
+    }
+
+    function test_MaxMint_UnlimitedAboveParPrice_NoRevert() public {
+        // Exempt the depositor so the mint throttle stays pristine (remaining == uint256.max)
+        vm.startPrank(admin);
+        styz3.grantRole(POOL_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
+        vm.stopPrank();
+
+        _deposit(user1, 1000e18);
+
+        // Raise the share price above 1 via a completed distribution
+        yzusd.mint(admin, 500e18);
+        vm.prank(admin);
+        yzusd.approve(address(styz3), 500e18);
+        vm.prank(admin);
+        styz3.distribute(500e18, 1);
+        vm.warp(block.timestamp + 2);
+        assertGt(styz3.convertToAssets(1e18), 1e18);
+
+        // Unlimited throttle converts uint256.max assets to shares with no overflow
+        assertEq(styz3.maxMint(user2), styz3.previewDeposit(type(uint256).max));
+    }
+
+    function test_MaxDeposit_MaxMint_BelowMinDeposit_ReturnZero() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.setMinDeposit(100e18);
+        styz3.setMintThrottle(50e18, type(uint256).max); // remaining below minDeposit
+        vm.stopPrank();
+
+        assertEq(styz3.maxDeposit(user1), 0);
+        assertEq(styz3.maxMint(user1), 0);
+
+        // Entry points revert with the precise UnderMin error, not ExceededMax
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinDeposit.selector, 50e18, 100e18));
+        styz3.deposit(50e18, user1);
+    }
+
+    function test_MaxWithdraw_MaxRedeem_BelowMinWithdraw_ReturnZero() public {
+        _deposit(user1, 50e18);
+
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMinWithdraw(100e18); // balance worth less than minWithdraw
+
+        assertEq(styz3.maxWithdraw(user1), 0);
+        assertEq(styz3.maxRedeem(user1), 0);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinWithdraw.selector, 50e18, 100e18));
+        styz3.withdraw(50e18, user1, user1);
+    }
+
+    function test_MaxWithdraw_AtMinWithdraw_NotClamped() public {
+        _deposit(user1, 100e18);
+        uint256 achievable = styz3.maxWithdraw(user1);
+
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMinWithdraw(achievable);
+
+        // Achievable max equals the floor exactly, so it is reported (not clamped) and is withdrawable
+        assertEq(styz3.maxWithdraw(user1), achievable);
+        vm.prank(user1);
+        styz3.withdraw(achievable, user1, user1);
     }
 }

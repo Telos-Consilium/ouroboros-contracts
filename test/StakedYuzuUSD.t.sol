@@ -990,4 +990,10 @@ contract StakedYuzuUSDInvariantTest is Test {
 
         assertEq(totalPendingOrderValue, _totalPendingOrderValue, "! totalPendingOrderValue == _totalPendingOrderValue");
     }
+
+    /// @dev A share is always worth at least one asset (totalSupply <= totalAssets), so converting
+    /// assets to shares yields no more than the input amount and cannot overflow.
+    function invariantTest_TotalSupply_Le_TotalAssets() public view {
+        assertLe(styz.totalSupply(), styz.totalAssets(), "! totalSupply <= totalAssets");
+    }
 }

@@ -180,18 +180,18 @@ contract StakedYuzuUSDV3Recovery is
 
     /// @inheritdoc StakedYuzuUSDV2
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
-        return Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
+        uint256 maxAssets = Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
+        return maxAssets < minDeposit ? 0 : maxAssets;
     }
 
     /// @inheritdoc StakedYuzuUSDV2
+    /// @dev previewDeposit(remaining) <= remaining while totalSupply <= totalAssets (1 share >= 1 asset),
+    /// so the asset-to-share conversion cannot overflow for any remaining
     function maxMint(address receiver) public view virtual override returns (uint256) {
         uint256 maxShares = super.maxMint(receiver);
         uint256 remaining = _mintThrottleRemaining(receiver);
-        // Prevent overflow
-        if (remaining >= type(uint128).max) {
-            return maxShares;
-        }
-        return Math.min(maxShares, previewDeposit(remaining));
+        uint256 shares = Math.min(maxShares, previewDeposit(remaining));
+        return previewMint(shares) < minDeposit ? 0 : shares;
     }
 
     /// @inheritdoc StakedYuzuUSDV2
@@ -199,18 +199,19 @@ contract StakedYuzuUSDV3Recovery is
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 throttleMax = remaining - _feeOnTotal(remaining, _redeemFeePpmFor(_owner));
-        return Math.min(super.maxWithdraw(_owner), throttleMax);
+        uint256 maxAssets = Math.min(super.maxWithdraw(_owner), throttleMax);
+        return maxAssets < minWithdraw ? 0 : maxAssets;
     }
 
     /// @inheritdoc StakedYuzuUSDV2
+    /// @dev convertToAssets(maxShares) is bounded by totalAssets, and convertToShares(remaining) is only
+    /// reached when remaining is below that bound, so neither conversion can overflow
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
         uint256 maxShares = super.maxRedeem(_owner);
         uint256 remaining = _redeemThrottleRemaining(_owner);
-        // Prevent overflow
-        if (remaining >= type(uint128).max) {
-            return maxShares;
-        }
-        return Math.min(maxShares, convertToShares(remaining));
+        uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
+        (uint256 netAssets,) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_owner));
+        return netAssets < minWithdraw ? 0 : shares;
     }
 
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
