@@ -21,6 +21,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
 
     bytes32 constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
+    bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     address constant LOST_ADDRESS = address(0x01);
     address constant RECOVERY_RECEIVER = address(0x02);
@@ -95,6 +96,13 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
 
         // Public instant redeem enabled at upgrade time
         assertTrue(v3R.isInstantRedeemEnabled(), "isInstantRedeemEnabled not set");
+
+        // Throttles unlimited at upgrade time
+        assertEq(v3R.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE, "THROTTLE_EXEMPT_ROLE admin not set");
+        assertEq(v3R.getMintThrottle().blockLimit, type(uint256).max, "mint throttle block limit not max");
+        assertEq(v3R.getMintThrottle().dailyLimit, type(uint256).max, "mint throttle daily limit not max");
+        assertEq(v3R.getRedeemThrottle().blockLimit, type(uint256).max, "redeem throttle block limit not max");
+        assertEq(v3R.getRedeemThrottle().dailyLimit, type(uint256).max, "redeem throttle daily limit not max");
 
         // AccessControl migration
         assertEq(v3R.owner(), admin, "owner not migrated to admin");

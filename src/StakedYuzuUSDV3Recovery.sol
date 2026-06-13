@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -8,6 +9,7 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
+import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
 /**
@@ -19,6 +21,7 @@ import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinition
 contract StakedYuzuUSDV3Recovery is
     StakedYuzuUSDV2,
     AccessControlDefaultAdminRulesUpgradeable,
+    YuzuThrottle,
     IStakedYuzuUSDV3Definitions
 {
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -27,6 +30,7 @@ contract StakedYuzuUSDV3Recovery is
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
+    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     address private constant LOST_ADDRESS = 0x0000000000000000000000000000000000000001;
     address private constant RECOVERY_RECEIVER = 0x0000000000000000000000000000000000000002;
@@ -53,8 +57,11 @@ contract StakedYuzuUSDV3Recovery is
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
 
         isInstantRedeemEnabled = true;
+        _setMintThrottle(type(uint256).max, type(uint256).max);
+        _setRedeemThrottle(type(uint256).max, type(uint256).max);
 
         // Clear Ownable2Step state
         _transferOwnership(address(0));
@@ -164,26 +171,109 @@ contract StakedYuzuUSDV3Recovery is
         super.setIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
+    /// @inheritdoc YuzuThrottle
+    /// @dev THROTTLE_EXEMPT_ROLE is checked against the caller in state-changing functions
+    /// and against the owner or receiver in view functions
+    function _isThrottleExempt(address account) internal view virtual override returns (bool) {
+        return hasRole(THROTTLE_EXEMPT_ROLE, account);
+    }
+
+    /// @inheritdoc StakedYuzuUSDV2
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        return Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
+    }
+
+    /// @inheritdoc StakedYuzuUSDV2
+    function maxMint(address receiver) public view virtual override returns (uint256) {
+        uint256 maxShares = super.maxMint(receiver);
+        uint256 remaining = _mintThrottleRemaining(receiver);
+        // Prevent overflow
+        if (remaining >= type(uint128).max) {
+            return maxShares;
+        }
+        return Math.min(maxShares, previewDeposit(remaining));
+    }
+
+    /// @inheritdoc StakedYuzuUSDV2
+    /// @dev Reported net of the fee; throttle capacity is denominated in gross outflow
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
+        uint256 remaining = _redeemThrottleRemaining(_owner);
+        uint256 throttleMax = remaining - _feeOnTotal(remaining, _redeemFeePpmFor(_owner));
+        return Math.min(super.maxWithdraw(_owner), throttleMax);
+    }
+
+    /// @inheritdoc StakedYuzuUSDV2
+    function maxRedeem(address _owner) public view virtual override returns (uint256) {
+        uint256 maxShares = super.maxRedeem(_owner);
+        uint256 remaining = _redeemThrottleRemaining(_owner);
+        // Prevent overflow
+        if (remaining >= type(uint128).max) {
+            return maxShares;
+        }
+        return Math.min(maxShares, convertToShares(remaining));
+    }
+
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
-        return super.deposit(assets, receiver);
+        address caller = _msgSender();
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) {
+            // Throttle-exempt callers can bypass the mint throttle at execution time
+            if (!_isThrottleExempt(caller) || paused()) {
+                revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
+            }
+            uint256 maxUnthrottled = StakedYuzuUSDV2.maxDeposit(receiver);
+            if (assets > maxUnthrottled) {
+                revert ERC4626ExceededMaxDeposit(receiver, assets, maxUnthrottled);
+            }
+            uint256 shares = previewDeposit(assets);
+            _deposit(caller, receiver, assets, shares);
+            return shares;
+        }
+        uint256 mintedShares = super.deposit(assets, receiver);
+        _consumeMintThrottle(caller, assets);
+        return mintedShares;
     }
 
     function mint(uint256 shares, address receiver) public virtual override returns (uint256) {
         uint256 assets = previewMint(shares);
         if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
-        return super.mint(shares, receiver);
+        address caller = _msgSender();
+        uint256 maxShares = maxMint(receiver);
+        if (shares > maxShares) {
+            // Throttle-exempt callers can bypass the mint throttle at execution time
+            if (!_isThrottleExempt(caller) || paused()) {
+                revert ERC4626ExceededMaxMint(receiver, shares, maxShares);
+            }
+            uint256 maxUnthrottled = StakedYuzuUSDV2.maxMint(receiver);
+            if (shares > maxUnthrottled) {
+                revert ERC4626ExceededMaxMint(receiver, shares, maxUnthrottled);
+            }
+            _deposit(caller, receiver, assets, shares);
+            return assets;
+        }
+        uint256 depositedAssets = super.mint(shares, receiver);
+        _consumeMintThrottle(caller, depositedAssets);
+        return depositedAssets;
     }
 
+    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee)
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
-        return super.withdraw(assets, receiver, _owner);
+        uint256 shares = super.withdraw(assets, receiver, _owner);
+        address caller = _msgSender();
+        _consumeRedeemThrottle(caller, assets + _feeOnRaw(assets, _redeemFeePpmFor(caller)));
+        return shares;
     }
 
+    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee)
     function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
-        (uint256 assets,) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_msgSender()));
+        address caller = _msgSender();
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(caller));
         if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
-        return super.redeem(shares, receiver, _owner);
+        uint256 assetsOut = super.redeem(shares, receiver, _owner);
+        _consumeRedeemThrottle(caller, assetsOut + fee);
+        return assetsOut;
     }
 
     function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
@@ -233,6 +323,24 @@ contract StakedYuzuUSDV3Recovery is
         uint256 oldMin = minWithdraw;
         minWithdraw = newMin;
         emit UpdatedMinWithdraw(oldMin, newMin);
+    }
+
+    // slither-disable-next-line pess-strange-setter
+    function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
+        external
+        virtual
+        onlyRole(LIMIT_MANAGER_ROLE)
+    {
+        _setMintThrottle(newBlockLimit, newDailyLimit);
+    }
+
+    // slither-disable-next-line pess-strange-setter
+    function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
+        external
+        virtual
+        onlyRole(LIMIT_MANAGER_ROLE)
+    {
+        _setRedeemThrottle(newBlockLimit, newDailyLimit);
     }
 
     /**

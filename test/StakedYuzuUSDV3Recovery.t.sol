@@ -14,8 +14,9 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3Recovery} from "../src/StakedYuzuUSDV3Recovery.sol";
 import {IntegrationConfig, IStakedYuzuUSDV3Definitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
+import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 
-contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions {
+contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions, IYuzuThrottleDefinitions {
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     StakedYuzuUSDV3Recovery public styz3;
@@ -38,6 +39,7 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions {
     bytes32 constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
+    bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     function setUp() public virtual {
         owner = makeAddr("owner");
@@ -396,5 +398,318 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions {
         vm.prank(user1);
         uint256 assetsOut = styz3.redeem(shares, user1, user1);
         assertGt(assetsOut, 0);
+    }
+
+    // Throttle
+    function test_Throttle_UnlimitedByDefault() public {
+        Throttle memory mintThrottle = styz3.getMintThrottle();
+        assertEq(mintThrottle.blockLimit, type(uint256).max);
+        assertEq(mintThrottle.dailyLimit, type(uint256).max);
+        Throttle memory redeemThrottle = styz3.getRedeemThrottle();
+        assertEq(redeemThrottle.blockLimit, type(uint256).max);
+        assertEq(redeemThrottle.dailyLimit, type(uint256).max);
+
+        assertEq(styz3.maxDeposit(user1), type(uint256).max);
+
+        uint256 shares = _deposit(user1, 1_000_000e18);
+        vm.prank(user1);
+        styz3.redeem(shares, user1, user1);
+    }
+
+    function test_Throttle_ZeroLimit_Halts() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        uint256 shares = _deposit(user1, 100e18);
+
+        vm.startPrank(admin);
+        styz3.setMintThrottle(0, 0);
+        styz3.setRedeemThrottle(0, 0);
+        vm.stopPrank();
+
+        assertEq(styz3.maxDeposit(user1), 0);
+        assertEq(styz3.maxWithdraw(user1), 0);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector, user1, 1e18, 0));
+        styz3.deposit(1e18, user1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
+        styz3.redeem(shares, user1, user1);
+
+        // The delayed path is not throttled
+        vm.prank(user1);
+        (, uint256 lockedAssets) = styz3.initiateRedeem(shares, user1, user1);
+        assertGt(lockedAssets, 0);
+    }
+
+    function test_SetMintThrottle_Revert_NotLimitManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
+        );
+        styz3.setMintThrottle(100e18, 1000e18);
+    }
+
+    function test_SetRedeemThrottle_Revert_NotLimitManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
+        );
+        styz3.setRedeemThrottle(100e18, 1000e18);
+    }
+
+    function test_SetMintThrottle_EmitsEvent() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        vm.expectEmit(false, false, false, true);
+        emit UpdatedMintThrottle(type(uint256).max, 100e18, type(uint256).max, 1000e18);
+        vm.prank(admin);
+        styz3.setMintThrottle(100e18, 1000e18);
+
+        Throttle memory throttle = styz3.getMintThrottle();
+        assertEq(throttle.blockLimit, 100e18);
+        assertEq(throttle.dailyLimit, 1000e18);
+    }
+
+    function test_MintThrottle_BlockLimit() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMintThrottle(100e18, type(uint256).max);
+
+        _deposit(user1, 60e18);
+        assertEq(styz3.maxDeposit(user1), 40e18);
+
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector, user1, 50e18, 40e18)
+        );
+        styz3.deposit(50e18, user1);
+
+        vm.roll(block.number + 1);
+        _deposit(user1, 50e18);
+    }
+
+    function test_MintThrottle_DailyLimit() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMintThrottle(type(uint256).max, 100e18);
+
+        _deposit(user1, 60e18);
+
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 1 hours);
+        assertEq(styz3.maxDeposit(user1), 40e18);
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector, user1, 50e18, 40e18)
+        );
+        styz3.deposit(50e18, user1);
+
+        vm.warp((block.timestamp / 1 days + 1) * 1 days);
+        vm.roll(block.number + 1);
+        _deposit(user1, 100e18);
+    }
+
+    function test_MintThrottle_DailyBoundary_ResetsAtMidnight() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMintThrottle(type(uint256).max, 100e18);
+
+        vm.warp((block.timestamp / 1 days + 1) * 1 days - 60);
+        _deposit(user1, 100e18);
+
+        vm.warp(block.timestamp + 120);
+        vm.roll(block.number + 1);
+        _deposit(user1, 100e18);
+    }
+
+    function test_MintThrottle_Mint_Consumes() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMintThrottle(100e18, type(uint256).max);
+
+        uint256 shares = styz3.previewDeposit(60e18);
+        vm.prank(user1);
+        styz3.mint(shares, user1);
+
+        uint256 overShares = styz3.previewDeposit(50e18);
+        uint256 maxShares = styz3.maxMint(user1);
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxMint.selector, user1, overShares, maxShares)
+        );
+        styz3.mint(overShares, user1);
+    }
+
+    function test_ThrottleExemptRole_AdminIsAdminRole() public view {
+        assertEq(styz3.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE);
+    }
+
+    function test_ThrottleExemptRole_Grant_Revert_NotRoleAdmin() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+    }
+
+    function test_RedeemThrottle_SkipDelayIntegration_NotExempt_Throttled() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.setIntegration(user2, true, false);
+        styz3.setRedeemThrottle(50e18, type(uint256).max);
+        vm.stopPrank();
+
+        _deposit(user2, 500e18);
+
+        // Skip-delay status alone no longer grants throttle exemption
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 50e18));
+        styz3.withdraw(100e18, user2, user2);
+    }
+
+    function test_MintThrottle_ThrottleExempt_Bypasses() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+        styz3.setMintThrottle(100e18, type(uint256).max);
+        vm.stopPrank();
+
+        assertEq(styz3.maxDeposit(user2), type(uint256).max);
+
+        vm.prank(user2);
+        styz3.deposit(150e18, user2);
+        assertEq(styz3.getMintThrottle().usedInBlock, 0);
+
+        // Public budget is untouched by the exempt deposit
+        _deposit(user1, 100e18);
+    }
+
+    function test_RedeemThrottle_BlockLimit_GrossIncludesFee() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(FEE_MANAGER_ROLE, admin);
+        styz3.setInstantRedeemFee(200_000); // 20% instant fee
+        vm.stopPrank();
+
+        _deposit(user1, 1000e18);
+
+        vm.prank(admin);
+        styz3.setRedeemThrottle(120e18, type(uint256).max);
+
+        // Gross capacity 120e18 supports a net withdrawal of 100e18 plus 20e18 fee
+        assertEq(styz3.maxWithdraw(user1), 100e18);
+
+        vm.prank(user1);
+        styz3.withdraw(100e18, user1, user1);
+        assertEq(styz3.getRedeemThrottle().usedInBlock, 120e18);
+        assertEq(styz3.maxWithdraw(user1), 0);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user1, 1e18, 0));
+        styz3.withdraw(1e18, user1, user1);
+
+        vm.roll(block.number + 1);
+        vm.prank(user1);
+        styz3.withdraw(50e18, user1, user1);
+    }
+
+    function test_RedeemThrottle_Redeem_ConsumesAtMaxRedeem() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        _deposit(user1, 1000e18);
+
+        vm.prank(admin);
+        styz3.setRedeemThrottle(120e18, type(uint256).max);
+
+        uint256 maxShares = styz3.maxRedeem(user1);
+        assertEq(maxShares, styz3.convertToShares(120e18));
+
+        vm.prank(user1);
+        styz3.redeem(maxShares, user1, user1);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, 1e18, 0));
+        styz3.redeem(1e18, user1, user1);
+    }
+
+    function test_RedeemThrottle_DailyLimit() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        _deposit(user1, 1000e18);
+
+        vm.prank(admin);
+        styz3.setRedeemThrottle(type(uint256).max, 100e18);
+
+        vm.prank(user1);
+        styz3.withdraw(60e18, user1, user1);
+
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 1 hours);
+        assertEq(styz3.maxWithdraw(user1), 40e18);
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user1, 50e18, 40e18)
+        );
+        styz3.withdraw(50e18, user1, user1);
+
+        vm.warp((block.timestamp / 1 days + 1) * 1 days);
+        vm.roll(block.number + 1);
+        vm.prank(user1);
+        styz3.withdraw(50e18, user1, user1);
+    }
+
+    function test_RedeemThrottle_ThrottleExempt_Bypasses() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+        styz3.setRedeemThrottle(10e18, type(uint256).max);
+        vm.stopPrank();
+
+        uint256 shares = _deposit(user2, 500e18);
+
+        vm.prank(user2);
+        styz3.redeem(shares, user2, user2);
+        assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
+    }
+
+    function test_RedeemThrottle_NonExemptCaller_ConsumesForExemptOwner() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+        styz3.setRedeemThrottle(50e18, type(uint256).max);
+        vm.stopPrank();
+
+        _deposit(user2, 500e18);
+        vm.prank(user2);
+        styz3.approve(user1, type(uint256).max);
+
+        // maxWithdraw(user2) is exempt, so the throttle reverts at consumption
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 50e18));
+        styz3.withdraw(100e18, user1, user2);
+    }
+
+    function test_RedeemThrottle_InitiateRedeem_NotThrottled() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        uint256 shares = _deposit(user1, 100e18);
+
+        vm.prank(admin);
+        styz3.setRedeemThrottle(1, 1);
+
+        vm.prank(user1);
+        (, uint256 lockedAssets) = styz3.initiateRedeem(shares, user1, user1);
+        assertGt(lockedAssets, 0);
     }
 }
