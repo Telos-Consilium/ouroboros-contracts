@@ -18,3 +18,11 @@ interface IYuzuProtoDefinitions {
 interface IYuzuProtoV2Definitions {
     error ExceededMaxBurn(address owner, uint256 tokens, uint256 max);
 }
+
+interface IYuzuMinAmountsDefinitions {
+    error UnderMinDeposit(uint256 assets, uint256 min);
+    error UnderMinWithdraw(uint256 assets, uint256 min);
+
+    event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
+    event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
+}
