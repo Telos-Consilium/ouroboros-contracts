@@ -26,3 +26,7 @@ interface IYuzuMinAmountsDefinitions {
     event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
     event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
 }
+
+interface IYuzuSameBlockGuardDefinitions {
+    error SameBlockMintRedeem(address account);
+}

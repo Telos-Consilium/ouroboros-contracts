@@ -114,6 +114,7 @@ contract YuzuV3MinAmountsTest is Test, IYuzuMinAmountsDefinitions {
         yzusd.setLiquidityBufferTargetSize(1_000_000e6);
         vm.prank(user);
         yzusd.deposit(100e6, user);
+        vm.roll(block.number + 1); // same-block guard: redeem in a later block than the mint
 
         vm.prank(limitManager);
         yzusd.setMinWithdraw(10e6);

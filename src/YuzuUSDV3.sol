@@ -4,16 +4,18 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
+import {YuzuSameBlockGuard} from "./proto/YuzuSameBlockGuard.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 import {YuzuUSDV2} from "./YuzuUSDV2.sol";
 
 /**
  * @title YuzuUSDV3
- * @notice YuzuUSD with minimum mint/redeem amounts and per-block/daily throttling on the instant paths
- * @dev The throttle gates only the instant deposit/mint and withdraw/redeem paths. The order path
- * (createRedeemOrder) is unthrottled. THROTTLE_EXEMPT_ROLE holders bypass the throttle.
+ * @notice YuzuUSD with minimum mint/redeem amounts, per-block/daily throttling, and a same-block
+ * mint+redeem guard on the instant paths
+ * @dev The throttle and same-block guard gate only the instant deposit/mint and withdraw/redeem paths.
+ * The order path (createRedeemOrder) is not gated. THROTTLE_EXEMPT_ROLE holders bypass both.
  */
-contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle {
+contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     /// @notice Reinitializes the contract for the V3 upgrade
@@ -35,6 +37,11 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle {
     /// vaults whose integration model is caller-keyed; the proto vaults have none.
     function _isThrottleExempt(address account) internal view override returns (bool) {
         return hasRole(THROTTLE_EXEMPT_ROLE, account);
+    }
+
+    /// @inheritdoc YuzuSameBlockGuard
+    function _isSameBlockGuardExempt(address account) internal view override returns (bool) {
+        return _isThrottleExempt(account);
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
@@ -88,6 +95,7 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle {
         _checkMinDeposit(assets);
         uint256 tokens = super.deposit(assets, receiver);
         _consumeMintThrottle(receiver, assets);
+        _recordMintBlock(receiver);
         return tokens;
     }
 
@@ -95,11 +103,13 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle {
         _checkMinDeposit(previewMint(tokens));
         uint256 assets = super.mint(tokens, receiver);
         _consumeMintThrottle(receiver, assets);
+        _recordMintBlock(receiver);
         return assets;
     }
 
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         _checkMinWithdraw(assets);
+        _checkSameBlockRedeem(_owner);
         uint256 tokens = super.withdraw(assets, receiver, _owner);
         _consumeRedeemThrottle(_owner, assets + _feeOnRaw(assets, redeemFeePpm));
         return tokens;
@@ -108,6 +118,7 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle {
     function redeem(uint256 tokens, address receiver, address _owner) public virtual override returns (uint256) {
         (uint256 assets, uint256 fee) = _previewRedeem(tokens);
         _checkMinWithdraw(assets);
+        _checkSameBlockRedeem(_owner);
         uint256 assetsOut = super.redeem(tokens, receiver, _owner);
         _consumeRedeemThrottle(_owner, assetsOut + fee);
         return assetsOut;

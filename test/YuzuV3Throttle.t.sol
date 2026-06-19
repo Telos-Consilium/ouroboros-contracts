@@ -139,6 +139,7 @@ contract YuzuUSDV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         yzusd.setLiquidityBufferTargetSize(1_000_000e6);
         vm.prank(user);
         yzusd.deposit(1000e6, user);
+        vm.roll(block.number + 1); // same-block guard: redeem in a later block than the mint
 
         vm.prank(limitManager);
         yzusd.setRedeemThrottle(100e6, type(uint256).max);
