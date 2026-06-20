@@ -26,11 +26,6 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
     }
 
-    /// @inheritdoc YuzuMinAmounts
-    function _authorizeMinAmounts() internal view override {
-        _checkRole(LIMIT_MANAGER_ROLE);
-    }
-
     /// @inheritdoc YuzuThrottle
     /// @dev THROTTLE_EXEMPT_ROLE keys on the owner or receiver in both the views and the
     /// state-changing paths, the standard ERC-4626 principal. Caller-keying is reserved for
@@ -60,6 +55,16 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
         onlyRole(LIMIT_MANAGER_ROLE)
     {
         _setRedeemThrottle(newBlockLimit, newDailyLimit);
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+        _setMinDeposit(newMin);
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+        _setMinWithdraw(newMin);
     }
 
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
