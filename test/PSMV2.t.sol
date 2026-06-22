@@ -213,6 +213,19 @@ contract PSMV2Test is PSMTest {
         assertGt(_redeem(user1, 1e18), 0);
     }
 
+    function test_SameBlock_ZeroAmountDeposit_DoesNotStamp() public {
+        // user1 holds a position from an earlier block
+        _deposit(user1, 100e6);
+        vm.roll(block.number + 1);
+
+        // A zero-amount deposit from user2 to user1 does not stamp user1
+        vm.prank(user2);
+        psmV2.deposit(0, user1);
+
+        // So user1's same-block redeem still works
+        assertGt(_redeem(user1, 1e18), 0);
+    }
+
     // --- exemptions ---
 
     function test_Exempt_BypassesMintThrottle() public {

@@ -100,7 +100,7 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
         _checkMinDeposit(assets);
         uint256 tokens = super.deposit(assets, receiver);
         _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver);
+        _recordMintBlock(receiver, tokens);
         return tokens;
     }
 
@@ -108,7 +108,7 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
         _checkMinDeposit(previewMint(tokens));
         uint256 assets = super.mint(tokens, receiver);
         _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver);
+        _recordMintBlock(receiver, tokens);
         return assets;
     }
 

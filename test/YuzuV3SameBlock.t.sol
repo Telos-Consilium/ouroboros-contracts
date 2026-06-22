@@ -122,4 +122,23 @@ contract YuzuV3SameBlockGuardTest is Test, IYuzuSameBlockGuardDefinitions {
         vm.prank(exempt);
         yzusd.withdraw(50e6, exempt, exempt);
     }
+
+    function test_SameBlock_ZeroAmountMint_DoesNotStamp() public {
+        // user holds a redeemable position from an earlier block
+        vm.prank(user);
+        yzusd.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        // A zero-amount deposit or mint from `other` to `user` does not stamp user for the current block
+        vm.prank(other);
+        yzusd.deposit(0, user);
+        assertTrue(yzusd.lastMintBlock(user) != block.number);
+        vm.prank(other);
+        yzusd.mint(0, user);
+        assertTrue(yzusd.lastMintBlock(user) != block.number);
+
+        // So user's same-block redeem is not blocked
+        vm.prank(user);
+        yzusd.withdraw(50e6, user, user);
+    }
 }

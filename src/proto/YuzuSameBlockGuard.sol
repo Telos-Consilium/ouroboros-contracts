@@ -29,8 +29,9 @@ abstract contract YuzuSameBlockGuard is IYuzuSameBlockGuardDefinitions {
         return _getYuzuSameBlockGuardStorage()._lastMintBlock[account];
     }
 
-    function _recordMintBlock(address receiver) internal {
-        if (_isSameBlockGuardExempt(receiver)) {
+    function _recordMintBlock(address receiver, uint256 amount) internal {
+        // slither-disable-next-line incorrect-equality
+        if (amount == 0 || _isSameBlockGuardExempt(receiver)) {
             return;
         }
         _getYuzuSameBlockGuardStorage()._lastMintBlock[receiver] = block.number;

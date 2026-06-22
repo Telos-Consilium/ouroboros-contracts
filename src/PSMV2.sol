@@ -89,7 +89,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
         _checkMinDeposit(assets);
         uint256 shares = super.deposit(assets, receiver);
         _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver);
+        _recordMintBlock(receiver, shares);
         return shares;
     }
 
