@@ -30,3 +30,14 @@ interface IYuzuMinAmountsDefinitions {
 interface IYuzuSameBlockGuardDefinitions {
     error SameBlockMintRedeem(address account);
 }
+
+interface IYuzuNavMarkdownDefinitions {
+    error NavStepTooLarge(uint256 requestedNav, uint256 currentNav, uint256 maxDelta);
+    error NavCooldownActive(uint256 nowTimestamp, uint256 readyTimestamp);
+    error InvalidNavStepCap(uint256 stepCapPpm, uint256 max);
+    error MintDisabledWhileMarkedDown(uint256 nav);
+
+    event UpdatedNav(uint256 oldNav, uint256 newNav);
+    event UpdatedNavStepCap(uint256 oldStepCapPpm, uint256 newStepCapPpm);
+    event UpdatedNavCooldown(uint256 oldCooldown, uint256 newCooldown);
+}

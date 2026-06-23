@@ -3,27 +3,41 @@ pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
+import {YuzuNavMarkdown} from "./proto/YuzuNavMarkdown.sol";
 import {YuzuSameBlockGuard} from "./proto/YuzuSameBlockGuard.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
+import {YuzuUSD} from "./YuzuUSD.sol";
 import {YuzuUSDV2} from "./YuzuUSDV2.sol";
 
 /**
  * @title YuzuUSDV3
- * @notice YuzuUSD with minimum mint/redeem amounts, per-block/daily throttling, and a same-block
- * mint+redeem guard on the instant paths
+ * @notice YuzuUSD with minimum mint/redeem amounts, per-block/daily throttling, a same-block
+ * mint+redeem guard on the instant paths, and an admin-set backing value that can mark the token
+ * down below par
  * @dev The throttle and same-block guard gate only the instant deposit/mint and withdraw/redeem paths.
- * The order path (createRedeemOrder) is not gated. THROTTLE_EXEMPT_ROLE holders bypass both.
+ * The order path (createRedeemOrder) is not gated. THROTTLE_EXEMPT_ROLE holders bypass both. Prices
+ * settle at the backing value capped at par, so a value above par leaves payouts at par; minting is
+ * disabled while the value is below par.
  */
-contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
+contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard, YuzuNavMarkdown {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
+    bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
+
+    uint256 internal constant DEFAULT_NAV_STEP_CAP_PPM = 100_000;
+    uint256 internal constant DEFAULT_NAV_COOLDOWN = 1 days;
 
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitializeV3() external reinitializer(3) {
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
+        _initNav(NAV_PRECISION);
+        _setNavStepCap(DEFAULT_NAV_STEP_CAP_PPM);
+        _setNavCooldown(DEFAULT_NAV_COOLDOWN);
     }
 
     /// @inheritdoc YuzuThrottle
@@ -67,7 +81,25 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
         _setMinWithdraw(newMin);
     }
 
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setNav(uint256 newNav) external virtual onlyRole(NAV_MANAGER_ROLE) {
+        _setNav(newNav);
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setNavStepCap(uint256 newStepCapPpm) external virtual onlyRole(ADMIN_ROLE) {
+        _setNavStepCap(newStepCapPpm);
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setNavCooldown(uint256 newCooldown) external virtual onlyRole(ADMIN_ROLE) {
+        _setNavCooldown(newCooldown);
+    }
+
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        if (isMarkedDown()) {
+            return 0;
+        }
         uint256 maxAssets = Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
         return maxAssets < minDeposit() ? 0 : maxAssets;
     }
@@ -75,6 +107,9 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
     /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
     /// keeps convertToShares from overflowing (proto share price is not bounded below 1).
     function maxMint(address receiver) public view virtual override returns (uint256) {
+        if (isMarkedDown()) {
+            return 0;
+        }
         uint256 headroom = super.maxMint(receiver);
         uint256 remaining = _mintThrottleRemaining(receiver);
         uint256 shares = remaining >= type(uint128).max ? headroom : Math.min(headroom, convertToShares(remaining));
@@ -97,6 +132,7 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
     }
 
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
+        _requireMintEnabled();
         _checkMinDeposit(assets);
         uint256 tokens = super.deposit(assets, receiver);
         _consumeMintThrottle(receiver, assets);
@@ -105,6 +141,7 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
     }
 
     function mint(uint256 tokens, address receiver) public virtual override returns (uint256) {
+        _requireMintEnabled();
         _checkMinDeposit(previewMint(tokens));
         uint256 assets = super.mint(tokens, receiver);
         _consumeMintThrottle(receiver, assets);
@@ -127,6 +164,33 @@ contract YuzuUSDV3 is YuzuUSDV2, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuar
         uint256 assetsOut = super.redeem(tokens, receiver, _owner);
         _consumeRedeemThrottle(_owner, assetsOut + fee);
         return assetsOut;
+    }
+
+    /// @dev Folds the backing value (capped at par) into the par decimal scaling. At par this is the
+    /// inherited 1:1 conversion; below par a share converts to fewer assets and an asset to more shares.
+    function _convertToShares(uint256 assets, Math.Rounding rounding)
+        internal
+        view
+        override(YuzuIssuer, YuzuUSD)
+        returns (uint256)
+    {
+        return Math.mulDiv(assets, NAV_PRECISION * 10 ** _decimalsOffset(), _effectiveNav(), rounding);
+    }
+
+    function _convertToAssets(uint256 shares, Math.Rounding rounding)
+        internal
+        view
+        override(YuzuIssuer, YuzuUSD)
+        returns (uint256)
+    {
+        return Math.mulDiv(shares, _effectiveNav(), NAV_PRECISION * 10 ** _decimalsOffset(), rounding);
+    }
+
+    function _requireMintEnabled() internal view {
+        uint256 currentNav = nav();
+        if (currentNav < NAV_PRECISION) {
+            revert MintDisabledWhileMarkedDown(currentNav);
+        }
     }
 
     /**
