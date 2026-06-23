@@ -4,18 +4,24 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {YuzuILPV2} from "./YuzuILPV2.sol";
+import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 
 /**
  * @title YuzuILPV3
- * @notice YuzuILP with a minimum mint amount and per-block/daily throttling on the instant mint path
+ * @notice YuzuILP with a minimum mint amount, per-block/daily throttling on the instant mint path, a
+ * tighter daily yield ceiling, and optional share-price bounds on pool updates and distributions
  * @dev yzILP has no instant redeem (only redeem orders), so the redeem throttle and minWithdraw floor
  * never bind here; only the mint side is active. The order path (createRedeemOrder) is unthrottled.
- * THROTTLE_EXEMPT_ROLE holders bypass the throttle.
+ * THROTTLE_EXEMPT_ROLE holders bypass the throttle. The bounded {updatePool} and {distribute} overloads
+ * revert if the resulting share price falls outside the caller-supplied band; the unbounded ones remain.
  */
-contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle {
+contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
+
+    /// @notice Maximum daily linear yield rate, in ppm (1% per day)
+    uint256 internal constant MAX_DAILY_YIELD_PPM = 10_000;
 
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
@@ -23,6 +29,39 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle {
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
+    }
+
+    /// @dev Applies the tighter V3 yield ceiling to every pool update, then runs the inherited logic
+    function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
+        public
+        virtual
+        override
+    {
+        if (newDailyLinearYieldRatePpm > MAX_DAILY_YIELD_PPM) {
+            revert InvalidYield(newDailyLinearYieldRatePpm);
+        }
+        super.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+    }
+
+    /// @notice Update the pool and revert if the resulting share price leaves the band
+    function updatePool(
+        uint256 currentPoolSize,
+        uint256 newPoolSize,
+        uint256 newDailyLinearYieldRatePpm,
+        uint256 minSharePrice,
+        uint256 maxSharePrice
+    ) external virtual {
+        updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+        _checkSharePriceWithin(totalAssets(), minSharePrice, maxSharePrice);
+    }
+
+    /// @notice Distribute and revert if the projected end-of-distribution share price leaves the band
+    function distribute(uint256 assets, uint256 period, uint256 minSharePrice, uint256 maxSharePrice)
+        external
+        virtual
+    {
+        distribute(assets, period);
+        _checkSharePriceWithin(totalAssets() + assets, minSharePrice, maxSharePrice);
     }
 
     /// @inheritdoc YuzuThrottle
@@ -98,6 +137,22 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle {
         (uint256 assets,) = _previewRedeem(tokens);
         _checkMinWithdraw(assets);
         return super.redeem(tokens, receiver, _owner);
+    }
+
+    /// @dev Reverts if the share price implied by {totalAssets_} is outside the band. The price is the
+    /// asset value of one whole share. Skipped while there are no shares, when no price exists.
+    function _checkSharePriceWithin(uint256 totalAssets_, uint256 minSharePrice, uint256 maxSharePrice) internal view {
+        uint256 _totalSupply = totalSupply();
+        if (_totalSupply == 0) {
+            return;
+        }
+        uint256 sharePrice = Math.mulDiv(totalAssets_, 10 ** decimals(), _totalSupply);
+        if (sharePrice > maxSharePrice) {
+            revert SharePriceTooHigh(sharePrice, maxSharePrice);
+        }
+        if (sharePrice < minSharePrice) {
+            revert SharePriceTooLow(sharePrice, minSharePrice);
+        }
     }
 
     /**

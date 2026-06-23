@@ -138,7 +138,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     }
 
     /// @notice Initiate a gradual increase in total assets
-    function distribute(uint256 assets, uint256 period) external virtual onlyRole(POOL_MANAGER_ROLE) {
+    function distribute(uint256 assets, uint256 period) public virtual onlyRole(POOL_MANAGER_ROLE) {
         if (period < 1) {
             revert DistributionPeriodTooLow(period, 1);
         }

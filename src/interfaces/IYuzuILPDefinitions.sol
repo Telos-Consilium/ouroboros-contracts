@@ -18,3 +18,8 @@ interface IYuzuILPV2Definitions {
     event Distributed(uint256 assets, uint256 period);
     event TerminatedDistribution(uint256 undistributed);
 }
+
+interface IYuzuILPV3Definitions {
+    error SharePriceTooHigh(uint256 sharePrice, uint256 max);
+    error SharePriceTooLow(uint256 sharePrice, uint256 min);
+}
