@@ -40,6 +40,8 @@ contract StakedYuzuUSDV3Recovery is
     uint256 public minWithdraw;
     uint256 public instantRedeemFeePpm;
     bool public isInstantRedeemEnabled;
+    uint256 public maxDistributePpm;
+    uint256 public minDistributionPeriod;
 
     /// @notice Reinitializes the contract for V3 upgrade and runs a one-shot recovery
     /// @param _admin The admin of the contract
@@ -62,6 +64,8 @@ contract StakedYuzuUSDV3Recovery is
         isInstantRedeemEnabled = true;
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
+        // Distribute guards ship off: max ppm is the no-cap sentinel (0 would block all), 0 floor is the default
+        maxDistributePpm = type(uint256).max;
 
         // Clear Ownable2Step state
         _transferOwnership(address(0));
@@ -109,6 +113,15 @@ contract StakedYuzuUSDV3Recovery is
     }
 
     function distribute(uint256 assets, uint256 period) public virtual override onlyRole(POOL_MANAGER_ROLE) {
+        if (period < minDistributionPeriod) {
+            revert DistributionPeriodTooLow(period, minDistributionPeriod);
+        }
+        if (maxDistributePpm != type(uint256).max) {
+            uint256 maxAssets = Math.mulDiv(totalAssets(), maxDistributePpm, 1e6);
+            if (assets > maxAssets) {
+                revert DistributionAmountTooHigh(assets, maxAssets);
+            }
+        }
         super.distribute(assets, period);
     }
 
@@ -326,6 +339,22 @@ contract StakedYuzuUSDV3Recovery is
         emit UpdatedMinWithdraw(oldMin, newMin);
     }
 
+    /// @notice Cap on a single distribution, in ppm of current totalAssets; type(uint256).max disables it
+    function setMaxDistributePpm(uint256 newMaxPpm) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+        uint256 oldMaxPpm = maxDistributePpm;
+        maxDistributePpm = newMaxPpm;
+        emit UpdatedMaxDistributePpm(oldMaxPpm, newMaxPpm);
+    }
+
+    function setMinDistributionPeriod(uint256 newPeriod) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+        if (newPeriod > 7 days) {
+            revert DistributionPeriodTooHigh(newPeriod, 7 days);
+        }
+        uint256 oldPeriod = minDistributionPeriod;
+        minDistributionPeriod = newPeriod;
+        emit UpdatedMinDistributionPeriod(oldPeriod, newPeriod);
+    }
+
     // slither-disable-next-line pess-strange-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
         external
@@ -350,5 +379,5 @@ contract StakedYuzuUSDV3Recovery is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[46] private __gap;
+    uint256[44] private __gap;
 }

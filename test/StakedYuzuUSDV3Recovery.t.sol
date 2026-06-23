@@ -13,10 +13,19 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3Recovery} from "../src/StakedYuzuUSDV3Recovery.sol";
-import {IntegrationConfig, IStakedYuzuUSDV3Definitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
+import {
+    IntegrationConfig,
+    IStakedYuzuUSDDefinitions,
+    IStakedYuzuUSDV3Definitions
+} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 
-contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions, IYuzuThrottleDefinitions {
+contract StakedYuzuUSDV3RecoveryTest is
+    Test,
+    IStakedYuzuUSDDefinitions,
+    IStakedYuzuUSDV3Definitions,
+    IYuzuThrottleDefinitions
+{
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     StakedYuzuUSDV3Recovery public styz3;
@@ -795,5 +804,97 @@ contract StakedYuzuUSDV3RecoveryTest is Test, IStakedYuzuUSDV3Definitions, IYuzu
         assertEq(styz3.maxWithdraw(user1), achievable);
         vm.prank(user1);
         styz3.withdraw(achievable, user1, user1);
+    }
+
+    // --- distribute cap (upper-only, syzUSD NAV is monotonic up) + min-period floor ---
+
+    // Grants POOL_MANAGER to owner (who funds the distribution) and LIMIT_MANAGER to admin, turns the
+    // guards on (10% cap, 6h floor), and funds the vault so totalAssets is ~1000e18 and 10% floors to 100e18.
+    function _setupDistribute() internal {
+        vm.startPrank(admin);
+        styz3.grantRole(POOL_MANAGER_ROLE, owner);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.setMaxDistributePpm(100_000);
+        styz3.setMinDistributionPeriod(6 hours);
+        vm.stopPrank();
+        _deposit(user1, 1000e18);
+    }
+
+    function test_Reinitialize_DistributeGuardsShipOff() public view {
+        assertEq(styz3.maxDistributePpm(), type(uint256).max);
+        assertEq(styz3.minDistributionPeriod(), 0);
+    }
+
+    function test_Distribute_WithinCap() public {
+        _setupDistribute();
+        vm.prank(owner);
+        styz3.distribute(50e18, 1 days);
+        assertEq(styz3.lastDistributedAmount(), 50e18);
+    }
+
+    function test_Distribute_AtCap() public {
+        _setupDistribute();
+        vm.prank(owner);
+        styz3.distribute(100e18, 1 days);
+        assertEq(styz3.lastDistributedAmount(), 100e18);
+    }
+
+    function test_Distribute_Revert_OverCap() public {
+        _setupDistribute();
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DistributionAmountTooHigh.selector, 100e18 + 1, 100e18));
+        styz3.distribute(100e18 + 1, 1 days);
+    }
+
+    function test_Distribute_CapDisabled() public {
+        _setupDistribute();
+        vm.prank(admin);
+        styz3.setMaxDistributePpm(type(uint256).max);
+
+        // 500e18 is 50% of TVL, far above the 10% cap, but the cap is disabled
+        vm.prank(owner);
+        styz3.distribute(500e18, 1 days);
+        assertEq(styz3.lastDistributedAmount(), 500e18);
+    }
+
+    function test_Distribute_AtMinPeriod() public {
+        _setupDistribute();
+        vm.prank(owner);
+        styz3.distribute(50e18, 6 hours);
+        assertEq(styz3.lastDistributionPeriod(), 6 hours);
+    }
+
+    function test_Distribute_Revert_BelowMinPeriod() public {
+        _setupDistribute();
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooLow.selector, 6 hours - 1, 6 hours));
+        styz3.distribute(50e18, 6 hours - 1);
+    }
+
+    function test_SetMaxDistributePpm_Updates() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        vm.expectEmit(false, false, false, true, address(styz3));
+        emit UpdatedMaxDistributePpm(type(uint256).max, 50_000);
+        vm.prank(admin);
+        styz3.setMaxDistributePpm(50_000);
+        assertEq(styz3.maxDistributePpm(), 50_000);
+    }
+
+    function test_SetMinDistributionPeriod_Revert_TooHigh() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooHigh.selector, 7 days + 1, 7 days));
+        styz3.setMinDistributionPeriod(7 days + 1);
+    }
+
+    function test_SetMaxDistributePpm_Revert_NotLimitManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
+        );
+        styz3.setMaxDistributePpm(50_000);
     }
 }

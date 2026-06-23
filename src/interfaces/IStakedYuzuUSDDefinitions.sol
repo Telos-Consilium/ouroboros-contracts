@@ -75,10 +75,13 @@ interface IStakedYuzuUSDV3Definitions {
     error UnderMinDeposit(uint256 assets, uint256 min);
     error UnderMinWithdraw(uint256 assets, uint256 min);
     error UnauthorizedReinitializer(address caller);
+    error DistributionAmountTooHigh(uint256 provided, uint256 max);
 
     event Recovered(address indexed from, address indexed to, uint256 amount);
     event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
     event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
     event UpdatedInstantRedeemFee(uint256 oldFee, uint256 newFee);
     event UpdatedIsInstantRedeemEnabled(bool oldValue, bool newValue);
+    event UpdatedMaxDistributePpm(uint256 oldMaxPpm, uint256 newMaxPpm);
+    event UpdatedMinDistributionPeriod(uint256 oldPeriod, uint256 newPeriod);
 }
