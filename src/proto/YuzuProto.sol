@@ -258,7 +258,7 @@ abstract contract YuzuProto is
         emit UpdatedTreasury(oldTreasury, newTreasury);
     }
 
-    function setRedeemFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemFee(uint256 newFeePpm) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
@@ -267,7 +267,7 @@ abstract contract YuzuProto is
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    function setRedeemOrderFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemOrderFee(uint256 newFeePpm) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }

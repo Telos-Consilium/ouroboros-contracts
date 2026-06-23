@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {YuzuILPV2} from "./YuzuILPV2.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
@@ -11,22 +12,34 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 /**
  * @title YuzuILPV3
  * @notice YuzuILP with a minimum mint amount, per-block/daily throttling on the instant mint path, a
- * tighter daily yield ceiling, and optional share-price bounds on pool updates and distributions
+ * tighter daily yield ceiling, optional share-price bounds on pool updates and distributions, and a
+ * mint fee
  * @dev yzILP has no instant redeem (only redeem orders), so the redeem throttle and minWithdraw floor
  * never bind here; only the mint side is active. The order path (createRedeemOrder) is unthrottled.
  * THROTTLE_EXEMPT_ROLE holders bypass the throttle. The bounded {updatePool} and {distribute} overloads
  * revert if the resulting share price falls outside the caller-supplied band; the unbounded ones remain.
+ * All fee rates (mint, redeem, redeem order) sit under FEE_MANAGER_ROLE; {feeReceiver} stays on ADMIN_ROLE.
  */
 contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
+    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 
     /// @notice Maximum daily linear yield rate, in ppm (1% per day)
     uint256 internal constant MAX_DAILY_YIELD_PPM = 10_000;
+
+    struct YuzuILPFeesStorage {
+        uint256 _mintFeePpm;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpfees")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant YuzuILPFeesStorageLocation =
+        0x93ad02b05e4d8e5afd5c21de55a6b2405afe608b42c8806cefbe7bbeb87f7f00;
 
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitializeV3() external reinitializer(3) {
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
     }
@@ -100,6 +113,43 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
         _setMinWithdraw(newMin);
     }
 
+    /// @notice Fee charged on the deposit/mint path, in ppm of the assets in
+    function mintFeePpm() public view returns (uint256) {
+        return _getYuzuILPFeesStorage()._mintFeePpm;
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setMintFee(uint256 newFeePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(newFeePpm, 1e6);
+        }
+        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+        uint256 oldFee = $._mintFeePpm;
+        $._mintFeePpm = newFeePpm;
+        emit UpdatedMintFee(oldFee, newFeePpm);
+    }
+
+    /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setRedeemFee(uint256 newFeePpm) external virtual override onlyRole(FEE_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(newFeePpm, 1e6);
+        }
+        uint256 oldFee = redeemFeePpm;
+        redeemFeePpm = newFeePpm;
+        emit UpdatedRedeemFee(oldFee, newFeePpm);
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setRedeemOrderFee(uint256 newFeePpm) external virtual override onlyRole(FEE_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(newFeePpm, 1e6);
+        }
+        uint256 oldFee = redeemOrderFeePpm;
+        redeemOrderFeePpm = newFeePpm;
+        emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
+    }
+
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         uint256 maxAssets = Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
         return maxAssets < minDeposit() ? 0 : maxAssets;
@@ -116,16 +166,26 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
 
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         _checkMinDeposit(assets);
-        uint256 tokens = super.deposit(assets, receiver);
-        _consumeMintThrottle(receiver, assets);
+        uint256 fee = _feeOnTotal(assets, mintFeePpm());
+        if (fee > 0) {
+            SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), feeReceiver, fee);
+        }
+        uint256 netAssets = assets - fee;
+        uint256 tokens = super.deposit(netAssets, receiver);
+        _consumeMintThrottle(receiver, netAssets);
         return tokens;
     }
 
     function mint(uint256 tokens, address receiver) public virtual override returns (uint256) {
-        _checkMinDeposit(previewMint(tokens));
+        uint256 netAssets = previewMint(tokens);
+        uint256 fee = _feeOnRaw(netAssets, mintFeePpm());
+        _checkMinDeposit(netAssets + fee);
+        if (fee > 0) {
+            SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), feeReceiver, fee);
+        }
         uint256 assets = super.mint(tokens, receiver);
         _consumeMintThrottle(receiver, assets);
-        return assets;
+        return assets + fee;
     }
 
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
@@ -152,6 +212,13 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
         }
         if (sharePrice < minSharePrice) {
             revert SharePriceTooLow(sharePrice, minSharePrice);
+        }
+    }
+
+    function _getYuzuILPFeesStorage() private pure returns (YuzuILPFeesStorage storage $) {
+        // slither-disable-next-line assembly
+        assembly {
+            $.slot := YuzuILPFeesStorageLocation
         }
     }
 
