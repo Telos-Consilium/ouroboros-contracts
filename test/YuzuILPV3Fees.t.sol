@@ -24,6 +24,7 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
 
     USDT0Mock asset;
     YuzuILPV3 yzilp;
@@ -435,5 +436,34 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
 
         _reportPool(1500e6);
         assertEq(yzilp.cumulativePerformanceFees(), 0);
+    }
+
+    // A redeem order is priced at the fee-net share price, so filling it is a fair redeem that must not
+    // move the share price for the remaining holders. Probes the _fillRedeemOrder pool/distribution split,
+    // which sizes itself off the fee-free totalAssets while the payout was priced off the fee-net totalAssets.
+    function test_OrderFill_PreservesSharePrice_WithLiveManagementFee() public {
+        _setupPool(); // poolSize 1000e6, supply 1000e18
+        vm.prank(feeManager);
+        yzilp.setManagementFee(100_000); // 10%/yr
+        _promote(0);
+
+        vm.warp(block.timestamp + 365 days); // markdown 100e6, share price 0.9
+
+        uint256 sharePriceBefore = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+
+        vm.prank(user);
+        uint256 orderId = yzilp.createRedeemOrder(100e18, user, user); // 10% of supply
+
+        address filler = makeAddr("filler");
+        vm.prank(admin);
+        yzilp.grantRole(ORDER_FILLER_ROLE, filler);
+        asset.mint(filler, 1_000e6);
+        vm.prank(filler);
+        asset.approve(address(yzilp), type(uint256).max);
+        vm.prank(filler);
+        yzilp.fillRedeemOrder(orderId);
+
+        uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+        assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "order fill moved the share price while a fee was live");
     }
 }
