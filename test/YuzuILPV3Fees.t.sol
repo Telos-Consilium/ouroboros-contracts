@@ -23,6 +23,7 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
     bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
+    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     USDT0Mock asset;
     YuzuILPV3 yzilp;
@@ -180,5 +181,106 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
 
     function test_FeeManagerRole_AdminIsAdminRole() public view {
         assertEq(yzilp.getRoleAdmin(FEE_MANAGER_ROLE), ADMIN_ROLE);
+    }
+
+    // --- management fee ---
+
+    // Funds poolSize to 1000e6 and establishes the pool-update clock at the current time, so the
+    // management drift accrues from now (the fee clock is the pool-update clock).
+    function _setupPool() internal {
+        vm.prank(admin);
+        yzilp.grantRole(POOL_MANAGER_ROLE, admin);
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(1000e6, 1000e6, 0);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+    }
+
+    function test_ManagementFee_DefaultsToZero() public view {
+        assertEq(yzilp.managementFeeRatePpm(), 0);
+        assertEq(yzilp.cumulativeManagementFees(), 0);
+    }
+
+    function test_ManagementFee_DriftsNavDown() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setManagementFee(100_000); // 10%/yr
+
+        assertEq(yzilp.totalAssets(), 1000e6);
+        vm.warp(block.timestamp + 365 days);
+        // 10% of 1000e6 accrued to the treasury over a year, lowering reported NAV
+        assertEq(yzilp.totalAssets(), 900e6);
+    }
+
+    function test_ManagementFee_RealizedAtUpdatePool() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setManagementFee(100_000);
+        vm.warp(block.timestamp + 365 days);
+
+        // Admin reports the gross (1000e6); the contract nets the accrued 100e6 into poolSize
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(1000e6, 1000e6, 0);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+
+        assertEq(yzilp.poolSize(), 900e6);
+        assertEq(yzilp.cumulativeManagementFees(), 100e6);
+        assertEq(yzilp.totalAssets(), 900e6);
+    }
+
+    function test_ManagementFee_RealizedEmitsEvent() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setManagementFee(100_000);
+        vm.warp(block.timestamp + 365 days);
+
+        vm.prank(admin);
+        yzilp.startPoolUpdate();
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit RealizedManagementFee(100e6, 100e6);
+        vm.prank(admin);
+        yzilp.updatePool(1000e6, 1000e6, 0);
+    }
+
+    function test_SetManagementFee_EmitsEvent() public {
+        _setupPool();
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit UpdatedManagementFee(0, 20_000);
+        vm.prank(feeManager);
+        yzilp.setManagementFee(20_000);
+        assertEq(yzilp.managementFeeRatePpm(), 20_000);
+    }
+
+    function test_SetManagementFee_Revert_NeverUpdatedPool() public {
+        // No updatePool yet, so the drift clock is unset; enabling a fee is blocked
+        vm.prank(feeManager);
+        vm.expectRevert(PoolNeverUpdated.selector);
+        yzilp.setManagementFee(20_000);
+    }
+
+    function test_SetManagementFee_ZeroAllowedOnNeverUpdatedPool() public {
+        // Disabling (rate 0) is always allowed, even before any pool update
+        vm.prank(feeManager);
+        yzilp.setManagementFee(0);
+        assertEq(yzilp.managementFeeRatePpm(), 0);
+    }
+
+    function test_SetManagementFee_Revert_TooHigh() public {
+        vm.prank(feeManager);
+        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, 100_000 + 1, 100_000));
+        yzilp.setManagementFee(100_000 + 1);
+    }
+
+    function test_SetManagementFee_Revert_NotFeeManager() public {
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, FEE_MANAGER_ROLE)
+        );
+        yzilp.setManagementFee(20_000);
     }
 }

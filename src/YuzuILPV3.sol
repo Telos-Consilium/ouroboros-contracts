@@ -11,14 +11,11 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 
 /**
  * @title YuzuILPV3
- * @notice YuzuILP with a minimum mint amount, per-block/daily throttling on the instant mint path, a
- * tighter daily yield ceiling, optional share-price bounds on pool updates and distributions, and a
- * mint fee
+ * @notice YuzuILP with minimum mint amounts, per-block/daily throttling, a tighter daily yield ceiling,
+ * optional share-price bounds on pool updates and distributions, a mint fee, and a continuous management fee
  * @dev yzILP has no instant redeem (only redeem orders), so the redeem throttle and minWithdraw floor
- * never bind here; only the mint side is active. The order path (createRedeemOrder) is unthrottled.
- * THROTTLE_EXEMPT_ROLE holders bypass the throttle. The bounded {updatePool} and {distribute} overloads
- * revert if the resulting share price falls outside the caller-supplied band; the unbounded ones remain.
- * All fee rates (mint, redeem, redeem order) sit under FEE_MANAGER_ROLE; {feeReceiver} stays on ADMIN_ROLE.
+ * never bind; the order path is unguarded. THROTTLE_EXEMPT_ROLE holders bypass the throttle. Fee rates are
+ * under FEE_MANAGER_ROLE.
  */
 contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
@@ -27,8 +24,13 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
     /// @notice Maximum daily linear yield rate, in ppm (1% per day)
     uint256 internal constant MAX_DAILY_YIELD_PPM = 10_000;
 
+    /// @notice Maximum management fee, in ppm per year (10%)
+    uint256 internal constant MAX_MANAGEMENT_FEE_PPM = 100_000;
+
     struct YuzuILPFeesStorage {
         uint256 _mintFeePpm;
+        uint256 _managementFeeRatePpm;
+        uint256 _cumulativeManagementFees;
     }
 
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpfees")) - 1)) & ~bytes32(uint256(0xff))
@@ -44,7 +46,8 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
     }
 
-    /// @dev Applies the tighter V3 yield ceiling to every pool update, then runs the inherited logic
+    /// @dev Applies the tighter V3 yield ceiling, realizes the management fee accrued since the last
+    /// update against the admin-reported gross {newPoolSize}, then runs the inherited logic on the net
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         public
         virtual
@@ -53,7 +56,14 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
         if (newDailyLinearYieldRatePpm > MAX_DAILY_YIELD_PPM) {
             revert InvalidYield(newDailyLinearYieldRatePpm);
         }
-        super.updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
+        uint256 fee = _managementFeeSinceUpdate(Math.Rounding.Ceil);
+        if (fee > 0) {
+            YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+            uint256 cumulative = $._cumulativeManagementFees + fee;
+            $._cumulativeManagementFees = cumulative;
+            emit RealizedManagementFee(fee, cumulative);
+        }
+        super.updatePool(currentPoolSize, newPoolSize > fee ? newPoolSize - fee : 0, newDailyLinearYieldRatePpm);
     }
 
     /// @notice Update the pool and revert if the resulting share price leaves the band
@@ -127,6 +137,32 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
         uint256 oldFee = $._mintFeePpm;
         $._mintFeePpm = newFeePpm;
         emit UpdatedMintFee(oldFee, newFeePpm);
+    }
+
+    /// @notice Management fee, in ppm per year, charged as a continuous drift on poolSize
+    function managementFeeRatePpm() public view returns (uint256) {
+        return _getYuzuILPFeesStorage()._managementFeeRatePpm;
+    }
+
+    /// @notice Total management fees withheld to the treasury, never credited to holders
+    function cumulativeManagementFees() public view returns (uint256) {
+        return _getYuzuILPFeesStorage()._cumulativeManagementFees;
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setManagementFee(uint256 newRatePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
+        if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
+            revert FeeTooHigh(newRatePpm, MAX_MANAGEMENT_FEE_PPM);
+        }
+        // The drift clock is the pool-update clock; enabling a fee before the first update would
+        // accrue from epoch and zero the NAV
+        if (newRatePpm > 0 && lastPoolUpdateTimestamp == 0) {
+            revert PoolNeverUpdated();
+        }
+        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+        uint256 oldRate = $._managementFeeRatePpm;
+        $._managementFeeRatePpm = newRatePpm;
+        emit UpdatedManagementFee(oldRate, newRatePpm);
     }
 
     /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE
@@ -213,6 +249,20 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
         if (sharePrice < minSharePrice) {
             revert SharePriceTooLow(sharePrice, minSharePrice);
         }
+    }
+
+    /// @dev Management fee accrued since the last pool update: a negative drift on poolSize, the mirror
+    /// of the yield accrual. The fee value stays in the treasury (lower NAV), never credited to holders.
+    function _managementFeeSinceUpdate(Math.Rounding rounding) internal view returns (uint256) {
+        return Math.mulDiv(poolSize * managementFeeRatePpm(), _timeSinceUpdate(), 1e6 * 365 days, rounding);
+    }
+
+    /// @dev Subtracts the accrued management fee from total assets, floored at 0. The fee rounds against
+    /// the caller (opposite the totalAssets rounding) so the reported value stays conservative.
+    function _totalAssets(Math.Rounding rounding) internal view override(YuzuILPV2) returns (uint256) {
+        uint256 total = super._totalAssets(rounding);
+        uint256 fee = _managementFeeSinceUpdate(Math.Rounding(1 - uint256(rounding)));
+        return fee >= total ? 0 : total - fee;
     }
 
     function _getYuzuILPFeesStorage() private pure returns (YuzuILPFeesStorage storage $) {

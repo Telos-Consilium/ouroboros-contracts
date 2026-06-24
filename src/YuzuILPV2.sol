@@ -181,7 +181,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         return distributedSinceUpdate() - _redeemedDistributionsSinceUpdate;
     }
 
-    function _totalAssets(Math.Rounding rounding) internal view override returns (uint256) {
+    function _totalAssets(Math.Rounding rounding) internal view virtual override returns (uint256) {
         return super._totalAssets(rounding) + _fullyDistributedSinceUpdate + _distributedAssets(rounding)
             - _redeemedDistributionsSinceUpdate;
     }

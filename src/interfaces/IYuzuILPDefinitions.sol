@@ -22,6 +22,9 @@ interface IYuzuILPV2Definitions {
 interface IYuzuILPV3Definitions {
     error SharePriceTooHigh(uint256 sharePrice, uint256 max);
     error SharePriceTooLow(uint256 sharePrice, uint256 min);
+    error PoolNeverUpdated();
 
     event UpdatedMintFee(uint256 oldFeePpm, uint256 newFeePpm);
+    event UpdatedManagementFee(uint256 oldRatePpm, uint256 newRatePpm);
+    event RealizedManagementFee(uint256 assets, uint256 cumulative);
 }
