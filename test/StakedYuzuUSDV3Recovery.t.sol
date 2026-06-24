@@ -19,12 +19,14 @@ import {
     IStakedYuzuUSDV3Definitions
 } from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
 contract StakedYuzuUSDV3RecoveryTest is
     Test,
     IStakedYuzuUSDDefinitions,
     IStakedYuzuUSDV3Definitions,
-    IYuzuThrottleDefinitions
+    IYuzuThrottleDefinitions,
+    IYuzuMinAmountsDefinitions
 {
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 

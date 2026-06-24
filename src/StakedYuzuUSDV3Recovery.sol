@@ -9,6 +9,7 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
+import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 
@@ -22,6 +23,7 @@ contract StakedYuzuUSDV3Recovery is
     StakedYuzuUSDV2,
     AccessControlDefaultAdminRulesUpgradeable,
     YuzuThrottle,
+    YuzuMinAmounts,
     IStakedYuzuUSDV3Definitions
 {
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -36,8 +38,6 @@ contract StakedYuzuUSDV3Recovery is
     address private constant RECOVERY_RECEIVER = 0x0000000000000000000000000000000000000002;
     uint256 private constant RECOVERY_AMOUNT = 1;
 
-    uint256 public minDeposit;
-    uint256 public minWithdraw;
     uint256 public instantRedeemFeePpm;
     bool public isInstantRedeemEnabled;
     uint256 public maxDistributePpm;
@@ -194,7 +194,7 @@ contract StakedYuzuUSDV3Recovery is
     /// @inheritdoc StakedYuzuUSDV2
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         uint256 maxAssets = Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
-        return maxAssets < minDeposit ? 0 : maxAssets;
+        return maxAssets < minDeposit() ? 0 : maxAssets;
     }
 
     /// @inheritdoc StakedYuzuUSDV2
@@ -204,7 +204,7 @@ contract StakedYuzuUSDV3Recovery is
         uint256 maxShares = super.maxMint(receiver);
         uint256 remaining = _mintThrottleRemaining(receiver);
         uint256 shares = Math.min(maxShares, previewDeposit(remaining));
-        return previewMint(shares) < minDeposit ? 0 : shares;
+        return previewMint(shares) < minDeposit() ? 0 : shares;
     }
 
     /// @inheritdoc StakedYuzuUSDV2
@@ -213,7 +213,7 @@ contract StakedYuzuUSDV3Recovery is
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 throttleMax = remaining - _feeOnTotal(remaining, _redeemFeePpmFor(_owner));
         uint256 maxAssets = Math.min(super.maxWithdraw(_owner), throttleMax);
-        return maxAssets < minWithdraw ? 0 : maxAssets;
+        return maxAssets < minWithdraw() ? 0 : maxAssets;
     }
 
     /// @inheritdoc StakedYuzuUSDV2
@@ -224,11 +224,11 @@ contract StakedYuzuUSDV3Recovery is
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
         (uint256 netAssets,) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_owner));
-        return netAssets < minWithdraw ? 0 : shares;
+        return netAssets < minWithdraw() ? 0 : shares;
     }
 
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
-        if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
+        _checkMinDeposit(assets);
         address caller = _msgSender();
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
@@ -251,7 +251,7 @@ contract StakedYuzuUSDV3Recovery is
 
     function mint(uint256 shares, address receiver) public virtual override returns (uint256) {
         uint256 assets = previewMint(shares);
-        if (assets < minDeposit) revert UnderMinDeposit(assets, minDeposit);
+        _checkMinDeposit(assets);
         address caller = _msgSender();
         uint256 maxShares = maxMint(receiver);
         if (shares > maxShares) {
@@ -273,7 +273,7 @@ contract StakedYuzuUSDV3Recovery is
 
     /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee)
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
-        if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
+        _checkMinWithdraw(assets);
         uint256 shares = super.withdraw(assets, receiver, _owner);
         address caller = _msgSender();
         _consumeRedeemThrottle(caller, assets + _feeOnRaw(assets, _redeemFeePpmFor(caller)));
@@ -284,7 +284,7 @@ contract StakedYuzuUSDV3Recovery is
     function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
         address caller = _msgSender();
         (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(caller));
-        if (assets < minWithdraw) revert UnderMinWithdraw(assets, minWithdraw);
+        _checkMinWithdraw(assets);
         uint256 assetsOut = super.redeem(shares, receiver, _owner);
         _consumeRedeemThrottle(caller, assetsOut + fee);
         return assetsOut;
@@ -327,16 +327,14 @@ contract StakedYuzuUSDV3Recovery is
         return instantRedeemFeePpm;
     }
 
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
-        uint256 oldMin = minDeposit;
-        minDeposit = newMin;
-        emit UpdatedMinDeposit(oldMin, newMin);
+        _setMinDeposit(newMin);
     }
 
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
-        uint256 oldMin = minWithdraw;
-        minWithdraw = newMin;
-        emit UpdatedMinWithdraw(oldMin, newMin);
+        _setMinWithdraw(newMin);
     }
 
     /// @notice Cap on a single distribution, in ppm of current totalAssets; type(uint256).max disables it
@@ -379,5 +377,5 @@ contract StakedYuzuUSDV3Recovery is
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[44] private __gap;
+    uint256[46] private __gap;
 }
