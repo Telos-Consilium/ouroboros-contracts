@@ -185,8 +185,8 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
 
     // --- management fee ---
 
-    // Funds poolSize to 1000e6 and establishes the pool-update clock at the current time, so the
-    // management drift accrues from now (the fee clock is the pool-update clock).
+    // Funds poolSize to 1000e6 and runs a first pool update, which sets the pool-update clock and the
+    // high-water mark (1e6 per share) at the current time.
     function _setupPool() internal {
         vm.prank(admin);
         yzilp.grantRole(POOL_MANAGER_ROLE, admin);
@@ -199,15 +199,49 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
         vm.stopPrank();
     }
 
+    // Runs a no-op pool update at the current poolSize, which promotes any staged fee rates and sets the
+    // given daily yield. Used to make a staged rate live for the next period.
+    function _promote(uint256 yieldPpm) internal {
+        uint256 ps = yzilp.poolSize();
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(ps, ps, yieldPpm);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+    }
+
+    function _reportPool(uint256 newPoolSize) internal {
+        uint256 ps = yzilp.poolSize();
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(ps, newPoolSize, 0);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+    }
+
     function test_ManagementFee_DefaultsToZero() public view {
         assertEq(yzilp.managementFeeRatePpm(), 0);
+        assertEq(yzilp.pendingManagementFeeRatePpm(), 0);
         assertEq(yzilp.cumulativeManagementFees(), 0);
+    }
+
+    function test_SetManagementFee_Deferred() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setManagementFee(100_000);
+        // Staged, not yet live
+        assertEq(yzilp.pendingManagementFeeRatePpm(), 100_000);
+        assertEq(yzilp.managementFeeRatePpm(), 0);
+        // The next update promotes it
+        _promote(0);
+        assertEq(yzilp.managementFeeRatePpm(), 100_000);
     }
 
     function test_ManagementFee_DriftsNavDown() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setManagementFee(100_000); // 10%/yr
+        yzilp.setManagementFee(100_000); // 10%/yr, live next period
+        _promote(0);
 
         assertEq(yzilp.totalAssets(), 1000e6);
         vm.warp(block.timestamp + 365 days);
@@ -219,14 +253,11 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
         _setupPool();
         vm.prank(feeManager);
         yzilp.setManagementFee(100_000);
+        _promote(0);
         vm.warp(block.timestamp + 365 days);
 
         // Admin reports the gross (1000e6); the contract nets the accrued 100e6 into poolSize
-        vm.startPrank(admin);
-        yzilp.startPoolUpdate();
-        yzilp.updatePool(1000e6, 1000e6, 0);
-        yzilp.endPoolUpdate();
-        vm.stopPrank();
+        _reportPool(1000e6);
 
         assertEq(yzilp.poolSize(), 900e6);
         assertEq(yzilp.cumulativeManagementFees(), 100e6);
@@ -237,6 +268,7 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
         _setupPool();
         vm.prank(feeManager);
         yzilp.setManagementFee(100_000);
+        _promote(0);
         vm.warp(block.timestamp + 365 days);
 
         vm.prank(admin);
@@ -253,20 +285,8 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
         emit UpdatedManagementFee(0, 20_000);
         vm.prank(feeManager);
         yzilp.setManagementFee(20_000);
-        assertEq(yzilp.managementFeeRatePpm(), 20_000);
-    }
-
-    function test_SetManagementFee_Revert_NeverUpdatedPool() public {
-        // No updatePool yet, so the drift clock is unset; enabling a fee is blocked
-        vm.prank(feeManager);
-        vm.expectRevert(PoolNeverUpdated.selector);
-        yzilp.setManagementFee(20_000);
-    }
-
-    function test_SetManagementFee_ZeroAllowedOnNeverUpdatedPool() public {
-        // Disabling (rate 0) is always allowed, even before any pool update
-        vm.prank(feeManager);
-        yzilp.setManagementFee(0);
+        // Event reflects the staged transition; the rate is not live until the next update
+        assertEq(yzilp.pendingManagementFeeRatePpm(), 20_000);
         assertEq(yzilp.managementFeeRatePpm(), 0);
     }
 
@@ -282,5 +302,138 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, FEE_MANAGER_ROLE)
         );
         yzilp.setManagementFee(20_000);
+    }
+
+    // --- performance fee ---
+
+    function test_PerformanceFee_DefaultsToZero() public view {
+        assertEq(yzilp.performanceFeeRatePpm(), 0);
+        assertEq(yzilp.pendingPerformanceFeeRatePpm(), 0);
+        assertEq(yzilp.cumulativePerformanceFees(), 0);
+    }
+
+    function test_HighWaterMark_SetAtFirstUpdate() public {
+        _setupPool();
+        // 1000e6 of assets over 1000e18 shares is 1e6 per whole share
+        assertEq(yzilp.highWaterMark(), 1e6);
+    }
+
+    function test_SetPerformanceFee_Deferred() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000);
+        assertEq(yzilp.pendingPerformanceFeeRatePpm(), 200_000);
+        assertEq(yzilp.performanceFeeRatePpm(), 0);
+        _promote(0);
+        assertEq(yzilp.performanceFeeRatePpm(), 200_000);
+    }
+
+    function test_SetPerformanceFee_EmitsEvent() public {
+        _setupPool();
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit UpdatedPerformanceFee(0, 200_000);
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000);
+    }
+
+    function test_SetPerformanceFee_Revert_TooHigh() public {
+        vm.prank(feeManager);
+        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, 1e6 + 1, 1e6));
+        yzilp.setPerformanceFee(1e6 + 1);
+    }
+
+    function test_SetPerformanceFee_Revert_NotFeeManager() public {
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, FEE_MANAGER_ROLE)
+        );
+        yzilp.setPerformanceFee(200_000);
+    }
+
+    function test_PerformanceFee_MarksDownGainAboveHWM() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000); // 20%
+        _promote(10_000); // live, plus 1%/day yield
+
+        vm.warp(block.timestamp + 10 days); // +10% yield = +100e6 over poolSize 1000e6
+        // netOfMgmt 1100e6, mark 1000e6, fee 20% of the 100e6 gain = 20e6
+        assertEq(yzilp.totalAssets(), 1080e6);
+    }
+
+    function test_PerformanceFee_RealizedAndAdvancesHWM() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000);
+        _promote(10_000);
+        vm.warp(block.timestamp + 10 days);
+
+        vm.prank(admin);
+        yzilp.startPoolUpdate();
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit RealizedPerformanceFee(20e6, 20e6);
+        vm.prank(admin);
+        yzilp.updatePool(1000e6, 1100e6, 0);
+
+        assertEq(yzilp.poolSize(), 1080e6);
+        assertEq(yzilp.cumulativePerformanceFees(), 20e6);
+        // Mark advances to the pre-fee net-of-management high: 1100e6 / 1000 = 1.1e6
+        assertEq(yzilp.highWaterMark(), 1.1e6);
+    }
+
+    function test_PerformanceFee_ChargedOnDistributionAboveHWM() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000);
+        _promote(0);
+
+        vm.prank(admin);
+        yzilp.distribute(100e6, 1 days);
+        vm.warp(block.timestamp + 1 days); // fully vested
+        // netOfMgmt 1100e6, mark 1000e6, fee 20% of 100e6 = 20e6
+        assertEq(yzilp.totalAssets(), 1080e6);
+    }
+
+    function test_PerformanceFee_RecoveryToHWMFree() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000);
+        _promote(0);
+
+        _reportPool(900e6); // a loss below the mark, no fee
+        assertEq(yzilp.cumulativePerformanceFees(), 0);
+        _reportPool(1000e6); // recovery back up to the mark, still no fee
+        assertEq(yzilp.cumulativePerformanceFees(), 0);
+        _reportPool(1100e6); // now above the mark: fee on the 100e6 above 1000e6
+        assertEq(yzilp.cumulativePerformanceFees(), 20e6);
+    }
+
+    function test_PerformanceFee_EnableIsNotRetroactive() public {
+        _setupPool();
+        // The pool climbs from 1000e6 to 1500e6 while the fee is off
+        _reportPool(1500e6);
+        assertEq(yzilp.highWaterMark(), 1.5e6);
+
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000);
+        _promote(0); // goes live with the mark already at the 1.5e6 high
+
+        _reportPool(1600e6); // fee only on the 100e6 made after enabling
+        assertEq(yzilp.cumulativePerformanceFees(), 20e6);
+    }
+
+    function test_PerformanceFee_DepositDoesNotTriggerFee() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPerformanceFee(200_000);
+        _promote(0);
+
+        // A deposit lifts assets and supply together, leaving the per-share price at the mark
+        vm.prank(user);
+        yzilp.deposit(500e6, user);
+        assertEq(yzilp.totalAssets(), 1500e6);
+
+        _reportPool(1500e6);
+        assertEq(yzilp.cumulativePerformanceFees(), 0);
     }
 }
