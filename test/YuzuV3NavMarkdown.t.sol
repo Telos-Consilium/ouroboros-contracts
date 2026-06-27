@@ -9,6 +9,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
+import {YuzuUSDV3FeatureFacet} from "../src/YuzuUSDV3FeatureFacet.sol";
 import {IYuzuNavMarkdownDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
 contract USDT0Mock is ERC20Mock {
@@ -52,7 +53,8 @@ contract YuzuV3NavMarkdownTest is Test, IYuzuNavMarkdownDefinitions {
             1 days,
             0
         );
-        yzusd = YuzuUSDV3(address(new ERC1967Proxy(address(new YuzuUSDV3()), initData)));
+        yzusd =
+            YuzuUSDV3(address(new ERC1967Proxy(address(new YuzuUSDV3(address(new YuzuUSDV3FeatureFacet()))), initData)));
         yzusd.reinitializeV3();
 
         vm.startPrank(admin);

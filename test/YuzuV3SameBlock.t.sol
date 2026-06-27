@@ -9,6 +9,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV2} from "../src/YuzuUSDV2.sol";
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
+import {YuzuUSDV3FeatureFacet} from "../src/YuzuUSDV3FeatureFacet.sol";
 import {IYuzuSameBlockGuardDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
 contract USDT0Mock is ERC20Mock {
@@ -37,7 +38,7 @@ contract YuzuV3SameBlockGuardTest is Test, IYuzuSameBlockGuardDefinitions {
         asset.mint(other, 10_000_000e6);
         asset.mint(exempt, 10_000_000e6);
 
-        address impl = address(new YuzuUSDV3());
+        address impl = address(new YuzuUSDV3(address(new YuzuUSDV3FeatureFacet())));
         bytes memory initData = abi.encodeWithSelector(
             YuzuUSD.initialize.selector,
             address(asset),

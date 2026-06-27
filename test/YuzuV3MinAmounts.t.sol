@@ -9,6 +9,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
+import {YuzuUSDV3FeatureFacet} from "../src/YuzuUSDV3FeatureFacet.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
@@ -37,7 +38,9 @@ contract YuzuV3MinAmountsTest is Test, IYuzuMinAmountsDefinitions {
         asset = new USDT0Mock();
         asset.mint(user, 10_000_000e6);
 
-        yzusd = YuzuUSDV3(_deploy(address(new YuzuUSDV3()), YuzuUSD.initialize.selector));
+        yzusd = YuzuUSDV3(
+            _deploy(address(new YuzuUSDV3(address(new YuzuUSDV3FeatureFacet()))), YuzuUSD.initialize.selector)
+        );
         yzilp = YuzuILPV3(_deploy(address(new YuzuILPV3()), YuzuILP.initialize.selector));
 
         // V3 carries the throttle; seed limits to unlimited so min-amount paths are reachable
