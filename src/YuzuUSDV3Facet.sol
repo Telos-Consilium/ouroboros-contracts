@@ -146,59 +146,6 @@ contract YuzuUSDV3Facet is
         return _maxRedeem(msg.sender, owner);
     }
 
-    function _maxDeposit(address proxy, address receiver) private view returns (uint256) {
-        if (_isMarkedDown(proxy) || !_canMint(proxy, receiver)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 headroom = _supplyHeadroom(proxy);
-        uint256 baseMax = router.convertToAssets(headroom);
-        uint256 maxAssets = Math.min(baseMax, _mintThrottleRemaining(proxy, receiver));
-        uint256 min = router.minDeposit();
-        return maxAssets < min ? 0 : maxAssets;
-    }
-
-    function _maxMint(address proxy, address receiver) private view returns (uint256) {
-        if (_isMarkedDown(proxy) || !_canMint(proxy, receiver)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 headroom = _supplyHeadroom(proxy);
-        uint256 remaining = _mintThrottleRemaining(proxy, receiver);
-        uint256 shares =
-            remaining >= type(uint128).max ? headroom : Math.min(headroom, router.convertToShares(remaining));
-        uint256 min = router.minDeposit();
-        return router.previewMint(shares) < min ? 0 : shares;
-    }
-
-    function _maxWithdraw(address proxy, address owner) private view returns (uint256) {
-        if (!_canRedeem(proxy, owner)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 feePpm = router.redeemFeePpm();
-        uint256 liquid = router.liquidityBufferSize();
-        uint256 fee = _feeOnTotal(liquid, feePpm);
-        uint256 baseMax = Math.min(router.previewRedeem(router.balanceOf(owner)), liquid - fee);
-        uint256 remaining = _redeemThrottleRemaining(proxy, owner);
-        uint256 throttleMax = remaining - _feeOnTotal(remaining, feePpm);
-        uint256 maxAssets = Math.min(baseMax, throttleMax);
-        uint256 min = router.minWithdraw();
-        return maxAssets < min ? 0 : maxAssets;
-    }
-
-    function _maxRedeem(address proxy, address owner) private view returns (uint256) {
-        if (!_canRedeem(proxy, owner)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 maxTokens = Math.min(router.convertToShares(router.liquidityBufferSize()), router.balanceOf(owner));
-        uint256 remaining = _redeemThrottleRemaining(proxy, owner);
-        uint256 shares = router.convertToAssets(maxTokens) <= remaining ? maxTokens : router.convertToShares(remaining);
-        uint256 min = router.minWithdraw();
-        return router.previewRedeem(shares) < min ? 0 : shares;
-    }
-
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
@@ -307,6 +254,59 @@ contract YuzuUSDV3Facet is
 
     function _isMarkedDown(address proxy) private view returns (bool) {
         return IYuzuUSDV3Router(proxy).nav() < NAV_PRECISION;
+    }
+
+    function _maxDeposit(address proxy, address receiver) private view returns (uint256) {
+        if (_isMarkedDown(proxy) || !_canMint(proxy, receiver)) {
+            return 0;
+        }
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
+        uint256 headroom = _supplyHeadroom(proxy);
+        uint256 baseMax = router.convertToAssets(headroom);
+        uint256 maxAssets = Math.min(baseMax, _mintThrottleRemaining(proxy, receiver));
+        uint256 min = router.minDeposit();
+        return maxAssets < min ? 0 : maxAssets;
+    }
+
+    function _maxMint(address proxy, address receiver) private view returns (uint256) {
+        if (_isMarkedDown(proxy) || !_canMint(proxy, receiver)) {
+            return 0;
+        }
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
+        uint256 headroom = _supplyHeadroom(proxy);
+        uint256 remaining = _mintThrottleRemaining(proxy, receiver);
+        uint256 shares =
+            remaining >= type(uint128).max ? headroom : Math.min(headroom, router.convertToShares(remaining));
+        uint256 min = router.minDeposit();
+        return router.previewMint(shares) < min ? 0 : shares;
+    }
+
+    function _maxWithdraw(address proxy, address owner) private view returns (uint256) {
+        if (!_canRedeem(proxy, owner)) {
+            return 0;
+        }
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
+        uint256 feePpm = router.redeemFeePpm();
+        uint256 liquid = router.liquidityBufferSize();
+        uint256 fee = _feeOnTotal(liquid, feePpm);
+        uint256 baseMax = Math.min(router.previewRedeem(router.balanceOf(owner)), liquid - fee);
+        uint256 remaining = _redeemThrottleRemaining(proxy, owner);
+        uint256 throttleMax = remaining - _feeOnTotal(remaining, feePpm);
+        uint256 maxAssets = Math.min(baseMax, throttleMax);
+        uint256 min = router.minWithdraw();
+        return maxAssets < min ? 0 : maxAssets;
+    }
+
+    function _maxRedeem(address proxy, address owner) private view returns (uint256) {
+        if (!_canRedeem(proxy, owner)) {
+            return 0;
+        }
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
+        uint256 maxTokens = Math.min(router.convertToShares(router.liquidityBufferSize()), router.balanceOf(owner));
+        uint256 remaining = _redeemThrottleRemaining(proxy, owner);
+        uint256 shares = router.convertToAssets(maxTokens) <= remaining ? maxTokens : router.convertToShares(remaining);
+        uint256 min = router.minWithdraw();
+        return router.previewRedeem(shares) < min ? 0 : shares;
     }
 
     function _supplyHeadroom(address proxy) private view returns (uint256) {

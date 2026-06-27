@@ -115,18 +115,6 @@ contract YuzuILPV3Facet is
     bytes32 private constant YuzuILPFeesStorageLocation =
         0x93ad02b05e4d8e5afd5c21de55a6b2405afe608b42c8806cefbe7bbeb87f7f00;
 
-    function maxDeposit(address receiver) public view returns (uint256) {
-        return _maxDeposit(msg.sender, receiver);
-    }
-
-    function maxMint(address receiver) public view returns (uint256) {
-        return _maxMint(msg.sender, receiver);
-    }
-
-    function totalAssetsWithRounding(uint256 rounding) external view returns (uint256) {
-        return _totalAssetsForProxy(msg.sender, Math.Rounding(rounding));
-    }
-
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         _checkMinDeposit(assets);
@@ -183,6 +171,18 @@ contract YuzuILPV3Facet is
             revert ExceededMaxBurn(owner, tokens, maxTokens);
         }
         router.__routerBurn(owner, tokens);
+    }
+
+    function maxDeposit(address receiver) public view returns (uint256) {
+        return _maxDeposit(msg.sender, receiver);
+    }
+
+    function maxMint(address receiver) public view returns (uint256) {
+        return _maxMint(msg.sender, receiver);
+    }
+
+    function totalAssetsWithRounding(uint256 rounding) external view returns (uint256) {
+        return _totalAssetsForProxy(msg.sender, Math.Rounding(rounding));
     }
 
     /// @dev Applies V3 fees, then runs the V2 pool-update state transition on the net pool.
@@ -581,30 +581,6 @@ contract YuzuILPV3Facet is
         }
     }
 
-    function _setPackedAddress(uint256 slot, address value) private {
-        uint256 mask = type(uint160).max;
-        assembly {
-            let oldValue := sload(slot)
-            sstore(slot, or(and(oldValue, not(mask)), and(value, mask)))
-        }
-    }
-
-    function _setPackedBool(uint256 slot, uint256 shift, bool value) private returns (bool oldValue) {
-        uint256 mask = 0xff << shift;
-        uint256 oldSlot;
-        assembly {
-            oldSlot := sload(slot)
-        }
-        oldValue = ((oldSlot >> shift) & 0xff) != 0;
-        uint256 newSlot = oldSlot & ~mask;
-        if (value) {
-            newSlot |= 1 << shift;
-        }
-        assembly {
-            sstore(slot, newSlot)
-        }
-    }
-
     function _maxDeposit(address proxy, address receiver) private view returns (uint256) {
         if (!_canMint(proxy, receiver)) {
             return 0;
@@ -709,6 +685,30 @@ contract YuzuILPV3Facet is
 
     function _currentDay() private view returns (uint256) {
         return block.timestamp / 1 days;
+    }
+
+    function _setPackedAddress(uint256 slot, address value) private {
+        uint256 mask = type(uint160).max;
+        assembly {
+            let oldValue := sload(slot)
+            sstore(slot, or(and(oldValue, not(mask)), and(value, mask)))
+        }
+    }
+
+    function _setPackedBool(uint256 slot, uint256 shift, bool value) private returns (bool oldValue) {
+        uint256 mask = 0xff << shift;
+        uint256 oldSlot;
+        assembly {
+            oldSlot := sload(slot)
+        }
+        oldValue = ((oldSlot >> shift) & 0xff) != 0;
+        uint256 newSlot = oldSlot & ~mask;
+        if (value) {
+            newSlot |= 1 << shift;
+        }
+        assembly {
+            sstore(slot, newSlot)
+        }
     }
 
     function _poolSize() private view returns (uint256 value) {
