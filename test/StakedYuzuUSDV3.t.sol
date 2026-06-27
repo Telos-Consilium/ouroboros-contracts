@@ -12,7 +12,8 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
-import {StakedYuzuUSDV3Recovery} from "../src/StakedYuzuUSDV3Recovery.sol";
+import {StakedYuzuUSDV3Migration} from "../src/StakedYuzuUSDV3Migration.sol";
+import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {
     IntegrationConfig,
     IStakedYuzuUSDDefinitions,
@@ -21,7 +22,7 @@ import {
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
-contract StakedYuzuUSDV3RecoveryTest is
+contract StakedYuzuUSDV3Test is
     Test,
     IStakedYuzuUSDDefinitions,
     IStakedYuzuUSDV3Definitions,
@@ -30,7 +31,7 @@ contract StakedYuzuUSDV3RecoveryTest is
 {
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
-    StakedYuzuUSDV3Recovery public styz3;
+    StakedYuzuUSDV3 public styz3;
     ProxyAdmin public proxyAdmin;
     ERC20Mock public yzusd;
 
@@ -80,7 +81,7 @@ contract StakedYuzuUSDV3RecoveryTest is
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, owner, initData);
         proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
-        styz3 = StakedYuzuUSDV3Recovery(address(proxy));
+        styz3 = StakedYuzuUSDV3(address(proxy));
 
         // Approvals for deposits
         _approveAssets(owner, address(styz3), type(uint256).max);
@@ -95,10 +96,16 @@ contract StakedYuzuUSDV3RecoveryTest is
         vm.prank(owner);
         styz3.pause();
 
-        // Upgrade to V3Recovery atomically via ProxyAdmin.upgradeAndCall; reinitialize
+        // Upgrade to V3Migration atomically via ProxyAdmin.upgradeAndCall; reinitialize
         // gate requires msg.sender == proxy admin, so the upgrade-and-init must be atomic.
+        address migrationImpl = address(new StakedYuzuUSDV3Migration());
+        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, admin);
+        vm.prank(owner);
+        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, migrationData);
+
+        // Upgrade to parked V3 runtime and initialize long-term V3 feature defaults.
         address v3Impl = _deploy();
-        bytes memory reinitData = abi.encodeWithSelector(StakedYuzuUSDV3Recovery.reinitialize.selector, admin);
+        bytes memory reinitData = abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, admin);
         vm.prank(owner);
         proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), v3Impl, reinitData);
 
@@ -111,7 +118,7 @@ contract StakedYuzuUSDV3RecoveryTest is
     }
 
     function _deploy() internal virtual returns (address) {
-        return address(new StakedYuzuUSDV3Recovery());
+        return address(new StakedYuzuUSDV3());
     }
 
     // Helpers
@@ -149,7 +156,7 @@ contract StakedYuzuUSDV3RecoveryTest is
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, freshOwner, initData);
         ProxyAdmin freshProxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
-        StakedYuzuUSDV3Recovery freshStyz = StakedYuzuUSDV3Recovery(address(proxy));
+        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
 
         _approveAssets(user1, address(freshStyz), type(uint256).max);
         vm.prank(user1);
@@ -158,9 +165,9 @@ contract StakedYuzuUSDV3RecoveryTest is
         vm.prank(freshOwner);
         freshStyz.pause();
 
-        address v3Impl = _deploy();
+        address migrationImpl = address(new StakedYuzuUSDV3Migration());
         vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), v3Impl, bytes(""));
+        freshProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, bytes(""));
 
         vm.prank(attacker);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, attacker));

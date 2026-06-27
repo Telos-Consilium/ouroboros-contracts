@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-import {StakedYuzuUSDV3Recovery} from "../../src/StakedYuzuUSDV3Recovery.sol";
+import {StakedYuzuUSDV3Migration} from "../../src/StakedYuzuUSDV3Migration.sol";
 import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
 import {IStakedYuzuUSD, IStakedYuzuUSDV2} from "../../src/interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDV3Definitions} from "../../src/interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -66,72 +66,60 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         vm.prank(v2Owner);
         v2.pause();
 
-        // Upgrade V2 -> V3Recovery atomically via ProxyAdmin.upgradeAndCall
-        address v3RecoveryImpl = address(new StakedYuzuUSDV3Recovery());
+        // Upgrade V2 -> V3Migration atomically via ProxyAdmin.upgradeAndCall
+        address v3MigrationImpl = address(new StakedYuzuUSDV3Migration());
         address admin = makeAddr("v3Admin");
-        bytes memory reinitData = abi.encodeWithSelector(StakedYuzuUSDV3Recovery.reinitialize.selector, admin);
+        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, admin);
         vm.prank(proxyAdminOwner);
-        ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), v3RecoveryImpl, reinitData);
+        ProxyAdmin(proxyAdmin).upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(proxy)), v3MigrationImpl, migrationData
+        );
 
         address implAfterRecovery = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
-        assertEq(implAfterRecovery, v3RecoveryImpl, "v3Recovery impl not active");
+        assertEq(implAfterRecovery, v3MigrationImpl, "v3Migration impl not active");
 
-        StakedYuzuUSDV3Recovery v3R = StakedYuzuUSDV3Recovery(proxy);
+        StakedYuzuUSDV3Migration v3M = StakedYuzuUSDV3Migration(proxy);
 
         // V2 state preserved
-        assertEq(v3R.redeemDelay(), redeemDelayBefore, "redeemDelay drift");
-        assertEq(v3R.redeemFeePpm(), redeemFeePpmBefore, "redeemFeePpm drift");
-        assertEq(v3R.feeReceiver(), feeReceiverBefore, "feeReceiver drift");
-        assertEq(v3R.lastDistributedAmount(), lastDistributedAmountBefore, "lastDistributedAmount drift");
-        assertEq(v3R.lastDistributionPeriod(), lastDistributionPeriodBefore, "lastDistributionPeriod drift");
-        assertEq(v3R.lastDistributionTime(), lastDistributionTimeBefore, "lastDistributionTime drift");
-        assertEq(v3R.totalPendingOrderValue(), totalPendingOrderValueBefore, "totalPendingOrderValue drift");
-        assertEq(v3R.orderCount(), orderCountBefore, "orderCount drift");
-        assertEq(v3R.name(), nameBefore, "name drift");
-        assertEq(v3R.symbol(), symbolBefore, "symbol drift");
+        assertEq(v3M.redeemDelay(), redeemDelayBefore, "redeemDelay drift");
+        assertEq(v3M.redeemFeePpm(), redeemFeePpmBefore, "redeemFeePpm drift");
+        assertEq(v3M.feeReceiver(), feeReceiverBefore, "feeReceiver drift");
+        assertEq(v3M.lastDistributedAmount(), lastDistributedAmountBefore, "lastDistributedAmount drift");
+        assertEq(v3M.lastDistributionPeriod(), lastDistributionPeriodBefore, "lastDistributionPeriod drift");
+        assertEq(v3M.lastDistributionTime(), lastDistributionTimeBefore, "lastDistributionTime drift");
+        assertEq(v3M.totalPendingOrderValue(), totalPendingOrderValueBefore, "totalPendingOrderValue drift");
+        assertEq(v3M.orderCount(), orderCountBefore, "orderCount drift");
+        assertEq(v3M.name(), nameBefore, "name drift");
+        assertEq(v3M.symbol(), symbolBefore, "symbol drift");
 
         // Recovery executed
-        assertEq(v3R.balanceOf(LOST_ADDRESS), 0, "lost balance not burned");
-        assertEq(v3R.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT, "recovery receiver not credited");
-
-        // Public instant redeem enabled at upgrade time
-        assertTrue(v3R.isInstantRedeemEnabled(), "isInstantRedeemEnabled not set");
-
-        // Throttles unlimited at upgrade time
-        assertEq(v3R.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE, "THROTTLE_EXEMPT_ROLE admin not set");
-        assertEq(v3R.getMintThrottle().blockLimit, type(uint256).max, "mint throttle block limit not max");
-        assertEq(v3R.getMintThrottle().dailyLimit, type(uint256).max, "mint throttle daily limit not max");
-        assertEq(v3R.getRedeemThrottle().blockLimit, type(uint256).max, "redeem throttle block limit not max");
-        assertEq(v3R.getRedeemThrottle().dailyLimit, type(uint256).max, "redeem throttle daily limit not max");
+        assertEq(v3M.balanceOf(LOST_ADDRESS), 0, "lost balance not burned");
+        assertEq(v3M.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT, "recovery receiver not credited");
 
         // AccessControl migration
-        assertEq(v3R.owner(), admin, "owner not migrated to admin");
-        assertTrue(v3R.hasRole(v3R.DEFAULT_ADMIN_ROLE(), admin), "DEFAULT_ADMIN_ROLE not granted");
-        assertTrue(v3R.hasRole(ADMIN_ROLE, admin), "ADMIN_ROLE not granted");
+        assertEq(v3M.owner(), admin, "owner not migrated to admin");
+        assertTrue(v3M.hasRole(v3M.DEFAULT_ADMIN_ROLE(), admin), "DEFAULT_ADMIN_ROLE not granted");
+        assertTrue(v3M.hasRole(ADMIN_ROLE, admin), "ADMIN_ROLE not granted");
 
         // reinitialize is one-shot
         vm.prank(proxyAdminOwner);
         vm.expectRevert();
-        ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), v3RecoveryImpl, reinitData);
+        ProxyAdmin(proxyAdmin).upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(proxy)), v3MigrationImpl, migrationData
+        );
 
-        // Pause-manager bootstrap and unpause
-        address pauseManager = makeAddr("pauseManager");
-        vm.prank(admin);
-        v3R.grantRole(PAUSE_MANAGER_ROLE, pauseManager);
-        vm.prank(pauseManager);
-        v3R.unpause();
-
-        // Upgrade V3Recovery -> V3 stripped
-        address v3StrippedImpl = address(new StakedYuzuUSDV3());
+        // Upgrade V3Migration -> parked V3 runtime
+        address v3Impl = address(new StakedYuzuUSDV3());
+        bytes memory parkedData = abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, admin);
         vm.prank(proxyAdminOwner);
-        ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), v3StrippedImpl, bytes(""));
+        ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), v3Impl, parkedData);
 
         address implAfterStripped = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
-        assertEq(implAfterStripped, v3StrippedImpl, "v3 stripped impl not active");
+        assertEq(implAfterStripped, v3Impl, "v3 impl not active");
 
         StakedYuzuUSDV3 v3 = StakedYuzuUSDV3(proxy);
 
-        // State preserved through second upgrade
+        // State preserved through parked upgrade
         assertEq(v3.redeemDelay(), redeemDelayBefore, "redeemDelay drift after strip");
         assertEq(v3.feeReceiver(), feeReceiverBefore, "feeReceiver drift after strip");
         assertEq(v3.totalPendingOrderValue(), totalPendingOrderValueBefore, "totalPendingOrderValue drift after strip");
@@ -140,9 +128,22 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         assertEq(v3.owner(), admin, "owner drift after strip");
         assertTrue(v3.hasRole(ADMIN_ROLE, admin), "ADMIN_ROLE drift after strip");
 
-        // reinitialize on stripped V3 always reverts
-        vm.expectRevert();
-        v3.reinitialize(admin);
+        // Public instant redeem enabled at parked upgrade time
+        assertTrue(v3.isInstantRedeemEnabled(), "isInstantRedeemEnabled not set");
+
+        // Throttles unlimited at parked upgrade time
+        assertEq(v3.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE, "THROTTLE_EXEMPT_ROLE admin not set");
+        assertEq(v3.getMintThrottle().blockLimit, type(uint256).max, "mint throttle block limit not max");
+        assertEq(v3.getMintThrottle().dailyLimit, type(uint256).max, "mint throttle daily limit not max");
+        assertEq(v3.getRedeemThrottle().blockLimit, type(uint256).max, "redeem throttle block limit not max");
+        assertEq(v3.getRedeemThrottle().dailyLimit, type(uint256).max, "redeem throttle daily limit not max");
+
+        // Pause-manager bootstrap and unpause
+        address pauseManager = makeAddr("pauseManager");
+        vm.prank(admin);
+        v3.grantRole(PAUSE_MANAGER_ROLE, pauseManager);
+        vm.prank(pauseManager);
+        v3.unpause();
     }
 
     function _seedLostAddress(address proxy, address assetAddr) internal {
