@@ -15,7 +15,7 @@ libs = ["lib"]
 ffi = false
 solc = "0.8.30"
 optimizer = true
-optimizer_runs = 1000
+optimizer_runs = 15
 via_ir = true
 bytecode_hash = "none"
 
