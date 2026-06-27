@@ -92,11 +92,11 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         YuzuILP._withdraw(caller, receiver, _owner, assets, shares, fee);
     }
 
-    function startPoolUpdate() external onlyRole(POOL_MANAGER_ROLE) {
+    function startPoolUpdate() external virtual onlyRole(POOL_MANAGER_ROLE) {
         isUpdatingPool = true;
     }
 
-    function endPoolUpdate() external onlyRole(POOL_MANAGER_ROLE) {
+    function endPoolUpdate() external virtual onlyRole(POOL_MANAGER_ROLE) {
         isUpdatingPool = false;
     }
 

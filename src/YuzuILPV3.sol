@@ -2,12 +2,12 @@
 pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {YuzuILPV2} from "./YuzuILPV2.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
-import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
-import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
+import {Order} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
+import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
 
 /**
  * @title YuzuILPV3
@@ -18,15 +18,9 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
  * never bind; the order path is unguarded. THROTTLE_EXEMPT_ROLE holders bypass the throttle. Fee rates are
  * under FEE_MANAGER_ROLE; management and performance rate changes take effect at the next pool update.
  */
-contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definitions {
+contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-
-    /// @notice Maximum daily linear yield rate, in ppm (1% per day)
-    uint256 internal constant MAX_DAILY_YIELD_PPM = 10_000;
-
-    /// @notice Maximum management fee, in ppm per year (10%)
-    uint256 internal constant MAX_MANAGEMENT_FEE_PPM = 100_000;
 
     struct YuzuILPFeesStorage {
         uint256 _mintFeePpm;
@@ -39,121 +33,131 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
         uint256 _cumulativePerformanceFees;
     }
 
+    struct YuzuMinAmountsStorage {
+        uint256 _minDeposit;
+    }
+
+    struct YuzuThrottleStorage {
+        Throttle _mintThrottle;
+    }
+
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpfees")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant YuzuILPFeesStorageLocation =
         0x93ad02b05e4d8e5afd5c21de55a6b2405afe608b42c8806cefbe7bbeb87f7f00;
+
+    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.minamounts")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant YuzuMinAmountsStorageLocation =
+        0x3bac632b84cdc99ee809c17a81d1c3af6c49d197442158c702def7699ae31b00;
+
+    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.throttle")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant YuzuThrottleStorageLocation =
+        0x0b7c362ff29744eee18a40453a4b4ef5d7bd130da15027ce5dd041799a288e00;
+
+    uint256 private constant TOTAL_ASSETS_WITH_ROUNDING_SELECTOR =
+        uint32(bytes4(keccak256("totalAssetsWithRounding(uint256)")));
+
+    address private immutable _featureFacet;
+
+    constructor(address featureFacet_) {
+        if (featureFacet_ == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        _featureFacet = featureFacet_;
+    }
 
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitializeV3() external reinitializer(3) {
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
-        _setMintThrottle(type(uint256).max, type(uint256).max);
-        _setRedeemThrottle(type(uint256).max, type(uint256).max);
+        YuzuThrottleStorage storage $ = _getYuzuThrottleStorage();
+        $._mintThrottle.blockLimit = type(uint256).max;
+        $._mintThrottle.dailyLimit = type(uint256).max;
     }
 
     /// @dev Applies the tighter V3 yield ceiling, realizes the management fee then the performance fee
     /// accrued since the last update against the admin-reported gross {newPoolSize}, advances the
     /// high-water mark, promotes the staged fee rates, then runs the inherited logic on the net
-    function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
-        public
-        virtual
-        override
-    {
-        if (newDailyLinearYieldRatePpm > MAX_DAILY_YIELD_PPM) {
-            revert InvalidYield(newDailyLinearYieldRatePpm);
-        }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
-
-        uint256 mgmtFee = _managementFeeSinceUpdate(Math.Rounding.Ceil);
-        uint256 netOfMgmt = newPoolSize > mgmtFee ? newPoolSize - mgmtFee : 0;
-        uint256 perfFee = _performanceFee(netOfMgmt, Math.Rounding.Ceil);
-        uint256 netPool = netOfMgmt > perfFee ? netOfMgmt - perfFee : 0;
-
-        if (mgmtFee > 0) {
-            uint256 cumulative = $._cumulativeManagementFees + mgmtFee;
-            $._cumulativeManagementFees = cumulative;
-            emit RealizedManagementFee(mgmtFee, cumulative);
-        }
-        if (perfFee > 0) {
-            uint256 cumulative = $._cumulativePerformanceFees + perfFee;
-            $._cumulativePerformanceFees = cumulative;
-            emit RealizedPerformanceFee(perfFee, cumulative);
-        }
-
-        // Promote the management rate staged for the next period
-        $._managementFeeRatePpm = $._pendingManagementFeeRatePpm;
-
-        // Advance the mark to the pre-performance, net-of-management high, then promote the performance
-        // rate. The advance runs on every update, so the mark is already current when a rate later goes
-        // live. With no shares there is no price to mark, so the rate stays staged until there is.
-        uint256 supply = totalSupply();
-        if (supply > 0) {
-            uint256 newHwm = Math.mulDiv(netOfMgmt, 10 ** decimals(), supply, Math.Rounding.Floor);
-            if (newHwm > $._highWaterMark) {
-                $._highWaterMark = newHwm;
-            }
-            $._performanceFeeRatePpm = $._pendingPerformanceFeeRatePpm;
-        }
-
-        super.updatePool(currentPoolSize, netPool, newDailyLinearYieldRatePpm);
+    function updatePool(uint256, uint256, uint256) public virtual override {
+        _delegateToFeatureFacet();
     }
 
     /// @notice Update the pool and revert if the resulting share price leaves the band
-    function updatePool(
-        uint256 currentPoolSize,
-        uint256 newPoolSize,
-        uint256 newDailyLinearYieldRatePpm,
-        uint256 minSharePrice,
-        uint256 maxSharePrice
-    ) external virtual {
-        updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
-        _checkSharePriceWithin(totalAssets(), minSharePrice, maxSharePrice);
+    function updatePool(uint256, uint256, uint256, uint256, uint256) external virtual {
+        _delegateToFeatureFacet();
+    }
+
+    /// @notice Initiate a gradual increase in total assets
+    function distribute(uint256, uint256) public virtual override {
+        _delegateToFeatureFacet();
     }
 
     /// @notice Distribute and revert if the projected end-of-distribution share price leaves the band
-    function distribute(uint256 assets, uint256 period, uint256 minSharePrice, uint256 maxSharePrice)
-        external
-        virtual
-    {
-        distribute(assets, period);
-        _checkSharePriceWithin(totalAssets() + assets, minSharePrice, maxSharePrice);
+    function distribute(uint256, uint256, uint256, uint256) external virtual {
+        _delegateToFeatureFacet();
     }
 
-    /// @inheritdoc YuzuThrottle
-    /// @dev THROTTLE_EXEMPT_ROLE keys on the owner or receiver in both the views and the
-    /// state-changing paths, the standard ERC-4626 principal. Caller-keying is reserved for
-    /// vaults whose integration model is caller-keyed; the proto vaults have none.
-    function _isThrottleExempt(address account) internal view override returns (bool) {
-        return hasRole(THROTTLE_EXEMPT_ROLE, account);
+    /// @notice Terminate an in-progress distribution
+    function terminateDistribution() external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function startPoolUpdate() external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function endPoolUpdate() external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setTreasury(address) external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setFeeReceiver(address) external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setSupplyCap(uint256) external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setLiquidityBufferTargetSize(uint256) external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setFillWindow(uint256) external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setMinRedeemOrder(uint256) external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setIsMintRestricted(bool) external virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function setIsRedeemRestricted(bool) external virtual override {
+        _delegateToFeatureFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
-        external
-        virtual
-        onlyRole(LIMIT_MANAGER_ROLE)
-    {
-        _setMintThrottle(newBlockLimit, newDailyLimit);
+    function setMintThrottle(uint256, uint256) external virtual {
+        _delegateToFeatureFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
-        external
-        virtual
-        onlyRole(LIMIT_MANAGER_ROLE)
-    {
-        _setRedeemThrottle(newBlockLimit, newDailyLimit);
+    function setMinDeposit(uint256) external virtual {
+        _delegateToFeatureFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
-        _setMinDeposit(newMin);
+    function minDeposit() public view returns (uint256) {
+        return _getYuzuMinAmountsStorage()._minDeposit;
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
-        _setMinWithdraw(newMin);
+    function getMintThrottle() external view returns (Throttle memory) {
+        return _getYuzuThrottleStorage()._mintThrottle;
     }
 
     /// @notice Fee charged on the deposit/mint path, in ppm of the assets in
@@ -162,14 +166,8 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMintFee(uint256 newFeePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) {
-            revert FeeTooHigh(newFeePpm, 1e6);
-        }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
-        uint256 oldFee = $._mintFeePpm;
-        $._mintFeePpm = newFeePpm;
-        emit UpdatedMintFee(oldFee, newFeePpm);
+    function setMintFee(uint256) external virtual {
+        _delegateToFeatureFacet();
     }
 
     /// @notice Active management fee, in ppm per year, charged as a continuous drift on poolSize
@@ -210,155 +208,172 @@ contract YuzuILPV3 is YuzuILPV2, YuzuMinAmounts, YuzuThrottle, IYuzuILPV3Definit
     /// @dev Stages the rate; it takes effect at the next pool update, so a period is always charged at one
     /// rate fixed at its start. Deferral also keeps the drift from ever accruing before the first update.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setManagementFee(uint256 newRatePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
-        if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
-            revert FeeTooHigh(newRatePpm, MAX_MANAGEMENT_FEE_PPM);
-        }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
-        uint256 oldPending = $._pendingManagementFeeRatePpm;
-        $._pendingManagementFeeRatePpm = newRatePpm;
-        emit UpdatedManagementFee(oldPending, newRatePpm);
+    function setManagementFee(uint256) external virtual {
+        _delegateToFeatureFacet();
     }
 
     /// @dev Stages the rate; it takes effect at the next pool update. The fee is charged on the share-price
     /// gain above the high-water mark, which advances at each update, so enabling the fee is never retroactive.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setPerformanceFee(uint256 newRatePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
-        if (newRatePpm > 1e6) {
-            revert FeeTooHigh(newRatePpm, 1e6);
-        }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
-        uint256 oldPending = $._pendingPerformanceFeeRatePpm;
-        $._pendingPerformanceFeeRatePpm = newRatePpm;
-        emit UpdatedPerformanceFee(oldPending, newRatePpm);
+    function setPerformanceFee(uint256) external virtual {
+        _delegateToFeatureFacet();
     }
 
     /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setRedeemFee(uint256 newFeePpm) external virtual override onlyRole(FEE_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) {
-            revert FeeTooHigh(newFeePpm, 1e6);
-        }
-        uint256 oldFee = redeemFeePpm;
-        redeemFeePpm = newFeePpm;
-        emit UpdatedRedeemFee(oldFee, newFeePpm);
+    function setRedeemFee(uint256) external virtual override {
+        _delegateToFeatureFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setRedeemOrderFee(uint256 newFeePpm) external virtual override onlyRole(FEE_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) {
-            revert FeeTooHigh(newFeePpm, 1e6);
-        }
-        uint256 oldFee = redeemOrderFeePpm;
-        redeemOrderFeePpm = newFeePpm;
-        emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
+    function setRedeemOrderFee(uint256) external virtual override {
+        _delegateToFeatureFacet();
     }
 
-    function maxDeposit(address receiver) public view virtual override returns (uint256) {
-        uint256 maxAssets = Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
-        return maxAssets < minDeposit() ? 0 : maxAssets;
+    function maxDeposit(address) public view virtual override returns (uint256) {
+        _delegateToFeatureFacetView();
     }
 
     /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
     /// keeps convertToShares from overflowing (ILP share price is admin-set and unbounded).
-    function maxMint(address receiver) public view virtual override returns (uint256) {
-        uint256 headroom = super.maxMint(receiver);
-        uint256 remaining = _mintThrottleRemaining(receiver);
-        uint256 shares = remaining >= type(uint128).max ? headroom : Math.min(headroom, convertToShares(remaining));
-        return previewMint(shares) < minDeposit() ? 0 : shares;
+    function maxMint(address) public view virtual override returns (uint256) {
+        _delegateToFeatureFacetView();
     }
 
-    function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
-        _checkMinDeposit(assets);
-        uint256 fee = _feeOnTotal(assets, mintFeePpm());
-        if (fee > 0) {
-            SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), feeReceiver, fee);
+    function maxWithdraw(address) public pure virtual override returns (uint256) {
+        return 0;
+    }
+
+    function maxRedeem(address) public pure virtual override returns (uint256) {
+        return 0;
+    }
+
+    function deposit(uint256, address) public virtual override returns (uint256) {
+        _delegateToFeatureFacet();
+    }
+
+    function mint(uint256, address) public virtual override returns (uint256) {
+        _delegateToFeatureFacet();
+    }
+
+    function withdrawCollateral(uint256, address) public virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function burn(uint256) public virtual override {
+        _delegateToFeatureFacet();
+    }
+
+    function withdraw(uint256, address, address) public pure virtual override returns (uint256) {
+        revert();
+    }
+
+    function redeem(uint256, address, address) public pure virtual override returns (uint256) {
+        revert();
+    }
+
+    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
+        internal
+        virtual
+        override(YuzuILPV2)
+    {
+        uint256 netRedeemed = assets + fee;
+        uint256 grossTotalAssets = super._totalAssets(Math.Rounding.Floor);
+        uint256 grossRedeemed = netRedeemed;
+        uint256 netTotalAssets = _totalAssets(Math.Rounding.Floor);
+        if (netTotalAssets > 0) {
+            grossRedeemed = Math.mulDiv(netRedeemed, grossTotalAssets, netTotalAssets, Math.Rounding.Ceil);
         }
-        uint256 netAssets = assets - fee;
-        uint256 tokens = super.deposit(netAssets, receiver);
-        _consumeMintThrottle(receiver, netAssets);
-        return tokens;
+
+        uint256 totalAssetsFromDistributions = netDistributedSinceUpdate();
+        uint256 redeemFromDistributions =
+            grossTotalAssets > 0 ? Math.mulDiv(grossRedeemed, totalAssetsFromDistributions, grossTotalAssets) : 0;
+        uint256 redeemedFromPool = grossRedeemed - redeemFromDistributions;
+
+        YuzuOrderBook._fillRedeemOrder(caller, order, assets, fee);
+
+        _redeemedDistributionsSinceUpdate += redeemFromDistributions;
+        poolSize -= _discountYield(redeemedFromPool, Math.Rounding.Ceil);
     }
 
-    function mint(uint256 tokens, address receiver) public virtual override returns (uint256) {
-        uint256 netAssets = previewMint(tokens);
-        uint256 fee = _feeOnRaw(netAssets, mintFeePpm());
-        _checkMinDeposit(netAssets + fee);
-        if (fee > 0) {
-            SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), feeReceiver, fee);
-        }
-        uint256 assets = super.mint(tokens, receiver);
-        _consumeMintThrottle(receiver, assets);
-        return assets + fee;
-    }
-
-    function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
-        _checkMinWithdraw(assets);
-        return super.withdraw(assets, receiver, _owner);
-    }
-
-    function redeem(uint256 tokens, address receiver, address _owner) public virtual override returns (uint256) {
-        (uint256 assets,) = _previewRedeem(tokens);
-        _checkMinWithdraw(assets);
-        return super.redeem(tokens, receiver, _owner);
-    }
-
-    /// @dev Reverts if the share price implied by {totalAssets_} is outside the band. The price is the
-    /// asset value of one whole share. Skipped while there are no shares, when no price exists.
-    function _checkSharePriceWithin(uint256 totalAssets_, uint256 minSharePrice, uint256 maxSharePrice) internal view {
-        uint256 _totalSupply = totalSupply();
-        if (_totalSupply == 0) {
-            return;
-        }
-        uint256 sharePrice = Math.mulDiv(totalAssets_, 10 ** decimals(), _totalSupply);
-        if (sharePrice > maxSharePrice) {
-            revert SharePriceTooHigh(sharePrice, maxSharePrice);
-        }
-        if (sharePrice < minSharePrice) {
-            revert SharePriceTooLow(sharePrice, minSharePrice);
-        }
-    }
-
-    /// @dev Management fee accrued since the last pool update: a negative drift on poolSize, the mirror
-    /// of the yield accrual. The fee value stays in the treasury (lower NAV), never credited to holders.
-    function _managementFeeSinceUpdate(Math.Rounding rounding) internal view returns (uint256) {
-        return Math.mulDiv(poolSize * managementFeeRatePpm(), _timeSinceUpdate(), 1e6 * 365 days, rounding);
-    }
-
-    /// @dev Performance fee on the part of {netOfMgmt} (assets net of the management fee) whose share price
-    /// sits above the high-water mark. The mark in asset terms rounds opposite the fee so the base stays
-    /// conservative. The fee value stays in the treasury (lower NAV), never credited to holders.
-    function _performanceFee(uint256 netOfMgmt, Math.Rounding rounding) internal view returns (uint256) {
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
-        uint256 rate = $._performanceFeeRatePpm;
-        uint256 supply = totalSupply();
-        if (rate == 0 || supply == 0) {
-            return 0;
-        }
-        uint256 hwmAssets =
-            Math.mulDiv($._highWaterMark, supply, 10 ** decimals(), Math.Rounding(1 - uint256(rounding)));
-        if (netOfMgmt <= hwmAssets) {
-            return 0;
-        }
-        return Math.mulDiv(rate, netOfMgmt - hwmAssets, 1e6, rounding);
-    }
-
-    /// @dev Subtracts the accrued management fee, then the performance fee on the remaining gain above the
-    /// high-water mark, each floored at 0. Fees round against the caller (opposite the totalAssets rounding)
-    /// so the reported value stays conservative.
     function _totalAssets(Math.Rounding rounding) internal view override(YuzuILPV2) returns (uint256) {
-        Math.Rounding feeRounding = Math.Rounding(1 - uint256(rounding));
-        uint256 total = super._totalAssets(rounding);
-        uint256 mgmtFee = _managementFeeSinceUpdate(feeRounding);
-        uint256 netOfMgmt = mgmtFee >= total ? 0 : total - mgmtFee;
-        uint256 perfFee = _performanceFee(netOfMgmt, feeRounding);
-        return perfFee >= netOfMgmt ? 0 : netOfMgmt - perfFee;
+        address facet = _featureFacet;
+        uint256 selector = TOTAL_ASSETS_WITH_ROUNDING_SELECTOR;
+        uint256 rounding_ = uint256(rounding);
+        uint256 result;
+        // slither-disable-next-line assembly,low-level-calls
+        assembly {
+            let ptr := mload(0x40)
+            mstore(ptr, shl(224, selector))
+            mstore(add(ptr, 0x04), rounding_)
+            let success := staticcall(gas(), facet, ptr, 0x24, ptr, 0x20)
+            if iszero(success) {
+                returndatacopy(0, 0, returndatasize())
+                revert(0, returndatasize())
+            }
+            result := mload(ptr)
+        }
+        return result;
     }
 
     function _getYuzuILPFeesStorage() private pure returns (YuzuILPFeesStorage storage $) {
         // slither-disable-next-line assembly
         assembly {
             $.slot := YuzuILPFeesStorageLocation
+        }
+    }
+
+    function _getYuzuMinAmountsStorage() private pure returns (YuzuMinAmountsStorage storage $) {
+        // slither-disable-next-line assembly
+        assembly {
+            $.slot := YuzuMinAmountsStorageLocation
+        }
+    }
+
+    function _getYuzuThrottleStorage() private pure returns (YuzuThrottleStorage storage $) {
+        // slither-disable-next-line assembly
+        assembly {
+            $.slot := YuzuThrottleStorageLocation
+        }
+    }
+
+    function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {
+        if (msg.sender != address(this)) {
+            revert();
+        }
+        _deposit(caller, receiver, assets, tokens);
+    }
+
+    function __routerBurn(address owner, uint256 tokens) external {
+        if (msg.sender != address(this)) {
+            revert();
+        }
+        _burn(owner, tokens);
+    }
+
+    function _delegateToFeatureFacet() private {
+        address facet = _featureFacet;
+        // slither-disable-next-line assembly,low-level-calls
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let result := delegatecall(gas(), facet, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch result
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+
+    function _delegateToFeatureFacetView() private view {
+        address facet = _featureFacet;
+        // slither-disable-next-line assembly,low-level-calls
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            let result := staticcall(gas(), facet, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch result
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
         }
     }
 

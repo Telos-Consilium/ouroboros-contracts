@@ -12,6 +12,7 @@ import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
 import {YuzuUSDV3FeatureFacet} from "../src/YuzuUSDV3FeatureFacet.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
+import {YuzuILPV3FeatureFacet} from "../src/YuzuILPV3FeatureFacet.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
 contract USDT0Mock is ERC20Mock {
@@ -41,7 +42,9 @@ contract YuzuV3MinAmountsTest is Test, IYuzuMinAmountsDefinitions {
         yzusd = YuzuUSDV3(
             _deploy(address(new YuzuUSDV3(address(new YuzuUSDV3FeatureFacet()))), YuzuUSD.initialize.selector)
         );
-        yzilp = YuzuILPV3(_deploy(address(new YuzuILPV3()), YuzuILP.initialize.selector));
+        yzilp = YuzuILPV3(
+            _deploy(address(new YuzuILPV3(address(new YuzuILPV3FeatureFacet()))), YuzuILP.initialize.selector)
+        );
 
         // V3 carries the throttle; seed limits to unlimited so min-amount paths are reachable
         yzusd.reinitializeV3();

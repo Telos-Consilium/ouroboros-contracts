@@ -10,6 +10,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
+import {YuzuILPV3FeatureFacet} from "../src/YuzuILPV3FeatureFacet.sol";
 import {IYuzuILPDefinitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 
 contract USDT0Mock is ERC20Mock {
@@ -39,7 +40,7 @@ contract YuzuILPV3PriceGuardTest is Test, IYuzuILPDefinitions, IYuzuILPV3Definit
         asset = new USDT0Mock();
         asset.mint(user, 10_000_000e6);
 
-        address impl = address(new YuzuILPV3());
+        address impl = address(new YuzuILPV3(address(new YuzuILPV3FeatureFacet())));
         bytes memory initData = abi.encodeWithSelector(
             YuzuILP.initialize.selector,
             address(asset),

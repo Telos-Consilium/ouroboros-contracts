@@ -14,6 +14,7 @@ import {YuzuUSDV3FeatureFacet} from "../src/YuzuUSDV3FeatureFacet.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
+import {YuzuILPV3FeatureFacet} from "../src/YuzuILPV3FeatureFacet.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuThrottleDefinitions} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 
@@ -211,7 +212,7 @@ contract YuzuILPV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         asset.mint(user, 10_000_000e6);
         asset.mint(exempt, 10_000_000e6);
 
-        address impl = address(new YuzuILPV3());
+        address impl = address(new YuzuILPV3(address(new YuzuILPV3FeatureFacet())));
         bytes memory initData = abi.encodeWithSelector(
             YuzuILP.initialize.selector,
             address(asset),

@@ -249,7 +249,7 @@ abstract contract YuzuProto is
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }
 
-    function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
+    function setTreasury(address newTreasury) external virtual onlyRole(ADMIN_ROLE) {
         if (newTreasury == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -276,7 +276,7 @@ abstract contract YuzuProto is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
-    function setFeeReceiver(address newFeeReceiver) external onlyRole(ADMIN_ROLE) {
+    function setFeeReceiver(address newFeeReceiver) external virtual onlyRole(ADMIN_ROLE) {
         if (newFeeReceiver == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -296,32 +296,32 @@ abstract contract YuzuProto is
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setSupplyCap(uint256 newCap) external onlyRole(LIMIT_MANAGER_ROLE) {
+    function setSupplyCap(uint256 newCap) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setSupplyCap(newCap);
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setLiquidityBufferTargetSize(uint256 newSize) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setLiquidityBufferTargetSize(uint256 newSize) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setLiquidityBufferTargetSize(newSize);
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setFillWindow(uint256 newWindow) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setFillWindow(newWindow);
     }
 
     // slither-disable-next-line pess-strange-setter
-    function setMinRedeemOrder(uint256 newMin) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setMinRedeemOrder(uint256 newMin) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setMinRedeemOrder(newMin);
     }
 
-    function setIsMintRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+    function setIsMintRestricted(bool restricted) external virtual onlyRole(ADMIN_ROLE) {
         bool oldValue = isMintRestricted;
         isMintRestricted = restricted;
         emit UpdatedIsMintRestricted(oldValue, restricted);
     }
 
-    function setIsRedeemRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+    function setIsRedeemRestricted(bool restricted) external virtual onlyRole(ADMIN_ROLE) {
         bool oldValue = isRedeemRestricted;
         isRedeemRestricted = restricted;
         emit UpdatedIsRedeemRestricted(oldValue, restricted);
