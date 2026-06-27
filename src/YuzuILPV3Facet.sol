@@ -15,44 +15,13 @@ import {
     IYuzuProtoDefinitions,
     IYuzuProtoV2Definitions
 } from "./interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 
-interface IYuzuILPV3Router {
-    function previewDeposit(uint256 assets) external view returns (uint256);
-    function previewMint(uint256 tokens) external view returns (uint256);
-    function convertToShares(uint256 assets) external view returns (uint256);
-    function convertToAssets(uint256 shares) external view returns (uint256);
-    function cap() external view returns (uint256);
-    function balanceOf(address account) external view returns (uint256);
-    function totalSupply() external view returns (uint256);
-    function totalAssets() external view returns (uint256);
-    function decimals() external view returns (uint8);
-    function poolSize() external view returns (uint256);
-    function dailyLinearYieldRatePpm() external view returns (uint256);
-    function lastPoolUpdateTimestamp() external view returns (uint256);
-    function netDistributedSinceUpdate() external view returns (uint256);
-    function paused() external view returns (bool);
-    function isMintRestricted() external view returns (bool);
-    function isUpdatingPool() external view returns (bool);
-    function liquidityBufferSize() external view returns (uint256);
-    function mintFeePpm() external view returns (uint256);
-    function managementFeeRatePpm() external view returns (uint256);
-    function performanceFeeRatePpm() external view returns (uint256);
-    function highWaterMark() external view returns (uint256);
-    function minDeposit() external view returns (uint256);
-    function getMintThrottle() external view returns (Throttle memory);
-    function asset() external view returns (address);
-    function treasury() external view returns (address);
-    function feeReceiver() external view returns (address);
-    function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external;
-    function __routerBurn(address owner, uint256 tokens) external;
-}
-
 /**
- * @title YuzuILPV3FeatureFacet
- * @notice Static delegatecall target for YuzuILP V3 feature logic.
+ * @title YuzuILPV3Facet
  */
-contract YuzuILPV3FeatureFacet is
+contract YuzuILPV3Facet is
     IYuzuIssuerDefinitions,
     IYuzuOrderBookDefinitions,
     IYuzuProtoDefinitions,
@@ -78,21 +47,21 @@ contract YuzuILPV3FeatureFacet is
     /// @notice Maximum management fee, in ppm per year (10%)
     uint256 internal constant MAX_MANAGEMENT_FEE_PPM = 100_000;
 
-    uint256 private constant TREASURY_SLOT = 1;
-    uint256 private constant FEE_RECEIVER_AND_RESTRICTIONS_SLOT = 4;
+    uint256 private constant YUZU_PROTO_TREASURY_SLOT = 1;
+    uint256 private constant YUZU_PROTO_REDEEM_FEE_SLOT = 2;
+    uint256 private constant YUZU_PROTO_REDEEM_ORDER_FEE_SLOT = 3;
+    uint256 private constant YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT = 4;
     uint256 private constant IS_MINT_RESTRICTED_SHIFT = 160;
     uint256 private constant IS_REDEEM_RESTRICTED_SHIFT = 168;
-    uint256 private constant REDEEM_FEE_SLOT = 2;
-    uint256 private constant REDEEM_ORDER_FEE_SLOT = 3;
-    uint256 private constant POOL_SIZE_SLOT = 55;
-    uint256 private constant DAILY_LINEAR_YIELD_RATE_PPM_SLOT = 56;
-    uint256 private constant LAST_POOL_UPDATE_TIMESTAMP_SLOT = 57;
-    uint256 private constant IS_UPDATING_POOL_SLOT = 100;
-    uint256 private constant LAST_DISTRIBUTED_AMOUNT_SLOT = 101;
-    uint256 private constant LAST_DISTRIBUTION_PERIOD_SLOT = 102;
-    uint256 private constant LAST_DISTRIBUTION_TIMESTAMP_SLOT = 103;
-    uint256 private constant FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT = 104;
-    uint256 private constant REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT = 105;
+    uint256 private constant YUZU_ILP_POOL_SIZE_SLOT = 55;
+    uint256 private constant YUZU_ILP_DAILY_LINEAR_YIELD_RATE_PPM_SLOT = 56;
+    uint256 private constant YUZU_ILP_LAST_POOL_UPDATE_TIMESTAMP_SLOT = 57;
+    uint256 private constant YUZU_ILPV2_IS_UPDATING_POOL_SLOT = 100;
+    uint256 private constant YUZU_ILPV2_LAST_DISTRIBUTED_AMOUNT_SLOT = 101;
+    uint256 private constant YUZU_ILPV2_LAST_DISTRIBUTION_PERIOD_SLOT = 102;
+    uint256 private constant YUZU_ILPV2_LAST_DISTRIBUTION_TIMESTAMP_SLOT = 103;
+    uint256 private constant YUZU_ILPV2_FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT = 104;
+    uint256 private constant YUZU_ILPV2_REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT = 105;
 
     struct YuzuMinAmountsStorage {
         uint256 _minDeposit;
@@ -318,14 +287,14 @@ contract YuzuILPV3FeatureFacet is
     function startPoolUpdate() external {
         _checkRole(POOL_MANAGER_ROLE);
         assembly {
-            sstore(IS_UPDATING_POOL_SLOT, 1)
+            sstore(YUZU_ILPV2_IS_UPDATING_POOL_SLOT, 1)
         }
     }
 
     function endPoolUpdate() external {
         _checkRole(POOL_MANAGER_ROLE);
         assembly {
-            sstore(IS_UPDATING_POOL_SLOT, 0)
+            sstore(YUZU_ILPV2_IS_UPDATING_POOL_SLOT, 0)
         }
     }
 
@@ -335,7 +304,7 @@ contract YuzuILPV3FeatureFacet is
             revert InvalidZeroAddress();
         }
         address oldTreasury = IYuzuILPV3Router(address(this)).treasury();
-        _setPackedAddress(TREASURY_SLOT, newTreasury);
+        _setPackedAddress(YUZU_PROTO_TREASURY_SLOT, newTreasury);
         emit UpdatedTreasury(oldTreasury, newTreasury);
     }
 
@@ -345,7 +314,7 @@ contract YuzuILPV3FeatureFacet is
             revert InvalidZeroAddress();
         }
         address oldFeeReceiver = IYuzuILPV3Router(address(this)).feeReceiver();
-        _setPackedAddress(FEE_RECEIVER_AND_RESTRICTIONS_SLOT, newFeeReceiver);
+        _setPackedAddress(YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT, newFeeReceiver);
         emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
     }
 
@@ -390,13 +359,15 @@ contract YuzuILPV3FeatureFacet is
 
     function setIsMintRestricted(bool restricted) external {
         _checkRole(ADMIN_ROLE);
-        bool oldValue = _setPackedBool(FEE_RECEIVER_AND_RESTRICTIONS_SLOT, IS_MINT_RESTRICTED_SHIFT, restricted);
+        bool oldValue =
+            _setPackedBool(YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT, IS_MINT_RESTRICTED_SHIFT, restricted);
         emit UpdatedIsMintRestricted(oldValue, restricted);
     }
 
     function setIsRedeemRestricted(bool restricted) external {
         _checkRole(ADMIN_ROLE);
-        bool oldValue = _setPackedBool(FEE_RECEIVER_AND_RESTRICTIONS_SLOT, IS_REDEEM_RESTRICTED_SHIFT, restricted);
+        bool oldValue =
+            _setPackedBool(YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT, IS_REDEEM_RESTRICTED_SHIFT, restricted);
         emit UpdatedIsRedeemRestricted(oldValue, restricted);
     }
 
@@ -750,129 +721,129 @@ contract YuzuILPV3FeatureFacet is
 
     function _poolSize() private view returns (uint256 value) {
         assembly {
-            value := sload(POOL_SIZE_SLOT)
+            value := sload(YUZU_ILP_POOL_SIZE_SLOT)
         }
     }
 
     function _setPoolSize(uint256 value) private {
         assembly {
-            sstore(POOL_SIZE_SLOT, value)
+            sstore(YUZU_ILP_POOL_SIZE_SLOT, value)
         }
     }
 
     function _dailyLinearYieldRatePpm() private view returns (uint256 value) {
         assembly {
-            value := sload(DAILY_LINEAR_YIELD_RATE_PPM_SLOT)
+            value := sload(YUZU_ILP_DAILY_LINEAR_YIELD_RATE_PPM_SLOT)
         }
     }
 
     function _setDailyLinearYieldRatePpm(uint256 value) private {
         assembly {
-            sstore(DAILY_LINEAR_YIELD_RATE_PPM_SLOT, value)
+            sstore(YUZU_ILP_DAILY_LINEAR_YIELD_RATE_PPM_SLOT, value)
         }
     }
 
     function _lastPoolUpdateTimestamp() private view returns (uint256 value) {
         assembly {
-            value := sload(LAST_POOL_UPDATE_TIMESTAMP_SLOT)
+            value := sload(YUZU_ILP_LAST_POOL_UPDATE_TIMESTAMP_SLOT)
         }
     }
 
     function _setLastPoolUpdateTimestamp(uint256 value) private {
         assembly {
-            sstore(LAST_POOL_UPDATE_TIMESTAMP_SLOT, value)
+            sstore(YUZU_ILP_LAST_POOL_UPDATE_TIMESTAMP_SLOT, value)
         }
     }
 
     function _isUpdatingPool() private view returns (bool) {
         uint256 value;
         assembly {
-            value := sload(IS_UPDATING_POOL_SLOT)
+            value := sload(YUZU_ILPV2_IS_UPDATING_POOL_SLOT)
         }
         return value != 0;
     }
 
     function _lastDistributedAmount() private view returns (uint256 value) {
         assembly {
-            value := sload(LAST_DISTRIBUTED_AMOUNT_SLOT)
+            value := sload(YUZU_ILPV2_LAST_DISTRIBUTED_AMOUNT_SLOT)
         }
     }
 
     function _setLastDistributedAmount(uint256 value) private {
         assembly {
-            sstore(LAST_DISTRIBUTED_AMOUNT_SLOT, value)
+            sstore(YUZU_ILPV2_LAST_DISTRIBUTED_AMOUNT_SLOT, value)
         }
     }
 
     function _lastDistributionPeriod() private view returns (uint256 value) {
         assembly {
-            value := sload(LAST_DISTRIBUTION_PERIOD_SLOT)
+            value := sload(YUZU_ILPV2_LAST_DISTRIBUTION_PERIOD_SLOT)
         }
     }
 
     function _setLastDistributionPeriod(uint256 value) private {
         assembly {
-            sstore(LAST_DISTRIBUTION_PERIOD_SLOT, value)
+            sstore(YUZU_ILPV2_LAST_DISTRIBUTION_PERIOD_SLOT, value)
         }
     }
 
     function _lastDistributionTimestamp() private view returns (uint256 value) {
         assembly {
-            value := sload(LAST_DISTRIBUTION_TIMESTAMP_SLOT)
+            value := sload(YUZU_ILPV2_LAST_DISTRIBUTION_TIMESTAMP_SLOT)
         }
     }
 
     function _setLastDistributionTimestamp(uint256 value) private {
         assembly {
-            sstore(LAST_DISTRIBUTION_TIMESTAMP_SLOT, value)
+            sstore(YUZU_ILPV2_LAST_DISTRIBUTION_TIMESTAMP_SLOT, value)
         }
     }
 
     function _fullyDistributedSinceUpdate() private view returns (uint256 value) {
         assembly {
-            value := sload(FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT)
+            value := sload(YUZU_ILPV2_FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT)
         }
     }
 
     function _setFullyDistributedSinceUpdate(uint256 value) private {
         assembly {
-            sstore(FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT, value)
+            sstore(YUZU_ILPV2_FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT, value)
         }
     }
 
     function _redeemedDistributionsSinceUpdate() private view returns (uint256 value) {
         assembly {
-            value := sload(REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT)
+            value := sload(YUZU_ILPV2_REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT)
         }
     }
 
     function _setRedeemedDistributionsSinceUpdate(uint256 value) private {
         assembly {
-            sstore(REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT, value)
+            sstore(YUZU_ILPV2_REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT, value)
         }
     }
 
     function _redeemFeePpm() private view returns (uint256 value) {
         assembly {
-            value := sload(REDEEM_FEE_SLOT)
+            value := sload(YUZU_PROTO_REDEEM_FEE_SLOT)
         }
     }
 
     function _setRedeemFeePpm(uint256 value) private {
         assembly {
-            sstore(REDEEM_FEE_SLOT, value)
+            sstore(YUZU_PROTO_REDEEM_FEE_SLOT, value)
         }
     }
 
     function _redeemOrderFeePpm() private view returns (uint256 value) {
         assembly {
-            value := sload(REDEEM_ORDER_FEE_SLOT)
+            value := sload(YUZU_PROTO_REDEEM_ORDER_FEE_SLOT)
         }
     }
 
     function _setRedeemOrderFeePpm(uint256 value) private {
         assembly {
-            sstore(REDEEM_ORDER_FEE_SLOT, value)
+            sstore(YUZU_PROTO_REDEEM_ORDER_FEE_SLOT, value)
         }
     }
 

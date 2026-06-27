@@ -56,13 +56,13 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     uint256 private constant TOTAL_ASSETS_WITH_ROUNDING_SELECTOR =
         uint32(bytes4(keccak256("totalAssetsWithRounding(uint256)")));
 
-    address private immutable _featureFacet;
+    address private immutable _facet;
 
-    constructor(address featureFacet_) {
-        if (featureFacet_ == address(0)) {
+    constructor(address facet_) {
+        if (facet_ == address(0)) {
             revert InvalidZeroAddress();
         }
-        _featureFacet = featureFacet_;
+        _facet = facet_;
     }
 
     /// @notice Reinitializes the contract for the V3 upgrade
@@ -79,77 +79,77 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     /// accrued since the last update against the admin-reported gross {newPoolSize}, advances the
     /// high-water mark, promotes the staged fee rates, then runs the inherited logic on the net
     function updatePool(uint256, uint256, uint256) public virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @notice Update the pool and revert if the resulting share price leaves the band
     function updatePool(uint256, uint256, uint256, uint256, uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @notice Initiate a gradual increase in total assets
     function distribute(uint256, uint256) public virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @notice Distribute and revert if the projected end-of-distribution share price leaves the band
     function distribute(uint256, uint256, uint256, uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @notice Terminate an in-progress distribution
     function terminateDistribution() external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function startPoolUpdate() external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function endPoolUpdate() external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setTreasury(address) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setFeeReceiver(address) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setSupplyCap(uint256) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setLiquidityBufferTargetSize(uint256) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setFillWindow(uint256) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setMinRedeemOrder(uint256) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setIsMintRestricted(bool) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function setIsRedeemRestricted(bool) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinDeposit(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function minDeposit() public view returns (uint256) {
@@ -167,7 +167,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintFee(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @notice Active management fee, in ppm per year, charged as a continuous drift on poolSize
@@ -209,35 +209,35 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     /// rate fixed at its start. Deferral also keeps the drift from ever accruing before the first update.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setManagementFee(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @dev Stages the rate; it takes effect at the next pool update. The fee is charged on the share-price
     /// gain above the high-water mark, which advances at each update, so enabling the fee is never retroactive.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setPerformanceFee(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setRedeemFee(uint256) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setRedeemOrderFee(uint256) external virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function maxDeposit(address) public view virtual override returns (uint256) {
-        _delegateToFeatureFacetView();
+        _staticcallFacet();
     }
 
     /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
     /// keeps convertToShares from overflowing (ILP share price is admin-set and unbounded).
     function maxMint(address) public view virtual override returns (uint256) {
-        _delegateToFeatureFacetView();
+        _staticcallFacet();
     }
 
     function maxWithdraw(address) public pure virtual override returns (uint256) {
@@ -249,19 +249,19 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     function deposit(uint256, address) public virtual override returns (uint256) {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function mint(uint256, address) public virtual override returns (uint256) {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function withdrawCollateral(uint256, address) public virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function burn(uint256) public virtual override {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function withdraw(uint256, address, address) public pure virtual override returns (uint256) {
@@ -297,7 +297,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     function _totalAssets(Math.Rounding rounding) internal view override(YuzuILPV2) returns (uint256) {
-        address facet = _featureFacet;
+        address facet = _facet;
         uint256 selector = TOTAL_ASSETS_WITH_ROUNDING_SELECTOR;
         uint256 rounding_ = uint256(rounding);
         uint256 result;
@@ -351,8 +351,8 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _burn(owner, tokens);
     }
 
-    function _delegateToFeatureFacet() private {
-        address facet = _featureFacet;
+    function _delegateToFacet() private {
+        address facet = _facet;
         // slither-disable-next-line assembly,low-level-calls
         assembly {
             calldatacopy(0, 0, calldatasize())
@@ -364,8 +364,8 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         }
     }
 
-    function _delegateToFeatureFacetView() private view {
-        address facet = _featureFacet;
+    function _staticcallFacet() private view {
+        address facet = _facet;
         // slither-disable-next-line assembly,low-level-calls
         assembly {
             calldatacopy(0, 0, calldatasize())

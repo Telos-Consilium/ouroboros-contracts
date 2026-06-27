@@ -9,10 +9,10 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
-import {YuzuUSDV3FeatureFacet} from "../src/YuzuUSDV3FeatureFacet.sol";
+import {YuzuUSDV3Facet} from "../src/YuzuUSDV3Facet.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
-import {YuzuILPV3FeatureFacet} from "../src/YuzuILPV3FeatureFacet.sol";
+import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
 contract USDT0Mock is ERC20Mock {
@@ -39,12 +39,8 @@ contract YuzuV3MinAmountsTest is Test, IYuzuMinAmountsDefinitions {
         asset = new USDT0Mock();
         asset.mint(user, 10_000_000e6);
 
-        yzusd = YuzuUSDV3(
-            _deploy(address(new YuzuUSDV3(address(new YuzuUSDV3FeatureFacet()))), YuzuUSD.initialize.selector)
-        );
-        yzilp = YuzuILPV3(
-            _deploy(address(new YuzuILPV3(address(new YuzuILPV3FeatureFacet()))), YuzuILP.initialize.selector)
-        );
+        yzusd = YuzuUSDV3(_deploy(address(new YuzuUSDV3(address(new YuzuUSDV3Facet()))), YuzuUSD.initialize.selector));
+        yzilp = YuzuILPV3(_deploy(address(new YuzuILPV3(address(new YuzuILPV3Facet()))), YuzuILP.initialize.selector));
 
         // V3 carries the throttle; seed limits to unlimited so min-amount paths are reachable
         yzusd.reinitializeV3();

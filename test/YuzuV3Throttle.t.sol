@@ -10,11 +10,11 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV2} from "../src/YuzuUSDV2.sol";
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
-import {YuzuUSDV3FeatureFacet} from "../src/YuzuUSDV3FeatureFacet.sol";
+import {YuzuUSDV3Facet} from "../src/YuzuUSDV3Facet.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
-import {YuzuILPV3FeatureFacet} from "../src/YuzuILPV3FeatureFacet.sol";
+import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuThrottleDefinitions} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 
@@ -45,7 +45,7 @@ contract YuzuUSDV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         asset.mint(user, 10_000_000e6);
         asset.mint(exempt, 10_000_000e6);
 
-        address impl = address(new YuzuUSDV3(address(new YuzuUSDV3FeatureFacet())));
+        address impl = address(new YuzuUSDV3(address(new YuzuUSDV3Facet())));
         bytes memory initData = abi.encodeWithSelector(
             YuzuUSD.initialize.selector,
             address(asset),
@@ -212,7 +212,7 @@ contract YuzuILPV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         asset.mint(user, 10_000_000e6);
         asset.mint(exempt, 10_000_000e6);
 
-        address impl = address(new YuzuILPV3(address(new YuzuILPV3FeatureFacet())));
+        address impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
         bytes memory initData = abi.encodeWithSelector(
             YuzuILP.initialize.selector,
             address(asset),

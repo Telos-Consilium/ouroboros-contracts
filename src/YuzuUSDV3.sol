@@ -77,13 +77,13 @@ contract YuzuUSDV3 is
     bytes32 private constant YuzuNavMarkdownStorageLocation =
         0xbba33777aee3e8d94c5925677a78afa5780f0b9cf6f4464b380525cccd6c9300;
 
-    address private immutable _featureFacet;
+    address private immutable _facet;
 
-    constructor(address featureFacet_) {
-        if (featureFacet_ == address(0)) {
+    constructor(address facet_) {
+        if (facet_ == address(0)) {
             revert InvalidZeroAddress();
         }
-        _featureFacet = featureFacet_;
+        _facet = facet_;
     }
 
     /// @notice Reinitializes the contract for the V3 upgrade
@@ -115,37 +115,37 @@ contract YuzuUSDV3 is
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setRedeemThrottle(uint256, uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinDeposit(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinWithdraw(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setNav(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setNavStepCap(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setNavCooldown(uint256) external virtual {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @notice Returns the mint throttle limits and usage
@@ -196,38 +196,38 @@ contract YuzuUSDV3 is
     }
 
     function maxDeposit(address) public view virtual override returns (uint256) {
-        _delegateToFeatureFacetView();
+        _staticcallFacet();
     }
 
     /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
     /// keeps convertToShares from overflowing (proto share price is not bounded below 1).
     function maxMint(address) public view virtual override returns (uint256) {
-        _delegateToFeatureFacetView();
+        _staticcallFacet();
     }
 
     /// @dev Reported net of the fee; throttle capacity is denominated in gross outflow
     function maxWithdraw(address) public view virtual override returns (uint256) {
-        _delegateToFeatureFacetView();
+        _staticcallFacet();
     }
 
     function maxRedeem(address) public view virtual override returns (uint256) {
-        _delegateToFeatureFacetView();
+        _staticcallFacet();
     }
 
     function deposit(uint256, address) public virtual override returns (uint256) {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function mint(uint256, address) public virtual override returns (uint256) {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function withdraw(uint256, address, address) public virtual override returns (uint256) {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     function redeem(uint256, address, address) public virtual override returns (uint256) {
-        _delegateToFeatureFacet();
+        _delegateToFacet();
     }
 
     /// @dev Folds the backing value (capped at par) into the par decimal scaling. At par this is the
@@ -294,8 +294,8 @@ contract YuzuUSDV3 is
         if (assets < min) revert UnderMinWithdraw(assets, min);
     }
 
-    function _delegateToFeatureFacet() private {
-        address facet = _featureFacet;
+    function _delegateToFacet() private {
+        address facet = _facet;
         // slither-disable-next-line assembly,low-level-calls
         assembly {
             calldatacopy(0, 0, calldatasize())
@@ -307,8 +307,8 @@ contract YuzuUSDV3 is
         }
     }
 
-    function _delegateToFeatureFacetView() private view {
-        address facet = _featureFacet;
+    function _staticcallFacet() private view {
+        address facet = _facet;
         // slither-disable-next-line assembly,low-level-calls
         assembly {
             calldatacopy(0, 0, calldatasize())

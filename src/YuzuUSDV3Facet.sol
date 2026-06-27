@@ -10,44 +10,13 @@ import {
     IYuzuNavMarkdownDefinitions,
     IYuzuSameBlockGuardDefinitions
 } from "./interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuUSDV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 
-interface IYuzuUSDV3Router {
-    function previewDeposit(uint256 assets) external view returns (uint256);
-    function previewMint(uint256 tokens) external view returns (uint256);
-    function previewWithdraw(uint256 assets) external view returns (uint256);
-    function previewRedeem(uint256 tokens) external view returns (uint256);
-    function convertToShares(uint256 assets) external view returns (uint256);
-    function convertToAssets(uint256 shares) external view returns (uint256);
-    function redeemFeePpm() external view returns (uint256);
-    function cap() external view returns (uint256);
-    function totalSupply() external view returns (uint256);
-    function balanceOf(address account) external view returns (uint256);
-    function paused() external view returns (bool);
-    function isMintRestricted() external view returns (bool);
-    function isRedeemRestricted() external view returns (bool);
-    function liquidityBufferSize() external view returns (uint256);
-    function minDeposit() external view returns (uint256);
-    function minWithdraw() external view returns (uint256);
-    function nav() external view returns (uint256);
-    function getMintThrottle() external view returns (Throttle memory);
-    function getRedeemThrottle() external view returns (Throttle memory);
-    function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external;
-    function __routerWithdraw(
-        address caller,
-        address receiver,
-        address owner,
-        uint256 assets,
-        uint256 tokens,
-        uint256 fee
-    ) external;
-}
-
 /**
- * @title YuzuUSDV3FeatureFacet
- * @notice Static delegatecall target for YuzuUSD V3 feature logic.
+ * @title YuzuUSDV3Facet
  */
-contract YuzuUSDV3FeatureFacet is
+contract YuzuUSDV3Facet is
     IYuzuIssuerDefinitions,
     IYuzuMinAmountsDefinitions,
     IYuzuThrottleDefinitions,
@@ -56,7 +25,9 @@ contract YuzuUSDV3FeatureFacet is
 {
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
+    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     uint256 internal constant NAV_PRECISION = 1e18;
@@ -325,14 +296,12 @@ contract YuzuUSDV3FeatureFacet is
 
     function _canMint(address proxy, address receiver) private view returns (bool) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        return !router.paused()
-            && (!router.isMintRestricted() || IAccessControl(proxy).hasRole(keccak256("MINTER_ROLE"), receiver));
+        return !router.paused() && (!router.isMintRestricted() || IAccessControl(proxy).hasRole(MINTER_ROLE, receiver));
     }
 
     function _canRedeem(address proxy, address owner) private view returns (bool) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        return !router.paused()
-            && (!router.isRedeemRestricted() || IAccessControl(proxy).hasRole(keccak256("REDEEMER_ROLE"), owner));
+        return !router.paused() && (!router.isRedeemRestricted() || IAccessControl(proxy).hasRole(REDEEMER_ROLE, owner));
     }
 
     function _isMarkedDown(address proxy) private view returns (bool) {
