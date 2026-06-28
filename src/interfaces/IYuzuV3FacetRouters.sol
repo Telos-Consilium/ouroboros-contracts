@@ -43,6 +43,7 @@ interface IYuzuILPV3Router {
     function balanceOf(address account) external view returns (uint256);
     function totalSupply() external view returns (uint256);
     function totalAssets() external view returns (uint256);
+    function totalAssetsWithRounding(uint256 rounding) external view returns (uint256);
     function decimals() external view returns (uint8);
     function poolSize() external view returns (uint256);
     function dailyLinearYieldRatePpm() external view returns (uint256);

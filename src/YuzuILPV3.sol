@@ -5,6 +5,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {YuzuILPV2} from "./YuzuILPV2.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
+import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {Order} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
@@ -22,9 +23,6 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
 contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-
-    uint256 private constant TOTAL_ASSETS_WITH_ROUNDING_SELECTOR =
-        uint32(bytes4(keccak256("totalAssetsWithRounding(uint256)")));
 
     address private immutable _facet;
 
@@ -251,23 +249,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     function _totalAssets(Math.Rounding rounding) internal view override(YuzuILPV2) returns (uint256) {
-        address facet = _facet;
-        uint256 selector = TOTAL_ASSETS_WITH_ROUNDING_SELECTOR;
-        uint256 rounding_ = uint256(rounding);
-        uint256 result;
-        // slither-disable-next-line assembly,low-level-calls
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, shl(224, selector))
-            mstore(add(ptr, 0x04), rounding_)
-            let success := staticcall(gas(), facet, ptr, 0x24, ptr, 0x20)
-            if iszero(success) {
-                returndatacopy(0, 0, returndatasize())
-                revert(0, returndatasize())
-            }
-            result := mload(ptr)
-        }
-        return result;
+        return IYuzuILPV3Router(_facet).totalAssetsWithRounding(uint256(rounding));
     }
 
     function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {
