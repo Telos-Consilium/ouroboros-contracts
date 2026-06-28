@@ -196,6 +196,8 @@ contract YuzuILPV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
+    uint256 internal constant YUZU_THROTTLE_STORAGE_LOCATION =
+        0x0b7c362ff29744eee18a40453a4b4ef5d7bd130da15027ce5dd041799a288e00;
 
     USDT0Mock asset;
     YuzuILPV3 yzilp;
@@ -240,6 +242,13 @@ contract YuzuILPV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         asset.approve(proxy, type(uint256).max);
         vm.prank(exempt);
         asset.approve(proxy, type(uint256).max);
+    }
+
+    function test_Throttle_UnlimitedByDefault() public view {
+        assertEq(yzilp.getMintThrottle().blockLimit, type(uint256).max);
+        assertEq(yzilp.getMintThrottle().dailyLimit, type(uint256).max);
+        assertEq(uint256(vm.load(address(yzilp), bytes32(YUZU_THROTTLE_STORAGE_LOCATION + 6))), type(uint256).max);
+        assertEq(uint256(vm.load(address(yzilp), bytes32(YUZU_THROTTLE_STORAGE_LOCATION + 7))), type(uint256).max);
     }
 
     function test_MintThrottle_BlockLimit() public {

@@ -41,6 +41,8 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         YuzuThrottleV3Storage.Layout storage $ = YuzuThrottleV3Storage.layout();
         $._mintThrottle.blockLimit = type(uint256).max;
         $._mintThrottle.dailyLimit = type(uint256).max;
+        $._redeemThrottle.blockLimit = type(uint256).max;
+        $._redeemThrottle.dailyLimit = type(uint256).max;
     }
 
     /// @dev Applies the tighter V3 yield ceiling, realizes the management fee then the performance fee
