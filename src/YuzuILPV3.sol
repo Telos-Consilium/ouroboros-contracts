@@ -8,6 +8,7 @@ import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {Order} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
+import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuILPV3
@@ -21,37 +22,6 @@ import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
 contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-
-    struct YuzuILPFeesStorage {
-        uint256 _mintFeePpm;
-        uint256 _managementFeeRatePpm;
-        uint256 _cumulativeManagementFees;
-        uint256 _pendingManagementFeeRatePpm;
-        uint256 _performanceFeeRatePpm;
-        uint256 _pendingPerformanceFeeRatePpm;
-        uint256 _highWaterMark;
-        uint256 _cumulativePerformanceFees;
-    }
-
-    struct YuzuMinAmountsStorage {
-        uint256 _minDeposit;
-    }
-
-    struct YuzuThrottleStorage {
-        Throttle _mintThrottle;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpfees")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuILPFeesStorageLocation =
-        0x93ad02b05e4d8e5afd5c21de55a6b2405afe608b42c8806cefbe7bbeb87f7f00;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.minamounts")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuMinAmountsStorageLocation =
-        0x3bac632b84cdc99ee809c17a81d1c3af6c49d197442158c702def7699ae31b00;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.throttle")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuThrottleStorageLocation =
-        0x0b7c362ff29744eee18a40453a4b4ef5d7bd130da15027ce5dd041799a288e00;
 
     uint256 private constant TOTAL_ASSETS_WITH_ROUNDING_SELECTOR =
         uint32(bytes4(keccak256("totalAssetsWithRounding(uint256)")));
@@ -70,7 +40,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     function reinitializeV3() external reinitializer(3) {
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
-        YuzuThrottleStorage storage $ = _getYuzuThrottleStorage();
+        YuzuThrottleV3Storage.Layout storage $ = YuzuThrottleV3Storage.layout();
         $._mintThrottle.blockLimit = type(uint256).max;
         $._mintThrottle.dailyLimit = type(uint256).max;
     }
@@ -153,16 +123,16 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     function minDeposit() public view returns (uint256) {
-        return _getYuzuMinAmountsStorage()._minDeposit;
+        return YuzuMinAmountsV3Storage.layout()._minDeposit;
     }
 
     function getMintThrottle() external view returns (Throttle memory) {
-        return _getYuzuThrottleStorage()._mintThrottle;
+        return YuzuThrottleV3Storage.layout()._mintThrottle;
     }
 
     /// @notice Fee charged on the deposit/mint path, in ppm of the assets in
     function mintFeePpm() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._mintFeePpm;
+        return YuzuILPFeesV3Storage.layout()._mintFeePpm;
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
@@ -172,37 +142,37 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
 
     /// @notice Active management fee, in ppm per year, charged as a continuous drift on poolSize
     function managementFeeRatePpm() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._managementFeeRatePpm;
+        return YuzuILPFeesV3Storage.layout()._managementFeeRatePpm;
     }
 
     /// @notice Management fee staged to take effect at the next pool update
     function pendingManagementFeeRatePpm() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._pendingManagementFeeRatePpm;
+        return YuzuILPFeesV3Storage.layout()._pendingManagementFeeRatePpm;
     }
 
     /// @notice Total management fees withheld to the treasury, never credited to holders
     function cumulativeManagementFees() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._cumulativeManagementFees;
+        return YuzuILPFeesV3Storage.layout()._cumulativeManagementFees;
     }
 
     /// @notice Active performance fee, in ppm, charged on the gain above the high-water mark
     function performanceFeeRatePpm() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._performanceFeeRatePpm;
+        return YuzuILPFeesV3Storage.layout()._performanceFeeRatePpm;
     }
 
     /// @notice Performance fee staged to take effect at the next pool update
     function pendingPerformanceFeeRatePpm() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._pendingPerformanceFeeRatePpm;
+        return YuzuILPFeesV3Storage.layout()._pendingPerformanceFeeRatePpm;
     }
 
     /// @notice Highest net-of-management share price the fee has marked, in asset units per whole share
     function highWaterMark() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._highWaterMark;
+        return YuzuILPFeesV3Storage.layout()._highWaterMark;
     }
 
     /// @notice Total performance fees withheld to the treasury, never credited to holders
     function cumulativePerformanceFees() public view returns (uint256) {
-        return _getYuzuILPFeesStorage()._cumulativePerformanceFees;
+        return YuzuILPFeesV3Storage.layout()._cumulativePerformanceFees;
     }
 
     /// @dev Stages the rate; it takes effect at the next pool update, so a period is always charged at one
@@ -314,27 +284,6 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
             result := mload(ptr)
         }
         return result;
-    }
-
-    function _getYuzuILPFeesStorage() private pure returns (YuzuILPFeesStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuILPFeesStorageLocation
-        }
-    }
-
-    function _getYuzuMinAmountsStorage() private pure returns (YuzuMinAmountsStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuMinAmountsStorageLocation
-        }
-    }
-
-    function _getYuzuThrottleStorage() private pure returns (YuzuThrottleStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuThrottleStorageLocation
-        }
     }
 
     function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {

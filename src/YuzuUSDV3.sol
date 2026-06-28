@@ -12,6 +12,12 @@ import {
     IYuzuSameBlockGuardDefinitions
 } from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {
+    YuzuMinAmountsV3Storage,
+    YuzuNavMarkdownV3Storage,
+    YuzuSameBlockGuardV3Storage,
+    YuzuThrottleV3Storage
+} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuUSDV3
@@ -40,43 +46,6 @@ contract YuzuUSDV3 is
     uint256 internal constant DEFAULT_NAV_STEP_CAP_PPM = 100_000;
     uint256 internal constant DEFAULT_NAV_COOLDOWN = 1 days;
 
-    struct YuzuMinAmountsStorage {
-        uint256 _minDeposit;
-        uint256 _minWithdraw;
-    }
-
-    struct YuzuThrottleStorage {
-        Throttle _mintThrottle;
-        Throttle _redeemThrottle;
-    }
-
-    struct YuzuSameBlockGuardStorage {
-        mapping(address => uint256) _lastMintBlock;
-    }
-
-    struct YuzuNavMarkdownStorage {
-        uint256 _nav;
-        uint256 _stepCapPpm;
-        uint256 _cooldown;
-        uint256 _lastUpdate;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.minamounts")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuMinAmountsStorageLocation =
-        0x3bac632b84cdc99ee809c17a81d1c3af6c49d197442158c702def7699ae31b00;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.throttle")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuThrottleStorageLocation =
-        0x0b7c362ff29744eee18a40453a4b4ef5d7bd130da15027ce5dd041799a288e00;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.sameblockguard")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuSameBlockGuardStorageLocation =
-        0xaca45614502cdf54c71f9031d97993837104eaf27a6531196fcefc0ea3a7a400;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.navmarkdown")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuNavMarkdownStorageLocation =
-        0xbba33777aee3e8d94c5925677a78afa5780f0b9cf6f4464b380525cccd6c9300;
-
     address private immutable _facet;
 
     constructor(address facet_) {
@@ -91,7 +60,7 @@ contract YuzuUSDV3 is
     function reinitializeV3() external reinitializer(3) {
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
-        YuzuThrottleStorage storage throttleStorage = _getYuzuThrottleStorage();
+        YuzuThrottleV3Storage.Layout storage throttleStorage = YuzuThrottleV3Storage.layout();
         Throttle storage mintThrottle_ = throttleStorage._mintThrottle;
         mintThrottle_.blockLimit = type(uint256).max;
         mintThrottle_.dailyLimit = type(uint256).max;
@@ -100,7 +69,7 @@ contract YuzuUSDV3 is
         redeemThrottle_.blockLimit = type(uint256).max;
         redeemThrottle_.dailyLimit = type(uint256).max;
 
-        YuzuNavMarkdownStorage storage navStorage = _getYuzuNavMarkdownStorage();
+        YuzuNavMarkdownV3Storage.Layout storage navStorage = YuzuNavMarkdownV3Storage.layout();
         navStorage._nav = NAV_PRECISION;
         navStorage._stepCapPpm = DEFAULT_NAV_STEP_CAP_PPM;
         navStorage._cooldown = DEFAULT_NAV_COOLDOWN;
@@ -150,49 +119,49 @@ contract YuzuUSDV3 is
 
     /// @notice Returns the mint throttle limits and usage
     function getMintThrottle() external view returns (Throttle memory) {
-        return _getYuzuThrottleStorage()._mintThrottle;
+        return YuzuThrottleV3Storage.layout()._mintThrottle;
     }
 
     /// @notice Returns the redeem throttle limits and usage
     function getRedeemThrottle() external view returns (Throttle memory) {
-        return _getYuzuThrottleStorage()._redeemThrottle;
+        return YuzuThrottleV3Storage.layout()._redeemThrottle;
     }
 
     function minDeposit() public view returns (uint256) {
-        return _getYuzuMinAmountsStorage()._minDeposit;
+        return YuzuMinAmountsV3Storage.layout()._minDeposit;
     }
 
     function minWithdraw() public view returns (uint256) {
-        return _getYuzuMinAmountsStorage()._minWithdraw;
+        return YuzuMinAmountsV3Storage.layout()._minWithdraw;
     }
 
     function lastMintBlock(address account) external view returns (uint256) {
-        return _getYuzuSameBlockGuardStorage()._lastMintBlock[account];
+        return YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[account];
     }
 
     /// @notice Backing value of one share, scaled so {NAV_PRECISION} is par
     function nav() public view returns (uint256) {
-        return _getYuzuNavMarkdownStorage()._nav;
+        return YuzuNavMarkdownV3Storage.layout()._nav;
     }
 
     /// @notice Maximum relative change per nav update, in ppm of the current nav
     function navStepCapPpm() public view returns (uint256) {
-        return _getYuzuNavMarkdownStorage()._stepCapPpm;
+        return YuzuNavMarkdownV3Storage.layout()._stepCapPpm;
     }
 
     /// @notice Minimum seconds between nav updates
     function navCooldown() public view returns (uint256) {
-        return _getYuzuNavMarkdownStorage()._cooldown;
+        return YuzuNavMarkdownV3Storage.layout()._cooldown;
     }
 
     /// @notice Timestamp of the last nav update
     function navLastUpdate() public view returns (uint256) {
-        return _getYuzuNavMarkdownStorage()._lastUpdate;
+        return YuzuNavMarkdownV3Storage.layout()._lastUpdate;
     }
 
     /// @notice Whether the token is marked down, i.e. nav is below par
     function isMarkedDown() public view returns (bool) {
-        return _getYuzuNavMarkdownStorage()._nav < NAV_PRECISION;
+        return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
     }
 
     function maxDeposit(address) public view virtual override returns (uint256) {
@@ -281,7 +250,7 @@ contract YuzuUSDV3 is
     }
 
     function _effectiveNav() private view returns (uint256) {
-        return Math.min(_getYuzuNavMarkdownStorage()._nav, NAV_PRECISION);
+        return Math.min(YuzuNavMarkdownV3Storage.layout()._nav, NAV_PRECISION);
     }
 
     function _checkMinDeposit(uint256 assets) private view {
@@ -317,34 +286,6 @@ contract YuzuUSDV3 is
             switch result
             case 0 { revert(0, returndatasize()) }
             default { return(0, returndatasize()) }
-        }
-    }
-
-    function _getYuzuMinAmountsStorage() private pure returns (YuzuMinAmountsStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuMinAmountsStorageLocation
-        }
-    }
-
-    function _getYuzuThrottleStorage() private pure returns (YuzuThrottleStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuThrottleStorageLocation
-        }
-    }
-
-    function _getYuzuSameBlockGuardStorage() private pure returns (YuzuSameBlockGuardStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuSameBlockGuardStorageLocation
-        }
-    }
-
-    function _getYuzuNavMarkdownStorage() private pure returns (YuzuNavMarkdownStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuNavMarkdownStorageLocation
         }
     }
 

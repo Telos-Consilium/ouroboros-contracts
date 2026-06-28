@@ -17,6 +17,7 @@ import {
 } from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuILPV3Facet
@@ -63,14 +64,6 @@ contract YuzuILPV3Facet is
     uint256 private constant YUZU_ILPV2_FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT = 104;
     uint256 private constant YUZU_ILPV2_REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT = 105;
 
-    struct YuzuMinAmountsStorage {
-        uint256 _minDeposit;
-    }
-
-    struct YuzuThrottleStorage {
-        Throttle _mintThrottle;
-    }
-
     struct YuzuIssuerStorage {
         uint256 _supplyCap;
         uint256 _liquidityBufferTargetSize;
@@ -84,25 +77,6 @@ contract YuzuILPV3Facet is
         uint256 _minRedeemOrder;
     }
 
-    struct YuzuILPFeesStorage {
-        uint256 _mintFeePpm;
-        uint256 _managementFeeRatePpm;
-        uint256 _cumulativeManagementFees;
-        uint256 _pendingManagementFeeRatePpm;
-        uint256 _performanceFeeRatePpm;
-        uint256 _pendingPerformanceFeeRatePpm;
-        uint256 _highWaterMark;
-        uint256 _cumulativePerformanceFees;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.minamounts")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuMinAmountsStorageLocation =
-        0x3bac632b84cdc99ee809c17a81d1c3af6c49d197442158c702def7699ae31b00;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.throttle")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuThrottleStorageLocation =
-        0x0b7c362ff29744eee18a40453a4b4ef5d7bd130da15027ce5dd041799a288e00;
-
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.issuer")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant YuzuIssuerStorageLocation =
         0x542408f99cbd5a3e32919127cd9d8984eb4635c3ab0f9f17273c636c42e08d00;
@@ -111,14 +85,10 @@ contract YuzuILPV3Facet is
     bytes32 private constant YuzuOrderBookStorageLocation =
         0x747f75a735bbbfd5f9552c4d2a106ffbc4ca977c3f429389a57413d9a643a500;
 
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpfees")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuILPFeesStorageLocation =
-        0x93ad02b05e4d8e5afd5c21de55a6b2405afe608b42c8806cefbe7bbeb87f7f00;
-
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         _checkMinDeposit(assets);
-        uint256 fee = _feeOnTotal(assets, _getYuzuILPFeesStorage()._mintFeePpm);
+        uint256 fee = _feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
@@ -136,7 +106,7 @@ contract YuzuILPV3Facet is
     function mint(uint256 tokens, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         uint256 netAssets = router.previewMint(tokens);
-        uint256 fee = _feeOnRaw(netAssets, _getYuzuILPFeesStorage()._mintFeePpm);
+        uint256 fee = _feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         _checkMinDeposit(netAssets + fee);
         uint256 maxTokens = _maxMint(address(this), receiver);
         if (tokens > maxTokens) {
@@ -191,7 +161,7 @@ contract YuzuILPV3Facet is
         if (newDailyLinearYieldRatePpm > MAX_DAILY_YIELD_PPM) {
             revert InvalidYield(newDailyLinearYieldRatePpm);
         }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
 
         uint256 mgmtFee = _managementFeeSinceUpdate(Math.Rounding.Ceil);
         uint256 netOfMgmt = newPoolSize > mgmtFee ? newPoolSize - mgmtFee : 0;
@@ -365,7 +335,7 @@ contract YuzuILPV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        Throttle storage throttle = _getYuzuThrottleStorage()._mintThrottle;
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
         uint256 oldBlockLimit = throttle.blockLimit;
         uint256 oldDailyLimit = throttle.dailyLimit;
         throttle.blockLimit = newBlockLimit;
@@ -376,7 +346,7 @@ contract YuzuILPV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinDeposit(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        YuzuMinAmountsStorage storage $ = _getYuzuMinAmountsStorage();
+        YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
         uint256 oldMin = $._minDeposit;
         $._minDeposit = newMin;
         emit UpdatedMinDeposit(oldMin, newMin);
@@ -388,7 +358,7 @@ contract YuzuILPV3Facet is
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 oldFee = $._mintFeePpm;
         $._mintFeePpm = newFeePpm;
         emit UpdatedMintFee(oldFee, newFeePpm);
@@ -423,7 +393,7 @@ contract YuzuILPV3Facet is
         if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
             revert FeeTooHigh(newRatePpm, MAX_MANAGEMENT_FEE_PPM);
         }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 oldPending = $._pendingManagementFeeRatePpm;
         $._pendingManagementFeeRatePpm = newRatePpm;
         emit UpdatedManagementFee(oldPending, newRatePpm);
@@ -435,7 +405,7 @@ contract YuzuILPV3Facet is
         if (newRatePpm > 1e6) {
             revert FeeTooHigh(newRatePpm, 1e6);
         }
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 oldPending = $._pendingPerformanceFeeRatePpm;
         $._pendingPerformanceFeeRatePpm = newRatePpm;
         emit UpdatedPerformanceFee(oldPending, newRatePpm);
@@ -538,7 +508,7 @@ contract YuzuILPV3Facet is
     }
 
     function _performanceFee(uint256 netOfMgmt, Math.Rounding rounding) private view returns (uint256) {
-        YuzuILPFeesStorage storage $ = _getYuzuILPFeesStorage();
+        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 rate = $._performanceFeeRatePpm;
         uint256 supply = IERC20(address(this)).totalSupply();
         if (rate == 0 || supply == 0) {
@@ -640,7 +610,7 @@ contract YuzuILPV3Facet is
         if (IAccessControl(address(this)).hasRole(THROTTLE_EXEMPT_ROLE, account)) {
             return;
         }
-        Throttle storage throttle = _getYuzuThrottleStorage()._mintThrottle;
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
         Throttle memory throttle_ = throttle;
         (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle_);
         if (assets > blockRemaining) {
@@ -671,7 +641,7 @@ contract YuzuILPV3Facet is
     }
 
     function _checkMinDeposit(uint256 assets) private view {
-        uint256 min = _getYuzuMinAmountsStorage()._minDeposit;
+        uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
         if (assets < min) revert UnderMinDeposit(assets, min);
     }
 
@@ -844,21 +814,7 @@ contract YuzuILPV3Facet is
     }
 
     function _managementFeeRatePpm() private view returns (uint256) {
-        return _getYuzuILPFeesStorage()._managementFeeRatePpm;
-    }
-
-    function _getYuzuMinAmountsStorage() private pure returns (YuzuMinAmountsStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuMinAmountsStorageLocation
-        }
-    }
-
-    function _getYuzuThrottleStorage() private pure returns (YuzuThrottleStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuThrottleStorageLocation
-        }
+        return YuzuILPFeesV3Storage.layout()._managementFeeRatePpm;
     }
 
     function _getYuzuIssuerStorage() private pure returns (YuzuIssuerStorage storage $) {
@@ -872,13 +828,6 @@ contract YuzuILPV3Facet is
         // slither-disable-next-line assembly
         assembly {
             $.slot := YuzuOrderBookStorageLocation
-        }
-    }
-
-    function _getYuzuILPFeesStorage() private pure returns (YuzuILPFeesStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuILPFeesStorageLocation
         }
     }
 }

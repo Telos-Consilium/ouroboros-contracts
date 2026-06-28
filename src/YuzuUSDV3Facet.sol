@@ -12,6 +12,12 @@ import {
 } from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuUSDV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {
+    YuzuMinAmountsV3Storage,
+    YuzuNavMarkdownV3Storage,
+    YuzuSameBlockGuardV3Storage,
+    YuzuThrottleV3Storage
+} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuUSDV3Facet
@@ -31,43 +37,6 @@ contract YuzuUSDV3Facet is
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     uint256 internal constant NAV_PRECISION = 1e18;
-
-    struct YuzuMinAmountsStorage {
-        uint256 _minDeposit;
-        uint256 _minWithdraw;
-    }
-
-    struct YuzuThrottleStorage {
-        Throttle _mintThrottle;
-        Throttle _redeemThrottle;
-    }
-
-    struct YuzuNavMarkdownStorage {
-        uint256 _nav;
-        uint256 _stepCapPpm;
-        uint256 _cooldown;
-        uint256 _lastUpdate;
-    }
-
-    struct YuzuSameBlockGuardStorage {
-        mapping(address => uint256) _lastMintBlock;
-    }
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.minamounts")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuMinAmountsStorageLocation =
-        0x3bac632b84cdc99ee809c17a81d1c3af6c49d197442158c702def7699ae31b00;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.throttle")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuThrottleStorageLocation =
-        0x0b7c362ff29744eee18a40453a4b4ef5d7bd130da15027ce5dd041799a288e00;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.navmarkdown")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuNavMarkdownStorageLocation =
-        0xbba33777aee3e8d94c5925677a78afa5780f0b9cf6f4464b380525cccd6c9300;
-
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.sameblockguard")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant YuzuSameBlockGuardStorageLocation =
-        0xaca45614502cdf54c71f9031d97993837104eaf27a6531196fcefc0ea3a7a400;
 
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
@@ -149,7 +118,7 @@ contract YuzuUSDV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        Throttle storage throttle = _getYuzuThrottleStorage()._mintThrottle;
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
         uint256 oldBlockLimit = throttle.blockLimit;
         uint256 oldDailyLimit = throttle.dailyLimit;
         throttle.blockLimit = newBlockLimit;
@@ -160,7 +129,7 @@ contract YuzuUSDV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        Throttle storage throttle = _getYuzuThrottleStorage()._redeemThrottle;
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
         uint256 oldBlockLimit = throttle.blockLimit;
         uint256 oldDailyLimit = throttle.dailyLimit;
         throttle.blockLimit = newBlockLimit;
@@ -171,7 +140,7 @@ contract YuzuUSDV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinDeposit(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        YuzuMinAmountsStorage storage $ = _getYuzuMinAmountsStorage();
+        YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
         uint256 oldMin = $._minDeposit;
         $._minDeposit = newMin;
         emit UpdatedMinDeposit(oldMin, newMin);
@@ -180,7 +149,7 @@ contract YuzuUSDV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMinWithdraw(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        YuzuMinAmountsStorage storage $ = _getYuzuMinAmountsStorage();
+        YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
         uint256 oldMin = $._minWithdraw;
         $._minWithdraw = newMin;
         emit UpdatedMinWithdraw(oldMin, newMin);
@@ -189,7 +158,7 @@ contract YuzuUSDV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setNav(uint256 newNav) external {
         _checkRole(NAV_MANAGER_ROLE);
-        YuzuNavMarkdownStorage storage $ = _getYuzuNavMarkdownStorage();
+        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
         uint256 currentNav = $._nav;
 
         uint256 lastUpdate = $._lastUpdate;
@@ -217,7 +186,7 @@ contract YuzuUSDV3Facet is
         if (newStepCapPpm > 1e6) {
             revert InvalidNavStepCap(newStepCapPpm, 1e6);
         }
-        YuzuNavMarkdownStorage storage $ = _getYuzuNavMarkdownStorage();
+        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
         uint256 oldStepCapPpm = $._stepCapPpm;
         $._stepCapPpm = newStepCapPpm;
         emit UpdatedNavStepCap(oldStepCapPpm, newStepCapPpm);
@@ -226,7 +195,7 @@ contract YuzuUSDV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setNavCooldown(uint256 newCooldown) external {
         _checkRole(ADMIN_ROLE);
-        YuzuNavMarkdownStorage storage $ = _getYuzuNavMarkdownStorage();
+        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
         uint256 oldCooldown = $._cooldown;
         $._cooldown = newCooldown;
         emit UpdatedNavCooldown(oldCooldown, newCooldown);
@@ -335,19 +304,19 @@ contract YuzuUSDV3Facet is
     }
 
     function _requireMintEnabled() private view {
-        uint256 currentNav = _getYuzuNavMarkdownStorage()._nav;
+        uint256 currentNav = YuzuNavMarkdownV3Storage.layout()._nav;
         if (currentNav < NAV_PRECISION) {
             revert MintDisabledWhileMarkedDown(currentNav);
         }
     }
 
     function _checkMinDeposit(uint256 assets) private view {
-        uint256 min = _getYuzuMinAmountsStorage()._minDeposit;
+        uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
         if (assets < min) revert UnderMinDeposit(assets, min);
     }
 
     function _checkMinWithdraw(uint256 assets) private view {
-        uint256 min = _getYuzuMinAmountsStorage()._minWithdraw;
+        uint256 min = YuzuMinAmountsV3Storage.layout()._minWithdraw;
         if (assets < min) revert UnderMinWithdraw(assets, min);
     }
 
@@ -355,7 +324,7 @@ contract YuzuUSDV3Facet is
         if (_isThrottleExempt(account)) {
             return;
         }
-        Throttle storage throttle = _getYuzuThrottleStorage()._mintThrottle;
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
         (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle);
         if (assets > blockRemaining) {
             revert ExceededMintBlockLimit(assets, blockRemaining);
@@ -370,7 +339,7 @@ contract YuzuUSDV3Facet is
         if (_isThrottleExempt(account)) {
             return;
         }
-        Throttle storage throttle = _getYuzuThrottleStorage()._redeemThrottle;
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
         (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle);
         if (assets > blockRemaining) {
             revert ExceededRedeemBlockLimit(assets, blockRemaining);
@@ -385,14 +354,14 @@ contract YuzuUSDV3Facet is
         if (amount == 0 || _isThrottleExempt(receiver)) {
             return;
         }
-        _getYuzuSameBlockGuardStorage()._lastMintBlock[receiver] = block.number;
+        YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[receiver] = block.number;
     }
 
     function _checkSameBlockRedeem(address owner) private view {
         if (_isThrottleExempt(owner)) {
             return;
         }
-        if (_getYuzuSameBlockGuardStorage()._lastMintBlock[owner] == block.number) {
+        if (YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[owner] == block.number) {
             revert SameBlockMintRedeem(owner);
         }
     }
@@ -430,33 +399,5 @@ contract YuzuUSDV3Facet is
 
     function _currentDay() private view returns (uint256) {
         return block.timestamp / 1 days;
-    }
-
-    function _getYuzuMinAmountsStorage() private pure returns (YuzuMinAmountsStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuMinAmountsStorageLocation
-        }
-    }
-
-    function _getYuzuThrottleStorage() private pure returns (YuzuThrottleStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuThrottleStorageLocation
-        }
-    }
-
-    function _getYuzuNavMarkdownStorage() private pure returns (YuzuNavMarkdownStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuNavMarkdownStorageLocation
-        }
-    }
-
-    function _getYuzuSameBlockGuardStorage() private pure returns (YuzuSameBlockGuardStorage storage $) {
-        // slither-disable-next-line assembly
-        assembly {
-            $.slot := YuzuSameBlockGuardStorageLocation
-        }
     }
 }
