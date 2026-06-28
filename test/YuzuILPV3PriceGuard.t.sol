@@ -1,62 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-
-import {YuzuILP} from "../src/YuzuILP.sol";
-import {YuzuILPV2} from "../src/YuzuILPV2.sol";
-import {YuzuILPV3} from "../src/YuzuILPV3.sol";
-import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {IYuzuILPDefinitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-contract USDT0Mock is ERC20Mock {
-    function decimals() public pure override returns (uint8) {
-        return 6;
-    }
-}
-
-contract YuzuILPV3PriceGuardTest is Test, IYuzuILPDefinitions, IYuzuILPV3Definitions {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-
-    // Share price is the USDT0 value of one whole share; the seeded pool sits at par (1 USDT0)
+contract YuzuILPV3PriceGuardTest is YuzuV3TestBase, IYuzuILPDefinitions, IYuzuILPV3Definitions {
     uint256 internal constant MIN_PRICE = 950_000;
     uint256 internal constant MAX_PRICE = 1_200_000;
 
-    USDT0Mock asset;
-    YuzuILPV3 yzilp;
-
-    address admin = makeAddr("admin");
-    address treasury = makeAddr("treasury");
-    address feeReceiver = makeAddr("feeReceiver");
-    address poolManager = makeAddr("poolManager");
-    address user = makeAddr("user");
-
     function setUp() public {
-        asset = new USDT0Mock();
+        asset = _newAsset();
         asset.mint(user, 10_000_000e6);
-
-        address impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
-        bytes memory initData = abi.encodeWithSelector(
-            YuzuILP.initialize.selector,
-            address(asset),
-            "Token",
-            "TKN",
-            admin,
-            treasury,
-            feeReceiver,
-            type(uint256).max,
-            1 days,
-            0
-        );
-        address proxy = address(new ERC1967Proxy(impl, initData));
-        yzilp = YuzuILPV3(proxy);
-        YuzuILPV2(proxy).reinitialize();
-        yzilp.reinitializeV3();
+        yzilp = _deployYuzuILPV3();
 
         vm.startPrank(admin);
         yzilp.grantRole(POOL_MANAGER_ROLE, poolManager);
@@ -64,13 +19,11 @@ contract YuzuILPV3PriceGuardTest is Test, IYuzuILPDefinitions, IYuzuILPV3Definit
         yzilp.setIsRedeemRestricted(false);
         vm.stopPrank();
 
-        vm.prank(user);
-        asset.approve(proxy, type(uint256).max);
+        _approve(user, address(yzilp));
     }
 
     // --- helpers ---
 
-    // Seeds supply 100e18 and poolSize 100e6, so price is 1e6 (par) and newPoolSize P gives price P/100
     function _seedPool() internal {
         vm.prank(user);
         yzilp.deposit(100e6, user);

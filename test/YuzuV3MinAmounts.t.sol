@@ -1,71 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-import {YuzuUSD} from "../src/YuzuUSD.sol";
-import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
-import {YuzuUSDV3Facet} from "../src/YuzuUSDV3Facet.sol";
-import {YuzuILP} from "../src/YuzuILP.sol";
-import {YuzuILPV3} from "../src/YuzuILPV3.sol";
-import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-contract USDT0Mock is ERC20Mock {
-    function decimals() public pure override returns (uint8) {
-        return 6;
-    }
-}
-
-contract YuzuV3MinAmountsTest is Test, IYuzuMinAmountsDefinitions {
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-
-    USDT0Mock asset;
-    YuzuUSDV3 yzusd;
-    YuzuILPV3 yzilp;
-
-    address admin = makeAddr("admin");
-    address treasury = makeAddr("treasury");
-    address feeReceiver = makeAddr("feeReceiver");
-    address limitManager = makeAddr("limitManager");
-    address user = makeAddr("user");
-
+contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
     function setUp() public {
-        asset = new USDT0Mock();
+        asset = _newAsset();
         asset.mint(user, 10_000_000e6);
 
-        yzusd = YuzuUSDV3(_deploy(address(new YuzuUSDV3(address(new YuzuUSDV3Facet()))), YuzuUSD.initialize.selector));
-        yzilp = YuzuILPV3(_deploy(address(new YuzuILPV3(address(new YuzuILPV3Facet()))), YuzuILP.initialize.selector));
-
-        // V3 carries the throttle; seed limits to unlimited so min-amount paths are reachable
-        yzusd.reinitializeV3();
-        yzilp.reinitializeV3();
+        yzusd = _deployYuzuUSDV3(address(asset), "Token", "TKN", false);
+        yzilp = _deployYuzuILPV3(address(asset), "Token", "TKN", false);
 
         vm.startPrank(user);
         asset.approve(address(yzusd), type(uint256).max);
         asset.approve(address(yzilp), type(uint256).max);
         vm.stopPrank();
-    }
 
-    function _deploy(address impl, bytes4 initSelector) internal returns (address) {
-        bytes memory initData = abi.encodeWithSelector(
-            initSelector, address(asset), "Token", "TKN", admin, treasury, feeReceiver, type(uint256).max, 1 days, 0
-        );
-        address proxy = address(new ERC1967Proxy(impl, initData));
         vm.startPrank(admin);
-        IAccessControl(proxy).grantRole(LIMIT_MANAGER_ROLE, limitManager);
-        IAccessControl(proxy).grantRole(REDEEM_MANAGER_ROLE, admin);
-        (bool ok,) = proxy.call(abi.encodeWithSignature("setIsMintRestricted(bool)", false));
-        require(ok, "setIsMintRestricted");
-        (ok,) = proxy.call(abi.encodeWithSignature("setIsRedeemRestricted(bool)", false));
-        require(ok, "setIsRedeemRestricted");
+        yzusd.grantRole(LIMIT_MANAGER_ROLE, limitManager);
+        yzusd.grantRole(REDEEM_MANAGER_ROLE, admin);
+        yzusd.setIsMintRestricted(false);
+        yzusd.setIsRedeemRestricted(false);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, limitManager);
+        yzilp.grantRole(REDEEM_MANAGER_ROLE, admin);
+        yzilp.setIsMintRestricted(false);
+        yzilp.setIsRedeemRestricted(false);
         vm.stopPrank();
-        return proxy;
     }
 
     // Setters

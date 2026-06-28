@@ -1,63 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-import {YuzuILP} from "../src/YuzuILP.sol";
-import {YuzuILPV2} from "../src/YuzuILPV2.sol";
-import {YuzuILPV3} from "../src/YuzuILPV3.sol";
-import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-contract USDT0Mock is ERC20Mock {
-    function decimals() public pure override returns (uint8) {
-        return 6;
-    }
-}
-
-contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-
-    USDT0Mock asset;
-    YuzuILPV3 yzilp;
-
-    address admin = makeAddr("admin");
-    address treasury = makeAddr("treasury");
-    address feeReceiver = makeAddr("feeReceiver");
-    address feeManager = makeAddr("feeManager");
-    address redeemManager = makeAddr("redeemManager");
-    address user = makeAddr("user");
-
+contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV3Definitions {
     function setUp() public {
-        asset = new USDT0Mock();
+        asset = _newAsset();
         asset.mint(user, 10_000_000e6);
-
-        address impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
-        bytes memory initData = abi.encodeWithSelector(
-            YuzuILP.initialize.selector,
-            address(asset),
-            "Token",
-            "TKN",
-            admin,
-            treasury,
-            feeReceiver,
-            type(uint256).max,
-            1 days,
-            0
-        );
-        address proxy = address(new ERC1967Proxy(impl, initData));
-        yzilp = YuzuILPV3(proxy);
-        YuzuILPV2(proxy).reinitialize();
-        yzilp.reinitializeV3();
+        yzilp = _deployYuzuILPV3();
 
         vm.startPrank(admin);
         yzilp.grantRole(FEE_MANAGER_ROLE, feeManager);
@@ -66,8 +20,7 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
         yzilp.setIsRedeemRestricted(false);
         vm.stopPrank();
 
-        vm.prank(user);
-        asset.approve(proxy, type(uint256).max);
+        _approve(user, address(yzilp));
     }
 
     function _setMintFee(uint256 ppm) internal {
@@ -187,38 +140,18 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
 
     // --- management fee ---
 
-    // Funds poolSize to 1000e6 and runs a first pool update, which sets the pool-update clock and the
-    // high-water mark (1e6 per share) at the current time.
     function _setupPool() internal {
         vm.prank(admin);
         yzilp.grantRole(POOL_MANAGER_ROLE, admin);
-        vm.prank(user);
-        yzilp.deposit(1000e6, user);
-        vm.startPrank(admin);
-        yzilp.startPoolUpdate();
-        yzilp.updatePool(1000e6, 1000e6, 0);
-        yzilp.endPoolUpdate();
-        vm.stopPrank();
+        _setupIlpPool(1000e6);
     }
 
-    // Runs a no-op pool update at the current poolSize, which promotes any staged fee rates and sets the
-    // given daily yield. Used to make a staged rate live for the next period.
     function _promote(uint256 yieldPpm) internal {
-        uint256 ps = yzilp.poolSize();
-        vm.startPrank(admin);
-        yzilp.startPoolUpdate();
-        yzilp.updatePool(ps, ps, yieldPpm);
-        yzilp.endPoolUpdate();
-        vm.stopPrank();
+        _promoteIlpFees(yieldPpm);
     }
 
     function _reportPool(uint256 newPoolSize) internal {
-        uint256 ps = yzilp.poolSize();
-        vm.startPrank(admin);
-        yzilp.startPoolUpdate();
-        yzilp.updatePool(ps, newPoolSize, 0);
-        yzilp.endPoolUpdate();
-        vm.stopPrank();
+        _reportIlpPool(newPoolSize);
     }
 
     function test_ManagementFee_DefaultsToZero() public view {
@@ -478,5 +411,31 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
 
         uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
         assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "order fill moved the share price while a fee was live");
+    }
+
+    function testFuzz_OrderFill_NoPoolUnderflow(uint256 warpDays, uint256 redeemShares) public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setManagementFee(100_000);
+        _promote(0);
+
+        warpDays = bound(warpDays, 0, 3000);
+        redeemShares = bound(redeemShares, 1e18, 1000e18);
+        vm.warp(block.timestamp + warpDays * 1 days);
+
+        vm.prank(user);
+        uint256 orderId = yzilp.createRedeemOrder(redeemShares, user, user);
+
+        address orderFiller = makeAddr("orderFiller");
+        vm.prank(admin);
+        yzilp.grantRole(ORDER_FILLER_ROLE, orderFiller);
+        asset.mint(orderFiller, 10_000e6);
+        vm.prank(orderFiller);
+        asset.approve(address(yzilp), type(uint256).max);
+
+        vm.prank(orderFiller);
+        yzilp.fillRedeemOrder(orderId);
+
+        assertLe(yzilp.poolSize(), 1000e6);
     }
 }

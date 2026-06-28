@@ -1,67 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-
-import {YuzuUSD} from "../src/YuzuUSD.sol";
-import {YuzuUSDV2} from "../src/YuzuUSDV2.sol";
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
-import {YuzuUSDV3Facet} from "../src/YuzuUSDV3Facet.sol";
-import {YuzuILP} from "../src/YuzuILP.sol";
-import {YuzuILPV2} from "../src/YuzuILPV2.sol";
-import {YuzuILPV3} from "../src/YuzuILPV3.sol";
-import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuThrottleDefinitions} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {YuzuV3TestBase, YuzuV3USDT0Mock} from "./helpers/YuzuV3TestBase.sol";
 
-contract USDT0Mock is ERC20Mock {
-    function decimals() public pure override returns (uint8) {
-        return 6;
+contract ReentrantAsset is YuzuV3USDT0Mock {
+    YuzuUSDV3 public vault;
+    address public receiver;
+    uint256 public reenterAmount;
+    bool private entered;
+
+    function arm(YuzuUSDV3 _vault, address _receiver, uint256 _amount) external {
+        vault = _vault;
+        receiver = _receiver;
+        reenterAmount = _amount;
+    }
+
+    function transferFrom(address from, address to, uint256 value) public override returns (bool) {
+        if (!entered && address(vault) != address(0)) {
+            entered = true;
+            vault.deposit(reenterAmount, receiver);
+        }
+        return super.transferFrom(from, to, value);
     }
 }
 
-contract YuzuUSDV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDefinitions {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-
-    USDT0Mock asset;
-    YuzuUSDV3 yzusd;
-
-    address admin = makeAddr("admin");
-    address treasury = makeAddr("treasury");
-    address feeReceiver = makeAddr("feeReceiver");
-    address limitManager = makeAddr("limitManager");
-    address user = makeAddr("user");
-    address exempt = makeAddr("exempt");
-
+contract YuzuUSDV3ThrottleTest is YuzuV3TestBase, IYuzuIssuerDefinitions, IYuzuThrottleDefinitions {
     function setUp() public {
-        asset = new USDT0Mock();
+        asset = _newAsset();
         asset.mint(user, 10_000_000e6);
         asset.mint(exempt, 10_000_000e6);
-
-        address impl = address(new YuzuUSDV3(address(new YuzuUSDV3Facet())));
-        bytes memory initData = abi.encodeWithSelector(
-            YuzuUSD.initialize.selector,
-            address(asset),
-            "Token",
-            "TKN",
-            admin,
-            treasury,
-            feeReceiver,
-            type(uint256).max,
-            1 days,
-            0
-        );
-        address proxy = address(new ERC1967Proxy(impl, initData));
-        yzusd = YuzuUSDV3(proxy);
-        YuzuUSDV2(proxy).reinitialize();
-        yzusd.reinitializeV3();
+        yzusd = _deployYuzuUSDV3();
 
         vm.startPrank(admin);
         yzusd.grantRole(LIMIT_MANAGER_ROLE, limitManager);
@@ -69,10 +40,8 @@ contract YuzuUSDV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         yzusd.setIsRedeemRestricted(false);
         vm.stopPrank();
 
-        vm.prank(user);
-        asset.approve(proxy, type(uint256).max);
-        vm.prank(exempt);
-        asset.approve(proxy, type(uint256).max);
+        _approve(user, address(yzusd));
+        _approve(exempt, address(yzusd));
     }
 
     function test_Throttle_UnlimitedByDefault() public {
@@ -190,47 +159,40 @@ contract YuzuUSDV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         vm.prank(user);
         yzusd.withdraw(500e6, user, exempt);
     }
+
+    function test_MintThrottle_NotBypassableViaReentrancy() public {
+        ReentrantAsset reentrantAsset = new ReentrantAsset();
+        asset = reentrantAsset;
+        asset.mint(user, 10_000_000e6);
+        asset.mint(address(asset), 10_000_000e6);
+        yzusd = _deployYuzuUSDV3(address(asset));
+
+        vm.startPrank(admin);
+        yzusd.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzusd.setMintThrottle(100e6, type(uint256).max);
+        yzusd.setIsMintRestricted(false);
+        yzusd.setIsRedeemRestricted(false);
+        vm.stopPrank();
+
+        _approve(user, address(yzusd));
+        _approve(address(asset), address(yzusd));
+
+        reentrantAsset.arm(yzusd, user, 60e6);
+        vm.prank(user);
+        vm.expectRevert();
+        yzusd.deposit(60e6, user);
+    }
 }
 
-contract YuzuILPV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDefinitions {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
+contract YuzuILPV3ThrottleTest is YuzuV3TestBase, IYuzuIssuerDefinitions, IYuzuThrottleDefinitions {
     uint256 internal constant YUZU_THROTTLE_STORAGE_LOCATION =
         0x0b7c362ff29744eee18a40453a4b4ef5d7bd130da15027ce5dd041799a288e00;
 
-    USDT0Mock asset;
-    YuzuILPV3 yzilp;
-
-    address admin = makeAddr("admin");
-    address treasury = makeAddr("treasury");
-    address feeReceiver = makeAddr("feeReceiver");
-    address limitManager = makeAddr("limitManager");
-    address user = makeAddr("user");
-    address exempt = makeAddr("exempt");
-
     function setUp() public {
-        asset = new USDT0Mock();
+        asset = _newAsset();
         asset.mint(user, 10_000_000e6);
         asset.mint(exempt, 10_000_000e6);
-
-        address impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
-        bytes memory initData = abi.encodeWithSelector(
-            YuzuILP.initialize.selector,
-            address(asset),
-            "Token",
-            "TKN",
-            admin,
-            treasury,
-            feeReceiver,
-            type(uint256).max,
-            1 days,
-            0
-        );
-        address proxy = address(new ERC1967Proxy(impl, initData));
-        yzilp = YuzuILPV3(proxy);
-        YuzuILPV2(proxy).reinitialize();
-        yzilp.reinitializeV3();
+        yzilp = _deployYuzuILPV3();
 
         vm.startPrank(admin);
         yzilp.grantRole(LIMIT_MANAGER_ROLE, limitManager);
@@ -238,10 +200,8 @@ contract YuzuILPV3ThrottleTest is Test, IYuzuIssuerDefinitions, IYuzuThrottleDef
         yzilp.setIsRedeemRestricted(false);
         vm.stopPrank();
 
-        vm.prank(user);
-        asset.approve(proxy, type(uint256).max);
-        vm.prank(exempt);
-        asset.approve(proxy, type(uint256).max);
+        _approve(user, address(yzilp));
+        _approve(exempt, address(yzilp));
     }
 
     function test_Throttle_UnlimitedByDefault() public view {

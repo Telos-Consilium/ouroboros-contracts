@@ -1,60 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-import {YuzuUSD} from "../src/YuzuUSD.sol";
-import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
-import {YuzuUSDV3Facet} from "../src/YuzuUSDV3Facet.sol";
 import {IYuzuNavMarkdownDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-contract USDT0Mock is ERC20Mock {
-    function decimals() public pure override returns (uint8) {
-        return 6;
-    }
-}
-
-contract YuzuV3NavMarkdownTest is Test, IYuzuNavMarkdownDefinitions {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-
+contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
     uint256 internal constant PAR = 1e18;
 
-    USDT0Mock asset;
-    YuzuUSDV3 yzusd;
-
-    address admin = makeAddr("admin");
-    address treasury = makeAddr("treasury");
-    address feeReceiver = makeAddr("feeReceiver");
-    address navManager = makeAddr("navManager");
-    address filler = makeAddr("filler");
-    address user = makeAddr("user");
-
     function setUp() public {
-        asset = new USDT0Mock();
+        asset = _newAsset();
         asset.mint(user, 10_000_000e6);
         asset.mint(filler, 10_000_000e6);
 
-        bytes memory initData = abi.encodeWithSelector(
-            YuzuUSD.initialize.selector,
-            address(asset),
-            "Yuzu USD",
-            "yzUSD",
-            admin,
-            treasury,
-            feeReceiver,
-            type(uint256).max,
-            1 days,
-            0
-        );
-        yzusd = YuzuUSDV3(address(new ERC1967Proxy(address(new YuzuUSDV3(address(new YuzuUSDV3Facet()))), initData)));
-        yzusd.reinitializeV3();
+        yzusd = _deployYuzuUSDV3(address(asset), "Yuzu USD", "yzUSD", false);
 
         vm.startPrank(admin);
         yzusd.grantRole(NAV_MANAGER_ROLE, navManager);
@@ -62,14 +22,11 @@ contract YuzuV3NavMarkdownTest is Test, IYuzuNavMarkdownDefinitions {
         yzusd.grantRole(ORDER_FILLER_ROLE, filler);
         yzusd.setIsMintRestricted(false);
         yzusd.setIsRedeemRestricted(false);
-        // Keep deposits in the contract so the instant redeem buffer is funded
         yzusd.setLiquidityBufferTargetSize(type(uint256).max);
         vm.stopPrank();
 
-        vm.prank(user);
-        asset.approve(address(yzusd), type(uint256).max);
-        vm.prank(filler);
-        asset.approve(address(yzusd), type(uint256).max);
+        _approve(user, address(yzusd));
+        _approve(filler, address(yzusd));
     }
 
     // --- helpers ---
