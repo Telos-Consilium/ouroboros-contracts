@@ -75,13 +75,6 @@ contract YuzuUSDV3 is
         navStorage._cooldown = DEFAULT_NAV_COOLDOWN;
     }
 
-    /// @dev THROTTLE_EXEMPT_ROLE keys on the owner or receiver in both the views and the
-    /// state-changing paths, the standard ERC-4626 principal. Caller-keying is reserved for
-    /// vaults whose integration model is caller-keyed; the proto vaults have none.
-    function _isThrottleExempt(address account) private view returns (bool) {
-        return hasRole(THROTTLE_EXEMPT_ROLE, account);
-    }
-
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
@@ -219,13 +212,6 @@ contract YuzuUSDV3 is
         return Math.mulDiv(shares, _effectiveNav(), NAV_SHARE_SCALE, rounding);
     }
 
-    function _requireMintEnabled() internal view {
-        uint256 currentNav = nav();
-        if (currentNav < NAV_PRECISION) {
-            revert MintDisabledWhileMarkedDown(currentNav);
-        }
-    }
-
     function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {
         _requireRouterSelfCall();
         _deposit(caller, receiver, assets, tokens);
@@ -251,16 +237,6 @@ contract YuzuUSDV3 is
 
     function _effectiveNav() private view returns (uint256) {
         return Math.min(YuzuNavMarkdownV3Storage.layout()._nav, NAV_PRECISION);
-    }
-
-    function _checkMinDeposit(uint256 assets) private view {
-        uint256 min = minDeposit();
-        if (assets < min) revert UnderMinDeposit(assets, min);
-    }
-
-    function _checkMinWithdraw(uint256 assets) private view {
-        uint256 min = minWithdraw();
-        if (assets < min) revert UnderMinWithdraw(assets, min);
     }
 
     function _delegateToFacet() private {

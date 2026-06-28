@@ -210,14 +210,6 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _staticcallFacet();
     }
 
-    function maxWithdraw(address) public pure virtual override returns (uint256) {
-        return 0;
-    }
-
-    function maxRedeem(address) public pure virtual override returns (uint256) {
-        return 0;
-    }
-
     function deposit(uint256, address) public virtual override returns (uint256) {
         _delegateToFacet();
     }
@@ -232,14 +224,6 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
 
     function burn(uint256) public virtual override {
         _delegateToFacet();
-    }
-
-    function withdraw(uint256, address, address) public pure virtual override returns (uint256) {
-        revert();
-    }
-
-    function redeem(uint256, address, address) public pure virtual override returns (uint256) {
-        revert();
     }
 
     function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
