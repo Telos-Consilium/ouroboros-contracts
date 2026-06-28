@@ -67,9 +67,6 @@ contract StakedYuzuUSDV3Migration is
         return AccessControlDefaultAdminRulesUpgradeable.owner();
     }
 
-    /// @dev Neutralized
-    function _checkOwner() internal view override {}
-
     function transferOwnership(address) public pure override(Ownable2StepUpgradeable) {
         revert OwnershipMigratedToAccessControl();
     }

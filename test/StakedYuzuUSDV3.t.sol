@@ -10,6 +10,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3Migration} from "../src/StakedYuzuUSDV3Migration.sol";
@@ -176,6 +177,52 @@ contract StakedYuzuUSDV3Test is
         vm.prank(freshAdmin);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, freshAdmin));
         freshStyz.reinitialize(freshAdmin);
+    }
+
+    function test_MigrationInheritedOwnerMethods_Revert_NotAdmin() public {
+        address freshOwner = makeAddr("freshOwner");
+        address attacker = makeAddr("attacker");
+        address freshAdmin = makeAddr("freshAdmin");
+
+        address v1Impl = address(new StakedYuzuUSD());
+        bytes memory initData = abi.encodeWithSelector(
+            StakedYuzuUSD.initialize.selector,
+            IERC20(address(yzusd)),
+            "Staked Yuzu USD",
+            "st-yzUSD",
+            freshOwner,
+            feeReceiver,
+            1 days
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, freshOwner, initData);
+        ProxyAdmin freshProxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
+        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
+
+        _approveAssets(user1, address(freshStyz), type(uint256).max);
+        vm.prank(user1);
+        freshStyz.deposit(RECOVERY_AMOUNT, LOST_ADDRESS);
+
+        vm.prank(freshOwner);
+        freshStyz.pause();
+
+        address migrationImpl = address(new StakedYuzuUSDV3Migration());
+        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, freshAdmin);
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, migrationData
+        );
+
+        vm.startPrank(attacker);
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, attacker));
+        freshStyz.unpause();
+
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, attacker));
+        freshStyz.setIntegration(attacker, true, true);
+        vm.stopPrank();
+
+        vm.prank(freshAdmin);
+        freshStyz.unpause();
+        assertFalse(freshStyz.paused());
     }
 
     // AccessControl migration
