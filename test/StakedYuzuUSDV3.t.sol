@@ -1,20 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
-
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3Migration} from "../src/StakedYuzuUSDV3Migration.sol";
-import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {
     IntegrationConfig,
     IStakedYuzuUSDDefinitions,
@@ -22,110 +15,17 @@ import {
 } from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {StakedYuzuUSDV3TestBase} from "./helpers/StakedYuzuUSDV3TestBase.sol";
 
 contract StakedYuzuUSDV3Test is
-    Test,
+    StakedYuzuUSDV3TestBase,
     IStakedYuzuUSDDefinitions,
     IStakedYuzuUSDV3Definitions,
     IYuzuThrottleDefinitions,
     IYuzuMinAmountsDefinitions
 {
-    bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    StakedYuzuUSDV3 public styz3;
-    ProxyAdmin public proxyAdmin;
-    ERC20Mock public yzusd;
-
-    address public owner;
-    address public feeReceiver;
-    address public user1;
-    address public user2;
-    address public admin;
-    address public pauseManager;
-
-    address constant LOST_ADDRESS = address(0x01);
-    address constant RECOVERY_RECEIVER = address(0x02);
-    uint256 constant RECOVERY_AMOUNT = 1;
-
-    bytes32 constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-    bytes32 constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-    bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-    bytes32 constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-
     function setUp() public virtual {
-        owner = makeAddr("owner");
-        feeReceiver = makeAddr("feeReceiver");
-        user1 = makeAddr("user1");
-        user2 = makeAddr("user2");
-        admin = makeAddr("admin");
-        pauseManager = makeAddr("pauseManager");
-
-        // Deploy mock asset and mint balances
-        yzusd = new ERC20Mock();
-        yzusd.mint(owner, 10_000_000e18);
-        yzusd.mint(user1, 10_000_000e18);
-        yzusd.mint(user2, 10_000_000e18);
-
-        // Deploy V1 implementation behind a TransparentUpgradeableProxy (mirrors production)
-        address v1Impl = address(new StakedYuzuUSD());
-        bytes memory initData = abi.encodeWithSelector(
-            StakedYuzuUSD.initialize.selector,
-            IERC20(address(yzusd)),
-            "Staked Yuzu USD",
-            "st-yzUSD",
-            owner,
-            feeReceiver,
-            1 days
-        );
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, owner, initData);
-        proxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
-        styz3 = StakedYuzuUSDV3(address(proxy));
-
-        // Approvals for deposits
-        _approveAssets(owner, address(styz3), type(uint256).max);
-        _approveAssets(user1, address(styz3), type(uint256).max);
-        _approveAssets(user2, address(styz3), type(uint256).max);
-
-        // Pre-reinit: LOST_ADDRESS needs RECOVERY_AMOUNT shares so the recovery burn succeeds
-        vm.prank(user1);
-        styz3.deposit(RECOVERY_AMOUNT, LOST_ADDRESS);
-
-        // Production V2-side pause before the upgrade
-        vm.prank(owner);
-        styz3.pause();
-
-        // Upgrade to V3Migration atomically via ProxyAdmin.upgradeAndCall; reinitialize
-        // gate requires msg.sender == proxy admin, so the upgrade-and-init must be atomic.
-        address migrationImpl = address(new StakedYuzuUSDV3Migration());
-        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, admin);
-        vm.prank(owner);
-        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, migrationData);
-
-        // Upgrade to parked V3 runtime and initialize long-term V3 feature defaults.
-        address v3Impl = _deploy();
-        bytes memory reinitData = abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, admin);
-        vm.prank(owner);
-        proxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), v3Impl, reinitData);
-
-        // Bootstrap PAUSE_MANAGER_ROLE so we can unpause for subsequent tests
-        vm.prank(admin);
-        styz3.grantRole(PAUSE_MANAGER_ROLE, pauseManager);
-
-        vm.prank(pauseManager);
-        styz3.unpause();
-    }
-
-    function _deploy() internal virtual returns (address) {
-        return address(new StakedYuzuUSDV3());
-    }
-
-    // Helpers
-    function _approveAssets(address _owner, address spender, uint256 amount) internal {
-        vm.prank(_owner);
-        yzusd.approve(spender, amount);
+        _setUpStakedYuzuUSDV3();
     }
 
     function _deposit(address user, uint256 assets) internal returns (uint256 shares) {
@@ -145,30 +45,9 @@ contract StakedYuzuUSDV3Test is
         address attacker = makeAddr("attacker");
         address freshAdmin = makeAddr("freshAdmin");
 
-        address v1Impl = address(new StakedYuzuUSD());
-        bytes memory initData = abi.encodeWithSelector(
-            StakedYuzuUSD.initialize.selector,
-            IERC20(address(yzusd)),
-            "Staked Yuzu USD",
-            "st-yzUSD",
-            freshOwner,
-            feeReceiver,
-            1 days
-        );
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, freshOwner, initData);
-        ProxyAdmin freshProxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
-        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
-
-        _approveAssets(user1, address(freshStyz), type(uint256).max);
-        vm.prank(user1);
-        freshStyz.deposit(RECOVERY_AMOUNT, LOST_ADDRESS);
-
-        vm.prank(freshOwner);
-        freshStyz.pause();
-
-        address migrationImpl = address(new StakedYuzuUSDV3Migration());
-        vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, bytes(""));
+        (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin, StakedYuzuUSDV3Migration freshStyz) =
+            _deploySeededV1Proxy(freshOwner);
+        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, bytes(""));
 
         vm.prank(attacker);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, attacker));
@@ -184,33 +63,10 @@ contract StakedYuzuUSDV3Test is
         address attacker = makeAddr("attacker");
         address freshAdmin = makeAddr("freshAdmin");
 
-        address v1Impl = address(new StakedYuzuUSD());
-        bytes memory initData = abi.encodeWithSelector(
-            StakedYuzuUSD.initialize.selector,
-            IERC20(address(yzusd)),
-            "Staked Yuzu USD",
-            "st-yzUSD",
-            freshOwner,
-            feeReceiver,
-            1 days
-        );
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, freshOwner, initData);
-        ProxyAdmin freshProxyAdmin = ProxyAdmin(address(uint160(uint256(vm.load(address(proxy), _ADMIN_SLOT)))));
-        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
-
-        _approveAssets(user1, address(freshStyz), type(uint256).max);
-        vm.prank(user1);
-        freshStyz.deposit(RECOVERY_AMOUNT, LOST_ADDRESS);
-
-        vm.prank(freshOwner);
-        freshStyz.pause();
-
-        address migrationImpl = address(new StakedYuzuUSDV3Migration());
+        (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin, StakedYuzuUSDV3Migration freshStyz) =
+            _deploySeededV1Proxy(freshOwner);
         bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, freshAdmin);
-        vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, migrationData
-        );
+        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
 
         vm.startPrank(attacker);
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, attacker));
