@@ -472,13 +472,35 @@ contract YuzuILPV3Facet is
         uint256 pool = router.poolSize();
         uint256 total = pool
             + Math.mulDiv(pool * router.dailyLinearYieldRatePpm(), _proxyTimeSinceUpdate(router), 1e6 days, rounding)
-            + router.netDistributedSinceUpdate();
+            + _proxyNetDistributedSinceUpdate(router, rounding);
         uint256 mgmtFee = Math.mulDiv(
             pool * router.managementFeeRatePpm(), _proxyTimeSinceUpdate(router), 1e6 * 365 days, feeRounding
         );
         uint256 netOfMgmt = mgmtFee >= total ? 0 : total - mgmtFee;
         uint256 perfFee = _proxyPerformanceFee(router, netOfMgmt, feeRounding);
         return perfFee >= netOfMgmt ? 0 : netOfMgmt - perfFee;
+    }
+
+    function _proxyNetDistributedSinceUpdate(IYuzuILPV3Router router, Math.Rounding rounding)
+        private
+        view
+        returns (uint256)
+    {
+        uint256 netDistributed = router.netDistributedSinceUpdate();
+        if (rounding != Math.Rounding.Ceil) {
+            return netDistributed;
+        }
+
+        uint256 period = router.lastDistributionPeriod();
+        if (period == 0) {
+            return netDistributed;
+        }
+
+        uint256 elapsed = block.timestamp - router.lastDistributionTimestamp();
+        uint256 amount = router.lastDistributedAmount();
+        uint256 roundedDistributed = Math.min(amount, Math.mulDiv(elapsed, amount, period, Math.Rounding.Ceil));
+        uint256 flooredDistributed = Math.min(amount, Math.mulDiv(elapsed, amount, period, Math.Rounding.Floor));
+        return netDistributed + roundedDistributed - flooredDistributed;
     }
 
     function _proxyPerformanceFee(IYuzuILPV3Router router, uint256 netOfMgmt, Math.Rounding rounding)

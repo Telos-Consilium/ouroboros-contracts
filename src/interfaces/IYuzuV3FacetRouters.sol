@@ -48,6 +48,9 @@ interface IYuzuILPV3Router {
     function poolSize() external view returns (uint256);
     function dailyLinearYieldRatePpm() external view returns (uint256);
     function lastPoolUpdateTimestamp() external view returns (uint256);
+    function lastDistributedAmount() external view returns (uint256);
+    function lastDistributionPeriod() external view returns (uint256);
+    function lastDistributionTimestamp() external view returns (uint256);
     function netDistributedSinceUpdate() external view returns (uint256);
     function paused() external view returns (bool);
     function isMintRestricted() external view returns (bool);

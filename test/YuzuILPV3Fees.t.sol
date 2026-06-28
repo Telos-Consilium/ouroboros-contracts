@@ -227,6 +227,18 @@ contract YuzuILPV3FeesTest is Test, IYuzuProtoDefinitions, IYuzuILPV3Definitions
         assertEq(yzilp.cumulativeManagementFees(), 0);
     }
 
+    function test_PreviewDeposit_UsesCeilRoundedActiveDistribution() public {
+        _setupPool();
+
+        vm.prank(admin);
+        yzilp.distribute(1, 2);
+        vm.warp(block.timestamp + 1);
+
+        assertEq(yzilp.totalAssets(), 1000e6);
+        uint256 expectedShares = 1000e6 * yzilp.totalSupply() / (1000e6 + 1);
+        assertEq(yzilp.previewDeposit(1000e6), expectedShares);
+    }
+
     function test_SetManagementFee_Deferred() public {
         _setupPool();
         vm.prank(feeManager);
