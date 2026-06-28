@@ -59,9 +59,11 @@ jobs:
           forge fmt --check
         id: fmt
 
-      - name: Run Forge build
+      - name: Run Forge production build
+        env:
+          FOUNDRY_PROFILE: production
         run: |
-          forge build --sizes --via-ir
+          forge build --sizes
         id: build
 
       - name: Run Slitherin
