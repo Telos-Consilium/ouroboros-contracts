@@ -40,6 +40,7 @@ contract YuzuUSDV3Facet is
 
     uint256 internal constant NAV_PRECISION = 1e18;
 
+    // External
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
         _requireMintEnabled();
@@ -225,6 +226,7 @@ contract YuzuUSDV3Facet is
         emit UpdatedNavCooldown(oldCooldown, newCooldown);
     }
 
+    // Internal
     function _checkRole(bytes32 role) private view {
         if (!IAccessControl(address(this)).hasRole(role, msg.sender)) {
             revert IAccessControl.AccessControlUnauthorizedAccount(msg.sender, role);

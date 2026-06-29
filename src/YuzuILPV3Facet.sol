@@ -87,6 +87,7 @@ contract YuzuILPV3Facet is
     bytes32 private constant YuzuOrderBookStorageLocation =
         0x747f75a735bbbfd5f9552c4d2a106ffbc4ca977c3f429389a57413d9a643a500;
 
+    // External
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         _checkMinDeposit(assets);
@@ -413,6 +414,7 @@ contract YuzuILPV3Facet is
         emit UpdatedPerformanceFee(oldPending, newRatePpm);
     }
 
+    // Internal
     function _applyPoolUpdate(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         private
     {
@@ -654,6 +656,7 @@ contract YuzuILPV3Facet is
         if (assets < min) revert UnderMinDeposit(assets, min);
     }
 
+    // Storage
     function _setPackedAddress(uint256 slot, address value) private {
         uint256 mask = type(uint160).max;
         assembly {

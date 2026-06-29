@@ -48,6 +48,7 @@ contract YuzuUSDV3 is
 
     address private immutable _facet;
 
+    // Construction
     constructor(address facet_) {
         if (facet_ == address(0)) {
             revert InvalidZeroAddress();
@@ -55,6 +56,7 @@ contract YuzuUSDV3 is
         _facet = facet_;
     }
 
+    // V3 init
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitializeV3() external reinitializer(3) {
@@ -75,6 +77,7 @@ contract YuzuUSDV3 is
         navStorage._cooldown = DEFAULT_NAV_COOLDOWN;
     }
 
+    // V3 config routes
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
@@ -110,6 +113,7 @@ contract YuzuUSDV3 is
         _delegateToFacet();
     }
 
+    // V3 views
     /// @notice Returns the mint throttle limits and usage
     function getMintThrottle() external view returns (Throttle memory) {
         return YuzuThrottleV3Storage.layout()._mintThrottle;
@@ -157,6 +161,7 @@ contract YuzuUSDV3 is
         return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
     }
 
+    // ERC4626 view routes
     function maxDeposit(address) public view virtual override returns (uint256) {
         _staticcallFacet();
     }
@@ -176,6 +181,7 @@ contract YuzuUSDV3 is
         _staticcallFacet();
     }
 
+    // ERC4626 write routes
     function deposit(uint256, address) public virtual override returns (uint256) {
         _delegateToFacet();
     }
@@ -192,6 +198,7 @@ contract YuzuUSDV3 is
         _delegateToFacet();
     }
 
+    // Conversion hooks
     /// @dev Folds the backing value (capped at par) into the par decimal scaling. At par this is the
     /// inherited 1:1 conversion; below par a share converts to fewer assets and an asset to more shares.
     function _convertToShares(uint256 assets, Math.Rounding rounding)
@@ -212,6 +219,7 @@ contract YuzuUSDV3 is
         return Math.mulDiv(shares, _effectiveNav(), NAV_SHARE_SCALE, rounding);
     }
 
+    // Router callbacks
     function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {
         _requireRouterSelfCall();
         _deposit(caller, receiver, assets, tokens);
@@ -229,6 +237,7 @@ contract YuzuUSDV3 is
         _withdraw(caller, receiver, _owner, assets, tokens, fee);
     }
 
+    // Router helpers
     function _requireRouterSelfCall() private view {
         if (msg.sender != address(this)) {
             revert();

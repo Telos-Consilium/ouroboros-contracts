@@ -26,6 +26,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
 
     address private immutable _facet;
 
+    // Construction
     constructor(address facet_) {
         if (facet_ == address(0)) {
             revert InvalidZeroAddress();
@@ -33,6 +34,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _facet = facet_;
     }
 
+    // V3 init
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitializeV3() external reinitializer(3) {
@@ -45,6 +47,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         $._redeemThrottle.dailyLimit = type(uint256).max;
     }
 
+    // Routed V2
     /// @dev Applies the tighter V3 yield ceiling, realizes the management fee then the performance fee
     /// accrued since the last update against the admin-reported gross {newPoolSize}, advances the
     /// high-water mark, promotes the staged fee rates, then runs the inherited logic on the net
@@ -112,6 +115,48 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    // Routed V3
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setMintThrottle(uint256, uint256) external virtual {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setMinDeposit(uint256) external virtual {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setMintFee(uint256) external virtual {
+        _delegateToFacet();
+    }
+
+    /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setRedeemFee(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setRedeemOrderFee(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    /// @dev Stages the rate; it takes effect at the next pool update, so a period is always charged at one
+    /// rate fixed at its start. Deferral also keeps the drift from ever accruing before the first update.
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setManagementFee(uint256) external virtual {
+        _delegateToFacet();
+    }
+
+    /// @dev Stages the rate; it takes effect at the next pool update. The fee is charged on the share-price
+    /// gain above the high-water mark, which advances at each update, so enabling the fee is never retroactive.
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setPerformanceFee(uint256) external virtual {
+        _delegateToFacet();
+    }
+
+    // V3 views
     function minDeposit() public view returns (uint256) {
         return YuzuMinAmountsV3Storage.layout()._minDeposit;
     }
@@ -160,46 +205,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         return YuzuILPFeesV3Storage.layout()._cumulativePerformanceFees;
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMintThrottle(uint256, uint256) external virtual {
-        _delegateToFacet();
-    }
-
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMinDeposit(uint256) external virtual {
-        _delegateToFacet();
-    }
-
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMintFee(uint256) external virtual {
-        _delegateToFacet();
-    }
-
-    /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setRedeemFee(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setRedeemOrderFee(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    /// @dev Stages the rate; it takes effect at the next pool update, so a period is always charged at one
-    /// rate fixed at its start. Deferral also keeps the drift from ever accruing before the first update.
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setManagementFee(uint256) external virtual {
-        _delegateToFacet();
-    }
-
-    /// @dev Stages the rate; it takes effect at the next pool update. The fee is charged on the share-price
-    /// gain above the high-water mark, which advances at each update, so enabling the fee is never retroactive.
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setPerformanceFee(uint256) external virtual {
-        _delegateToFacet();
-    }
-
+    // User routes
     function maxDeposit(address) public view virtual override returns (uint256) {
         _staticcallFacet();
     }
@@ -226,6 +232,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    // Native hooks
     function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
         internal
         virtual
@@ -254,6 +261,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         return IYuzuILPV3Router(_facet).totalAssetsWithRounding(uint256(rounding));
     }
 
+    // Router callbacks
     function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {
         _requireRouterSelfCall();
         _deposit(caller, receiver, assets, tokens);
@@ -270,6 +278,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         }
     }
 
+    // Router helpers
     function _delegateToFacet() private {
         address facet = _facet;
         // slither-disable-next-line assembly,low-level-calls
