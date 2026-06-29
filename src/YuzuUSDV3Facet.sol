@@ -85,17 +85,6 @@ contract YuzuUSDV3Facet is
         return tokens;
     }
 
-    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxTokens)
-        external
-        returns (uint256)
-    {
-        uint256 tokens = withdraw(assets, receiver, owner);
-        if (tokens > maxTokens) {
-            revert RedeemedMoreThanMaxTokens(tokens, maxTokens);
-        }
-        return tokens;
-    }
-
     function redeem(uint256 tokens, address receiver, address owner) public returns (uint256) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
         uint256 maxTokens = _maxRedeem(address(this), owner);
@@ -110,6 +99,17 @@ contract YuzuUSDV3Facet is
         router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
         _consumeRedeemThrottle(owner, assets + fee);
         return assets;
+    }
+
+    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxTokens)
+        external
+        returns (uint256)
+    {
+        uint256 tokens = withdraw(assets, receiver, owner);
+        if (tokens > maxTokens) {
+            revert RedeemedMoreThanMaxTokens(tokens, maxTokens);
+        }
+        return tokens;
     }
 
     function redeemWithSlippage(uint256 tokens, address receiver, address owner, uint256 minAssets)

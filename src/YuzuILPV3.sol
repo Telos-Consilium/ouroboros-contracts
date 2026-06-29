@@ -112,16 +112,6 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMintThrottle(uint256, uint256) external virtual {
-        _delegateToFacet();
-    }
-
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMinDeposit(uint256) external virtual {
-        _delegateToFacet();
-    }
-
     function minDeposit() public view returns (uint256) {
         return YuzuMinAmountsV3Storage.layout()._minDeposit;
     }
@@ -133,11 +123,6 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     /// @notice Fee charged on the deposit/mint path, in ppm of the assets in
     function mintFeePpm() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._mintFeePpm;
-    }
-
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setMintFee(uint256) external virtual {
-        _delegateToFacet();
     }
 
     /// @notice Active management fee, in ppm per year, charged as a continuous drift on poolSize
@@ -175,17 +160,18 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         return YuzuILPFeesV3Storage.layout()._cumulativePerformanceFees;
     }
 
-    /// @dev Stages the rate; it takes effect at the next pool update, so a period is always charged at one
-    /// rate fixed at its start. Deferral also keeps the drift from ever accruing before the first update.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setManagementFee(uint256) external virtual {
+    function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
     }
 
-    /// @dev Stages the rate; it takes effect at the next pool update. The fee is charged on the share-price
-    /// gain above the high-water mark, which advances at each update, so enabling the fee is never retroactive.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setPerformanceFee(uint256) external virtual {
+    function setMinDeposit(uint256) external virtual {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setMintFee(uint256) external virtual {
         _delegateToFacet();
     }
 
@@ -197,6 +183,20 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setRedeemOrderFee(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    /// @dev Stages the rate; it takes effect at the next pool update, so a period is always charged at one
+    /// rate fixed at its start. Deferral also keeps the drift from ever accruing before the first update.
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setManagementFee(uint256) external virtual {
+        _delegateToFacet();
+    }
+
+    /// @dev Stages the rate; it takes effect at the next pool update. The fee is charged on the share-price
+    /// gain above the high-water mark, which advances at each update, so enabling the fee is never retroactive.
+    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    function setPerformanceFee(uint256) external virtual {
         _delegateToFacet();
     }
 
