@@ -5,6 +5,8 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IYuzuIssuerDefinitions} from "./interfaces/proto/IYuzuIssuerDefinitions.sol";
+import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
+import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {
     IYuzuMinAmountsDefinitions,
     IYuzuNavMarkdownDefinitions,
@@ -77,7 +79,7 @@ contract YuzuUSDV3Facet is
             revert ExceededMaxWithdraw(owner, assets, maxAssets);
         }
         uint256 tokens = router.previewWithdraw(assets);
-        uint256 fee = _feeOnRaw(assets, router.redeemFeePpm());
+        uint256 fee = YuzuV3Fees.feeOnRaw(assets, router.redeemFeePpm());
         router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
         _consumeRedeemThrottle(owner, assets + fee);
         return tokens;
@@ -101,7 +103,7 @@ contract YuzuUSDV3Facet is
             revert ExceededMaxRedeem(owner, tokens, maxTokens);
         }
         uint256 grossAssets = router.convertToAssets(tokens);
-        uint256 fee = _feeOnTotal(grossAssets, router.redeemFeePpm());
+        uint256 fee = YuzuV3Fees.feeOnTotal(grossAssets, router.redeemFeePpm());
         uint256 assets = grossAssets - fee;
         _checkMinWithdraw(assets);
         _checkSameBlockRedeem(owner);
@@ -279,10 +281,10 @@ contract YuzuUSDV3Facet is
         IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
         uint256 feePpm = router.redeemFeePpm();
         uint256 liquid = router.liquidityBufferSize();
-        uint256 fee = _feeOnTotal(liquid, feePpm);
+        uint256 fee = YuzuV3Fees.feeOnTotal(liquid, feePpm);
         uint256 baseMax = Math.min(router.previewRedeem(router.balanceOf(owner)), liquid - fee);
         uint256 remaining = _redeemThrottleRemaining(proxy, owner);
-        uint256 throttleMax = remaining - _feeOnTotal(remaining, feePpm);
+        uint256 throttleMax = remaining - YuzuV3Fees.feeOnTotal(remaining, feePpm);
         uint256 maxAssets = Math.min(baseMax, throttleMax);
         uint256 min = router.minWithdraw();
         return maxAssets < min ? 0 : maxAssets;
@@ -312,7 +314,7 @@ contract YuzuUSDV3Facet is
             return type(uint256).max;
         }
         Throttle memory throttle = IYuzuUSDV3Router(proxy).getMintThrottle();
-        (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle);
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
         return Math.min(blockRemaining, dailyRemaining);
     }
 
@@ -321,7 +323,7 @@ contract YuzuUSDV3Facet is
             return type(uint256).max;
         }
         Throttle memory throttle = IYuzuUSDV3Router(proxy).getRedeemThrottle();
-        (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle);
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
         return Math.min(blockRemaining, dailyRemaining);
     }
 
@@ -347,14 +349,14 @@ contract YuzuUSDV3Facet is
             return;
         }
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle);
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
         if (assets > blockRemaining) {
             revert ExceededMintBlockLimit(assets, blockRemaining);
         }
         if (assets > dailyRemaining) {
             revert ExceededMintDailyLimit(assets, dailyRemaining);
         }
-        _consume(throttle, assets);
+        YuzuV3Throttle.consume(throttle, assets);
     }
 
     function _consumeRedeemThrottle(address account, uint256 assets) private {
@@ -362,14 +364,14 @@ contract YuzuUSDV3Facet is
             return;
         }
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle);
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
         if (assets > blockRemaining) {
             revert ExceededRedeemBlockLimit(assets, blockRemaining);
         }
         if (assets > dailyRemaining) {
             revert ExceededRedeemDailyLimit(assets, dailyRemaining);
         }
-        _consume(throttle, assets);
+        YuzuV3Throttle.consume(throttle, assets);
     }
 
     function _recordMintBlock(address receiver, uint256 amount) private {
@@ -386,40 +388,5 @@ contract YuzuUSDV3Facet is
         if (YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[owner] == block.number) {
             revert SameBlockMintRedeem(owner);
         }
-    }
-
-    function _remaining(Throttle memory throttle)
-        private
-        view
-        returns (uint256 blockRemaining, uint256 dailyRemaining)
-    {
-        uint256 blockLimit = throttle.blockLimit;
-        uint256 usedInBlock = throttle.lastBlock == block.number ? throttle.usedInBlock : 0;
-        blockRemaining = usedInBlock >= blockLimit ? 0 : blockLimit - usedInBlock;
-
-        uint256 dailyLimit = throttle.dailyLimit;
-        uint256 usedInDay = throttle.lastDay == _currentDay() ? throttle.usedInDay : 0;
-        dailyRemaining = usedInDay >= dailyLimit ? 0 : dailyLimit - usedInDay;
-    }
-
-    function _consume(Throttle storage throttle, uint256 assets) private {
-        throttle.usedInBlock = (throttle.lastBlock == block.number ? throttle.usedInBlock : 0) + assets;
-        throttle.lastBlock = block.number;
-
-        uint256 day = _currentDay();
-        throttle.usedInDay = (throttle.lastDay == day ? throttle.usedInDay : 0) + assets;
-        throttle.lastDay = day;
-    }
-
-    function _feeOnRaw(uint256 assets, uint256 feePpm) private pure returns (uint256) {
-        return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
-    }
-
-    function _feeOnTotal(uint256 assets, uint256 feePpm) private pure returns (uint256) {
-        return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
-    }
-
-    function _currentDay() private view returns (uint256) {
-        return block.timestamp / 1 days;
     }
 }

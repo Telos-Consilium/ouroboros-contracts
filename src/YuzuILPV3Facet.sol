@@ -10,6 +10,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IYuzuIssuerDefinitions} from "./interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuOrderBookDefinitions} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {IYuzuILPDefinitions, IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
+import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
+import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {
     IYuzuMinAmountsDefinitions,
     IYuzuProtoDefinitions,
@@ -88,7 +90,7 @@ contract YuzuILPV3Facet is
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         _checkMinDeposit(assets);
-        uint256 fee = _feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
@@ -106,7 +108,7 @@ contract YuzuILPV3Facet is
     function mint(uint256 tokens, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         uint256 netAssets = router.previewMint(tokens);
-        uint256 fee = _feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        uint256 fee = YuzuV3Fees.feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         _checkMinDeposit(netAssets + fee);
         uint256 maxTokens = _maxMint(address(this), receiver);
         if (tokens > maxTokens) {
@@ -624,7 +626,7 @@ contract YuzuILPV3Facet is
             return type(uint256).max;
         }
         Throttle memory throttle = IYuzuILPV3Router(proxy).getMintThrottle();
-        (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle);
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
         return Math.min(blockRemaining, dailyRemaining);
     }
 
@@ -634,49 +636,19 @@ contract YuzuILPV3Facet is
         }
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
         Throttle memory throttle_ = throttle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = _remaining(throttle_);
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle_);
         if (assets > blockRemaining) {
             revert ExceededMintBlockLimit(assets, blockRemaining);
         }
         if (assets > dailyRemaining) {
             revert ExceededMintDailyLimit(assets, dailyRemaining);
         }
-        throttle.usedInBlock = (throttle.lastBlock == block.number ? throttle.usedInBlock : 0) + assets;
-        throttle.lastBlock = block.number;
-        uint256 day = _currentDay();
-        throttle.usedInDay = (throttle.lastDay == day ? throttle.usedInDay : 0) + assets;
-        throttle.lastDay = day;
-    }
-
-    function _remaining(Throttle memory throttle)
-        private
-        view
-        returns (uint256 blockRemaining, uint256 dailyRemaining)
-    {
-        uint256 blockLimit = throttle.blockLimit;
-        uint256 usedInBlock = throttle.lastBlock == block.number ? throttle.usedInBlock : 0;
-        blockRemaining = usedInBlock >= blockLimit ? 0 : blockLimit - usedInBlock;
-
-        uint256 dailyLimit = throttle.dailyLimit;
-        uint256 usedInDay = throttle.lastDay == _currentDay() ? throttle.usedInDay : 0;
-        dailyRemaining = usedInDay >= dailyLimit ? 0 : dailyLimit - usedInDay;
+        YuzuV3Throttle.consume(throttle, assets);
     }
 
     function _checkMinDeposit(uint256 assets) private view {
         uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
         if (assets < min) revert UnderMinDeposit(assets, min);
-    }
-
-    function _feeOnRaw(uint256 assets, uint256 feePpm) private pure returns (uint256) {
-        return Math.mulDiv(assets, feePpm, 1e6, Math.Rounding.Ceil);
-    }
-
-    function _feeOnTotal(uint256 assets, uint256 feePpm) private pure returns (uint256) {
-        return Math.mulDiv(assets, feePpm, feePpm + 1e6, Math.Rounding.Ceil);
-    }
-
-    function _currentDay() private view returns (uint256) {
-        return block.timestamp / 1 days;
     }
 
     function _setPackedAddress(uint256 slot, address value) private {
