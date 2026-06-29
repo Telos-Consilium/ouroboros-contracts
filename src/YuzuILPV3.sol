@@ -255,17 +255,19 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {
-        if (msg.sender != address(this)) {
-            revert();
-        }
+        _requireRouterSelfCall();
         _deposit(caller, receiver, assets, tokens);
     }
 
     function __routerBurn(address owner, uint256 tokens) external {
+        _requireRouterSelfCall();
+        _burn(owner, tokens);
+    }
+
+    function _requireRouterSelfCall() private view {
         if (msg.sender != address(this)) {
             revert();
         }
-        _burn(owner, tokens);
     }
 
     function _delegateToFacet() private {

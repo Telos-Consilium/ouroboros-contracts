@@ -575,6 +575,10 @@ contract YuzuILPV3Facet is
         }
     }
 
+    function _isThrottleExempt(address account) private view returns (bool) {
+        return IAccessControl(address(this)).hasRole(THROTTLE_EXEMPT_ROLE, account);
+    }
+
     function _maxDeposit(address proxy, address receiver) private view returns (uint256) {
         if (!_canMint(proxy, receiver)) {
             return 0;
@@ -631,12 +635,11 @@ contract YuzuILPV3Facet is
     }
 
     function _consumeMintThrottle(address account, uint256 assets) private {
-        if (IAccessControl(address(this)).hasRole(THROTTLE_EXEMPT_ROLE, account)) {
+        if (_isThrottleExempt(account)) {
             return;
         }
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
-        Throttle memory throttle_ = throttle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle_);
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
         if (assets > blockRemaining) {
             revert ExceededMintBlockLimit(assets, blockRemaining);
         }
