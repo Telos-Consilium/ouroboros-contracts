@@ -117,6 +117,9 @@ contract StakedYuzuUSDV3 is
 
     // slither-disable-next-line pess-strange-setter
     function setRedeemDelay(uint256 newDelay) public virtual override onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newDelay == 0) {
+            revert RedeemDelayTooLow(newDelay, 1);
+        }
         super.setRedeemDelay(newDelay);
     }
 

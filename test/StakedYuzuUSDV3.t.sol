@@ -146,6 +146,14 @@ contract StakedYuzuUSDV3Test is
         assertTrue(styz3.canRedeem(user2));
     }
 
+    function test_SetRedeemDelay_RevertsOnZero() public {
+        vm.startPrank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+        vm.expectRevert(abi.encodeWithSelector(RedeemDelayTooLow.selector, 0, 1));
+        styz3.setRedeemDelay(0);
+        vm.stopPrank();
+    }
+
     function test_InstantWithdraw_PublicUser_PaysInstantFee() public {
         vm.startPrank(admin);
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
