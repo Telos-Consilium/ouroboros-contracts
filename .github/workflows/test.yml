@@ -23,6 +23,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Verify submodule pins
+        run: |
+          git submodule status --recursive
+          git diff --exit-code --submodule
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
