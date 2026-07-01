@@ -33,6 +33,13 @@ contract StakedYuzuUSDV3Test is
         return styz3.deposit(assets, user);
     }
 
+    function _enableInstantRedeem() internal {
+        vm.startPrank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+        styz3.setIsInstantRedeemEnabled(true);
+        vm.stopPrank();
+    }
+
     // Recovery
     function test_Recovery() public view {
         assertEq(styz3.balanceOf(LOST_ADDRESS), 0);
@@ -142,8 +149,8 @@ contract StakedYuzuUSDV3Test is
 
     // Public instant redeem
     function test_CanRedeem() public view {
-        assertTrue(styz3.canRedeem(user1));
-        assertTrue(styz3.canRedeem(user2));
+        assertFalse(styz3.canRedeem(user1));
+        assertFalse(styz3.canRedeem(user2));
     }
 
     function test_SetRedeemDelay_RevertsOnZero() public {
@@ -159,6 +166,7 @@ contract StakedYuzuUSDV3Test is
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
         styz3.grantRole(FEE_MANAGER_ROLE, admin);
         styz3.setRedeemDelay(7 days);
+        styz3.setIsInstantRedeemEnabled(true);
         styz3.setInstantRedeemFee(100_000); // 10% instant fee
         vm.stopPrank();
 
@@ -233,8 +241,8 @@ contract StakedYuzuUSDV3Test is
     }
 
     // Instant redeem toggle
-    function test_IsInstantRedeemEnabled_DefaultTrue() public view {
-        assertTrue(styz3.isInstantRedeemEnabled());
+    function test_IsInstantRedeemEnabled_DefaultFalse() public view {
+        assertFalse(styz3.isInstantRedeemEnabled());
     }
 
     function test_SetIsInstantRedeemEnabled_Revert_NotRedeemManager() public {
@@ -250,10 +258,10 @@ contract StakedYuzuUSDV3Test is
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
 
         vm.expectEmit(false, false, false, true);
-        emit UpdatedIsInstantRedeemEnabled(true, false);
+        emit UpdatedIsInstantRedeemEnabled(false, true);
         vm.prank(admin);
-        styz3.setIsInstantRedeemEnabled(false);
-        assertFalse(styz3.isInstantRedeemEnabled());
+        styz3.setIsInstantRedeemEnabled(true);
+        assertTrue(styz3.isInstantRedeemEnabled());
     }
 
     function test_InstantRedeemDisabled_PublicUser_Reverts() public {
@@ -261,9 +269,6 @@ contract StakedYuzuUSDV3Test is
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
 
         uint256 shares = _deposit(user1, 100e18);
-
-        vm.prank(admin);
-        styz3.setIsInstantRedeemEnabled(false);
 
         assertFalse(styz3.canRedeem(user1));
         assertEq(styz3.maxWithdraw(user1), 0);
@@ -282,7 +287,6 @@ contract StakedYuzuUSDV3Test is
         vm.startPrank(admin);
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
         styz3.setIntegration(user2, true, false);
-        styz3.setIsInstantRedeemEnabled(false);
         vm.stopPrank();
 
         // Integration owner retains view-level access
@@ -305,9 +309,6 @@ contract StakedYuzuUSDV3Test is
 
         uint256 shares = _deposit(user1, 100e18);
 
-        vm.prank(admin);
-        styz3.setIsInstantRedeemEnabled(false);
-
         vm.prank(user1);
         (uint256 orderId, uint256 lockedAssets) = styz3.initiateRedeem(shares, user1, user1);
         assertGt(lockedAssets, 0);
@@ -320,10 +321,8 @@ contract StakedYuzuUSDV3Test is
 
         uint256 shares = _deposit(user1, 100e18);
 
-        vm.startPrank(admin);
-        styz3.setIsInstantRedeemEnabled(false);
+        vm.prank(admin);
         styz3.setIsInstantRedeemEnabled(true);
-        vm.stopPrank();
 
         vm.prank(user1);
         uint256 assetsOut = styz3.redeem(shares, user1, user1);
@@ -332,6 +331,8 @@ contract StakedYuzuUSDV3Test is
 
     // Throttle
     function test_Throttle_UnlimitedByDefault() public {
+        _enableInstantRedeem();
+
         Throttle memory mintThrottle = styz3.getMintThrottle();
         assertEq(mintThrottle.blockLimit, type(uint256).max);
         assertEq(mintThrottle.dailyLimit, type(uint256).max);
@@ -525,7 +526,9 @@ contract StakedYuzuUSDV3Test is
     function test_RedeemThrottle_BlockLimit_GrossIncludesFee() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
         styz3.grantRole(FEE_MANAGER_ROLE, admin);
+        styz3.setIsInstantRedeemEnabled(true);
         styz3.setInstantRedeemFee(200_000); // 20% instant fee
         vm.stopPrank();
 
@@ -552,6 +555,8 @@ contract StakedYuzuUSDV3Test is
     }
 
     function test_RedeemThrottle_Redeem_ConsumesAtMaxRedeem() public {
+        _enableInstantRedeem();
+
         vm.prank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
 
@@ -572,6 +577,8 @@ contract StakedYuzuUSDV3Test is
     }
 
     function test_RedeemThrottle_DailyLimit() public {
+        _enableInstantRedeem();
+
         vm.prank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
 
@@ -601,7 +608,9 @@ contract StakedYuzuUSDV3Test is
     function test_RedeemThrottle_ThrottleExempt_Bypasses() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
         styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+        styz3.setIsInstantRedeemEnabled(true);
         styz3.setRedeemThrottle(10e18, type(uint256).max);
         vm.stopPrank();
 
@@ -615,7 +624,9 @@ contract StakedYuzuUSDV3Test is
     function test_RedeemThrottle_NonExemptCaller_ConsumesForExemptOwner() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
         styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+        styz3.setIsInstantRedeemEnabled(true);
         styz3.setRedeemThrottle(50e18, type(uint256).max);
         vm.stopPrank();
 

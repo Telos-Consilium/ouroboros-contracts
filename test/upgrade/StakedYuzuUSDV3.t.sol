@@ -128,8 +128,8 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         assertEq(v3.owner(), admin, "owner drift after strip");
         assertTrue(v3.hasRole(ADMIN_ROLE, admin), "ADMIN_ROLE drift after strip");
 
-        // Public instant redeem enabled at parked upgrade time
-        assertTrue(v3.isInstantRedeemEnabled(), "isInstantRedeemEnabled not set");
+        // Public instant redeem starts disabled; integrations can still be enabled explicitly.
+        assertFalse(v3.isInstantRedeemEnabled(), "isInstantRedeemEnabled set");
 
         // Throttles unlimited at parked upgrade time
         assertEq(v3.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE, "THROTTLE_EXEMPT_ROLE admin not set");

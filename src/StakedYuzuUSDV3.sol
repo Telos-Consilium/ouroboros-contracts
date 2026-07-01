@@ -46,7 +46,7 @@ contract StakedYuzuUSDV3 is
         if (_admin == address(0)) revert InvalidZeroAddress();
         if (owner() != _admin || !hasRole(ADMIN_ROLE, _admin)) revert UnauthorizedReinitializer(_admin);
 
-        isInstantRedeemEnabled = true;
+        isInstantRedeemEnabled = false;
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
         // Distribute guards ship off: max ppm is the no-cap sentinel (0 would block all), 0 floor is the default
