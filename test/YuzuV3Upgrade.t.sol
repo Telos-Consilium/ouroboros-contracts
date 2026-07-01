@@ -63,7 +63,7 @@ contract YuzuV3UpgradeTest is Test {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(proxy))),
             v3Impl,
-            abi.encodeWithSelector(YuzuUSDV3.reinitializeV3.selector)
+            abi.encodeWithSelector(YuzuUSDV3.reinitialize.selector)
         );
 
         YuzuUSDV3 v3 = YuzuUSDV3(address(proxy));
@@ -108,7 +108,7 @@ contract YuzuV3UpgradeTest is Test {
         proxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(proxy))),
             v3Impl,
-            abi.encodeWithSelector(YuzuILPV3.reinitializeV3.selector)
+            abi.encodeWithSelector(YuzuILPV3.reinitialize.selector)
         );
 
         YuzuILPV3 v3 = YuzuILPV3(address(proxy));

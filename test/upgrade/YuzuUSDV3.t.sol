@@ -61,7 +61,7 @@ contract YuzuUSDV3UpgradeForkTest is Test {
         ProxyAdmin(adminBefore).upgradeAndCall(
             ITransparentUpgradeableProxy(payable(proxy)),
             impl,
-            abi.encodeWithSelector(YuzuUSDV3.reinitializeV3.selector)
+            abi.encodeWithSelector(YuzuUSDV3.reinitialize.selector)
         );
 
         assertTrue(implBefore != _implementation(proxy), "implementation unchanged");
@@ -106,7 +106,7 @@ contract YuzuUSDV3UpgradeForkTest is Test {
         v3.setMintThrottle(1, 1);
 
         vm.expectRevert();
-        v3.reinitializeV3();
+        v3.reinitialize();
     }
 
     function _implementation(address proxy) private view returns (address) {

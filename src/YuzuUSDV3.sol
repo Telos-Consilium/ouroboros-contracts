@@ -59,7 +59,9 @@ contract YuzuUSDV3 is
     // V3 init
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitializeV3() external reinitializer(3) {
+    function reinitialize() external override reinitializer(3) {
+        __YuzuProtoV2_init_unchained();
+        __EIP712_init(name(), "2");
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
         YuzuThrottleV3Storage.Layout storage throttleStorage = YuzuThrottleV3Storage.layout();

@@ -60,7 +60,7 @@ abstract contract YuzuV3TestBase is Test {
         return _deployYuzuUSDV3(asset_, "Token", "TKN", true);
     }
 
-    function _deployYuzuUSDV3(address asset_, string memory name, string memory symbol, bool runV2Reinitializer)
+    function _deployYuzuUSDV3(address asset_, string memory name, string memory symbol, bool)
         internal
         returns (YuzuUSDV3 deployed)
     {
@@ -79,10 +79,7 @@ abstract contract YuzuV3TestBase is Test {
         );
         address proxy = address(new ERC1967Proxy(impl, initData));
         deployed = YuzuUSDV3(proxy);
-        if (runV2Reinitializer) {
-            YuzuUSDV2(proxy).reinitialize();
-        }
-        deployed.reinitializeV3();
+        deployed.reinitialize();
     }
 
     function _deployYuzuILPV3() internal returns (YuzuILPV3) {
@@ -93,7 +90,7 @@ abstract contract YuzuV3TestBase is Test {
         return _deployYuzuILPV3(asset_, "Token", "TKN", true);
     }
 
-    function _deployYuzuILPV3(address asset_, string memory name, string memory symbol, bool runV2Reinitializer)
+    function _deployYuzuILPV3(address asset_, string memory name, string memory symbol, bool)
         internal
         returns (YuzuILPV3 deployed)
     {
@@ -112,10 +109,7 @@ abstract contract YuzuV3TestBase is Test {
         );
         address proxy = address(new ERC1967Proxy(impl, initData));
         deployed = YuzuILPV3(proxy);
-        if (runV2Reinitializer) {
-            YuzuILPV2(proxy).reinitialize();
-        }
-        deployed.reinitializeV3();
+        deployed.reinitialize();
     }
 
     function _approve(address owner, address spender) internal {
