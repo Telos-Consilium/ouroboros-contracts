@@ -26,8 +26,7 @@ import {
  * down below par
  * @dev The throttle and same-block guard gate only the instant deposit/mint and withdraw/redeem paths.
  * The order path (createRedeemOrder) is not throttled or same-block guarded. Prices
- * settle at the backing value capped at par, so a value above par leaves payouts at par; minting is
- * disabled while the value is below par.
+ * settle at the backing value capped at par.
  */
 contract YuzuUSDV3 is
     YuzuUSDV2,

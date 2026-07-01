@@ -109,26 +109,31 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         assertEq(shares, 50e18); // 1:1, the markup does not cheapen minting
     }
 
-    // --- mint disabled while marked down ---
+    // --- mint pricing while marked down ---
 
-    function test_Markdown_DisablesMintViews() public {
+    function test_Markdown_MintViewsRemainOpen() public {
         _setNav(9e17);
-        assertEq(yzusd.maxDeposit(user), 0);
-        assertEq(yzusd.maxMint(user), 0);
+        assertGt(yzusd.maxDeposit(user), 0);
+        assertGt(yzusd.maxMint(user), 0);
+        assertEq(yzusd.previewDeposit(90e6), 100e18);
+        assertEq(yzusd.previewMint(100e18), 90e6);
     }
 
-    function test_Markdown_RevertDeposit() public {
+    function test_Markdown_DepositPricesAtNav() public {
         _setNav(9e17);
+
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(MintDisabledWhileMarkedDown.selector, 9e17));
-        yzusd.deposit(10e6, user);
+        uint256 shares = yzusd.deposit(90e6, user);
+        assertEq(shares, 100e18);
     }
 
-    function test_Markdown_RevertMint() public {
+    function test_Markdown_MintPricesAtNav() public {
         _setNav(9e17);
+
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(MintDisabledWhileMarkedDown.selector, 9e17));
-        yzusd.mint(10e18, user);
+        uint256 assets = yzusd.mint(100e18, user);
+        assertEq(assets, 90e6);
+        assertEq(yzusd.balanceOf(user), 100e18);
     }
 
     function test_Markdown_RedeemStillAllowed() public {
@@ -140,7 +145,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         assertGt(yzusd.redeem(shares, user, user), 0);
     }
 
-    // --- step cap (both directions) ---
+    // --- step cap ---
 
     function test_SetNav_FirstUpdateSkipsCooldown() public {
         _setNav(9e17);
@@ -148,10 +153,10 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         assertEq(yzusd.navLastUpdate(), block.timestamp);
     }
 
-    function test_SetNav_Revert_StepTooLargeDown() public {
+    function test_SetNav_MarkdownBypassesStepCap() public {
         vm.prank(navManager);
-        vm.expectRevert(abi.encodeWithSelector(NavStepTooLarge.selector, 8e17, PAR, 1e17));
-        yzusd.setNav(8e17); // -20% exceeds the 10% cap
+        yzusd.setNav(8e17); // -20%; markdowns bypass the 10% recovery cap
+        assertEq(yzusd.nav(), 8e17);
     }
 
     function test_SetNav_Revert_StepTooLargeUp() public {
@@ -160,12 +165,12 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         yzusd.setNav(12e17); // +20% exceeds the 10% cap
     }
 
-    function test_SetNav_StepRelativeToCurrent() public {
-        _setNav(9e17); // par -> 0.9
+    function test_SetNav_RecoveryStepRelativeToCurrent() public {
+        _setNav(8e17);
         vm.warp(block.timestamp + 1 days);
-        // From 0.9 the cap is 10% of 0.9 = 0.09, so 0.81 is allowed
-        _setNav(81e16);
-        assertEq(yzusd.nav(), 81e16);
+        // From 0.8 the cap is 10% of 0.8 = 0.08, so 0.88 is allowed
+        _setNav(88e16);
+        assertEq(yzusd.nav(), 88e16);
     }
 
     // --- cooldown ---
@@ -224,10 +229,10 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         yzusd.setNavStepCap(500_000);
         assertEq(yzusd.navStepCapPpm(), 500_000);
 
-        // The wider cap now permits a larger step
+        // The wider cap now permits a larger recovery step
         vm.prank(navManager);
-        yzusd.setNav(6e17); // -40%, within the new 50% cap
-        assertEq(yzusd.nav(), 6e17);
+        yzusd.setNav(14e17); // +40%, within the new 50% cap
+        assertEq(yzusd.nav(), 14e17);
     }
 
     function test_SetNavCooldown_Updates() public {

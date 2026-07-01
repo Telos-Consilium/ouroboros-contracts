@@ -43,7 +43,6 @@ contract YuzuUSDV3Facet is
     // External
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
-        _requireMintEnabled();
         _checkMinDeposit(assets);
         uint256 maxAssets = _maxDeposit(address(this), receiver);
         if (assets > maxAssets) {
@@ -58,7 +57,6 @@ contract YuzuUSDV3Facet is
 
     function mint(uint256 tokens, address receiver) external returns (uint256) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
-        _requireMintEnabled();
         uint256 assets = router.previewMint(tokens);
         _checkMinDeposit(assets);
         uint256 maxTokens = _maxMint(address(this), receiver);
@@ -194,10 +192,12 @@ contract YuzuUSDV3Facet is
             }
         }
 
-        uint256 maxDelta = Math.mulDiv(currentNav, $._stepCapPpm, 1e6);
-        uint256 delta = newNav > currentNav ? newNav - currentNav : currentNav - newNav;
-        if (delta > maxDelta) {
-            revert NavStepTooLarge(newNav, currentNav, maxDelta);
+        if (newNav > currentNav) {
+            uint256 maxDelta = Math.mulDiv(currentNav, $._stepCapPpm, 1e6);
+            uint256 delta = newNav - currentNav;
+            if (delta > maxDelta) {
+                revert NavStepTooLarge(newNav, currentNav, maxDelta);
+            }
         }
 
         $._nav = newNav;
@@ -247,12 +247,8 @@ contract YuzuUSDV3Facet is
         return !router.paused() && (!router.isRedeemRestricted() || IAccessControl(proxy).hasRole(REDEEMER_ROLE, owner));
     }
 
-    function _isMarkedDown(address proxy) private view returns (bool) {
-        return IYuzuUSDV3Router(proxy).nav() < NAV_PRECISION;
-    }
-
     function _maxDeposit(address proxy, address receiver) private view returns (uint256) {
-        if (_isMarkedDown(proxy) || !_canMint(proxy, receiver)) {
+        if (!_canMint(proxy, receiver)) {
             return 0;
         }
         IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
@@ -264,7 +260,7 @@ contract YuzuUSDV3Facet is
     }
 
     function _maxMint(address proxy, address receiver) private view returns (uint256) {
-        if (_isMarkedDown(proxy) || !_canMint(proxy, receiver)) {
+        if (!_canMint(proxy, receiver)) {
             return 0;
         }
         IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
@@ -327,13 +323,6 @@ contract YuzuUSDV3Facet is
         Throttle memory throttle = IYuzuUSDV3Router(proxy).getRedeemThrottle();
         (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
         return Math.min(blockRemaining, dailyRemaining);
-    }
-
-    function _requireMintEnabled() private view {
-        uint256 currentNav = YuzuNavMarkdownV3Storage.layout()._nav;
-        if (currentNav < NAV_PRECISION) {
-            revert MintDisabledWhileMarkedDown(currentNav);
-        }
     }
 
     function _checkMinDeposit(uint256 assets) private view {
