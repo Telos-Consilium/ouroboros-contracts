@@ -441,10 +441,9 @@ contract StakedYuzuUSDV3Test is
         vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
         styz3.redeem(shares, user1, user1);
 
-        // The delayed path is not throttled
         vm.prank(user1);
-        (, uint256 lockedAssets) = styz3.initiateRedeem(shares, user1, user1);
-        assertGt(lockedAssets, 0);
+        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 0));
+        styz3.initiateRedeem(shares, user1, user1);
     }
 
     function test_SetMintThrottle_Revert_NotLimitManager() public {
@@ -712,18 +711,23 @@ contract StakedYuzuUSDV3Test is
         styz3.withdraw(100e18, user1, user2);
     }
 
-    function test_RedeemThrottle_InitiateRedeem_NotThrottled() public {
+    function test_RedeemThrottle_InitiateRedeem_Consumes() public {
         vm.prank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
 
-        uint256 shares = _deposit(user1, 100e18);
+        _deposit(user1, 100e18);
 
         vm.prank(admin);
-        styz3.setRedeemThrottle(1, 1);
+        styz3.setRedeemThrottle(50e18, type(uint256).max);
 
         vm.prank(user1);
-        (, uint256 lockedAssets) = styz3.initiateRedeem(shares, user1, user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 50e18));
+        styz3.initiateRedeem(100e18, user1, user1);
+
+        vm.prank(user1);
+        (, uint256 lockedAssets) = styz3.initiateRedeem(50e18, user1, user1);
         assertGt(lockedAssets, 0);
+        assertEq(styz3.getRedeemThrottle().usedInBlock, 50e18);
     }
 
     // Max view exactness (ERC-4626 compliance)

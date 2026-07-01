@@ -294,6 +294,7 @@ contract StakedYuzuUSDV3 is
         uint256 callerFeePpm = integrations[caller].waiveRedeemFee ? 0 : redeemFeePpm;
         (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, callerFeePpm);
         _checkMinWithdraw(assets);
+        _consumeRedeemThrottle(caller, assets + fee);
         uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
 
         emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares, fee);
