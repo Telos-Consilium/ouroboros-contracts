@@ -25,6 +25,9 @@ contract StakedYuzuUSDV3Test is
     IYuzuThrottleDefinitions,
     IYuzuMinAmountsDefinitions
 {
+    bytes32 private constant _EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+
     function setUp() public virtual {
         _setUpStakedYuzuUSDV3();
     }
@@ -65,6 +68,36 @@ contract StakedYuzuUSDV3Test is
         assertEq(freshStyz.balanceOf(RECOVERY_RECEIVER), 0);
         assertEq(freshStyz.owner(), freshAdmin);
         assertTrue(freshStyz.hasRole(ADMIN_ROLE, freshAdmin));
+    }
+
+    function test_MigrationWithoutRecovery_BumpsPermitDomainToV2() public {
+        address freshOwner = makeAddr("freshOwner");
+        address freshAdmin = makeAddr("freshAdmin");
+
+        TransparentUpgradeableProxy proxy = _deployV1Proxy(freshOwner);
+        ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
+        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
+
+        bytes32 domainSeparatorBefore = freshStyz.DOMAIN_SEPARATOR();
+
+        vm.prank(freshOwner);
+        freshStyz.pause();
+
+        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin);
+        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
+
+        bytes32 expectedDomainSeparator = keccak256(
+            abi.encode(
+                _EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes(freshStyz.name())),
+                keccak256(bytes("2")),
+                block.chainid,
+                address(proxy)
+            )
+        );
+
+        assertTrue(freshStyz.DOMAIN_SEPARATOR() != domainSeparatorBefore);
+        assertEq(freshStyz.DOMAIN_SEPARATOR(), expectedDomainSeparator);
     }
 
     // Reinitialize gate

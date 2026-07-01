@@ -39,6 +39,7 @@ contract StakedYuzuUSDV3Migration is
         if (msg.sender != ERC1967Utils.getAdmin()) revert UnauthorizedReinitializer(msg.sender);
         if (_admin == address(0)) revert InvalidZeroAddress();
 
+        __EIP712_init(name(), "2");
         __AccessControlDefaultAdminRules_init(0, _admin);
 
         _grantRole(ADMIN_ROLE, _admin);
