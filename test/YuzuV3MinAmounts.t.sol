@@ -92,6 +92,21 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
         yzusd.withdraw(10e6, user, user); // at the floor, succeeds
     }
 
+    function test_YuzUSD_CreateRedeemOrder_Revert_UnderMinWithdraw() public {
+        vm.prank(user);
+        yzusd.deposit(100e6, user);
+
+        vm.prank(limitManager);
+        yzusd.setMinWithdraw(10e6);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinWithdraw.selector, 5e6, 10e6));
+        yzusd.createRedeemOrder(5e18, user, user);
+
+        vm.prank(user);
+        yzusd.createRedeemOrder(10e18, user, user); // at the floor, succeeds
+    }
+
     // yzILP mint path
 
     function test_YuzILP_Deposit_Revert_UnderMinDeposit() public {

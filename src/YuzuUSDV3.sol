@@ -25,7 +25,7 @@ import {
  * mint+redeem guard on the instant paths, and an admin-set backing value that can mark the token
  * down below par
  * @dev The throttle and same-block guard gate only the instant deposit/mint and withdraw/redeem paths.
- * The order path (createRedeemOrder) is not gated. THROTTLE_EXEMPT_ROLE holders bypass both. Prices
+ * The order path (createRedeemOrder) is not throttled or same-block guarded. Prices
  * settle at the backing value capped at par, so a value above par leaves payouts at par; minting is
  * disabled while the value is below par.
  */
@@ -198,6 +198,19 @@ contract YuzuUSDV3 is
 
     function redeem(uint256, address, address) public virtual override returns (uint256) {
         _delegateToFacet();
+    }
+
+    // Order path
+    function _createRedeemOrder(address caller, address receiver, address owner, uint256 tokens)
+        internal
+        virtual
+        override
+        returns (uint256)
+    {
+        uint256 assets = previewRedeemOrder(tokens);
+        uint256 min = minWithdraw();
+        if (assets < min) revert UnderMinWithdraw(assets, min);
+        return super._createRedeemOrder(caller, receiver, owner, tokens);
     }
 
     // Conversion hooks

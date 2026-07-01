@@ -135,6 +135,20 @@ contract PSMV2Test is PSMTest {
         psmV2.redeem(1e18, user1, user1);
     }
 
+    function test_CreateRedeemOrder_Revert_UnderMinWithdraw() public {
+        _deposit(user1, 100e6);
+
+        vm.prank(limitManager);
+        psmV2.setMinWithdraw(10e6);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuMinAmountsDefinitions.UnderMinWithdraw.selector, 1e6, 10e6));
+        psmV2.createRedeemOrder(1e18, user1, user1);
+
+        vm.prank(user1);
+        psmV2.createRedeemOrder(10e18, user1, user1); // at the floor, succeeds
+    }
+
     function test_MaxDeposit_ClampsToZeroBelowMin() public {
         vm.prank(limitManager);
         psmV2.setMintThrottle(5e6, type(uint256).max);

@@ -13,8 +13,7 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
  * @notice PSM with minimum deposit/redeem amounts, per-block/daily throttling, and a same-block
  * mint+redeem guard on the instant paths
  * @dev The throttle and same-block guard gate only the instant {deposit} and {redeem} paths; the
- * order path ({createRedeemOrder}/{fillRedeemOrders}) is not gated. THROTTLE_EXEMPT_ROLE holders
- * bypass both.
+ * order path ({createRedeemOrder}/{fillRedeemOrders}) is not throttled or same-block guarded.
  */
 contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
@@ -101,6 +100,16 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
         uint256 assetsOut = super.redeem(shares, receiver, _owner);
         _consumeRedeemThrottle(_owner, assetsOut);
         return assetsOut;
+    }
+
+    function _createRedeemOrder(address caller, address receiver, address _owner, uint256 shares)
+        internal
+        virtual
+        override
+        returns (uint256)
+    {
+        _checkMinWithdraw(_previewRedeemAssets(shares));
+        return super._createRedeemOrder(caller, receiver, _owner, shares);
     }
 
     /// @dev Asset (USDT0) value of {shares} at the fee-waived rate

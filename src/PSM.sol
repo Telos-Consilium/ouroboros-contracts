@@ -323,6 +323,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     function _createRedeemOrder(address caller, address receiver, address _owner, uint256 shares)
         internal
+        virtual
         returns (uint256)
     {
         uint256 orderId = _orderCount;

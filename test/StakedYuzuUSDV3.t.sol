@@ -202,6 +202,23 @@ contract StakedYuzuUSDV3Test is
         styz3.withdraw(5e18, user1, user1);
     }
 
+    function test_InitiateRedeem_Revert_UnderMinWithdraw() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        vm.prank(admin);
+        styz3.setMinWithdraw(10e18);
+
+        _deposit(user1, 100e18);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinWithdraw.selector, 5e18, 10e18));
+        styz3.initiateRedeem(5e18, user1, user1);
+
+        vm.prank(user1);
+        styz3.initiateRedeem(10e18, user1, user1); // at the floor, succeeds
+    }
+
     // Public instant redeem
     function test_CanRedeem() public view {
         assertFalse(styz3.canRedeem(user1));
