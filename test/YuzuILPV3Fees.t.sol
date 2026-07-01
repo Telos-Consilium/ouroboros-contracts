@@ -4,10 +4,10 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
-import {IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV3Definitions {
+contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2Definitions, IYuzuILPV3Definitions {
     function setUp() public {
         asset = _newAsset();
         asset.mint(user, 10_000_000e6);
@@ -437,5 +437,37 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV3D
         yzilp.fillRedeemOrder(orderId);
 
         assertLe(yzilp.poolSize(), 1000e6);
+    }
+
+    function test_TerminateDistribution_FreezesAtVested() public {
+        _setupPool(); // poolSize 1000e6
+
+        uint256 start = block.timestamp;
+        vm.prank(admin);
+        yzilp.distribute(100e6, 10 hours);
+
+        vm.warp(start + 1 hours); // 1/10 vested
+        assertEq(yzilp.totalAssets(), 1010e6);
+
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit TerminatedDistribution(90e6);
+        vm.prank(admin);
+        yzilp.terminateDistribution();
+
+        assertEq(yzilp.totalAssets(), 1010e6);
+        vm.warp(start + 100 hours);
+        assertEq(yzilp.totalAssets(), 1010e6, "totalAssets kept rising after termination");
+    }
+
+    function test_TerminateDistribution_Revert_NotPoolManager() public {
+        _setupPool();
+        vm.prank(admin);
+        yzilp.distribute(50e6, 1 days);
+
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, POOL_MANAGER_ROLE)
+        );
+        yzilp.terminateDistribution();
     }
 }
