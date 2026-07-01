@@ -70,7 +70,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         address v3MigrationImpl = address(new StakedYuzuUSDV3RecoveryMigration());
         address admin = makeAddr("v3Admin");
         bytes memory migrationData =
-            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.reinitialize.selector, admin);
+            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.migrateToV3.selector, admin);
         vm.prank(proxyAdminOwner);
         ProxyAdmin(proxyAdmin).upgradeAndCall(
             ITransparentUpgradeableProxy(payable(proxy)), v3MigrationImpl, migrationData

@@ -50,7 +50,7 @@ abstract contract StakedYuzuUSDV3TestBase is Test {
             proxyAdmin,
             proxy,
             owner,
-            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.reinitialize.selector, admin)
+            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.migrateToV3.selector, admin)
         );
         _upgradeToParkedV3(proxyAdmin, proxy, owner, admin);
 

@@ -58,7 +58,7 @@ contract StakedYuzuUSDV3Test is
         vm.prank(freshOwner);
         freshStyz.pause();
 
-        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, freshAdmin);
+        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin);
         _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
 
         assertEq(freshStyz.balanceOf(LOST_ADDRESS), 0);
@@ -79,11 +79,11 @@ contract StakedYuzuUSDV3Test is
 
         vm.prank(attacker);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, attacker));
-        freshStyz.reinitialize(attacker);
+        freshStyz.migrateToV3(attacker);
 
         vm.prank(freshAdmin);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, freshAdmin));
-        freshStyz.reinitialize(freshAdmin);
+        freshStyz.migrateToV3(freshAdmin);
     }
 
     function test_MigrationInheritedOwnerMethods_Revert_NotAdmin() public {
@@ -94,7 +94,7 @@ contract StakedYuzuUSDV3Test is
         (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin, StakedYuzuUSDV3Migration freshStyz) =
             _deploySeededV1Proxy(freshOwner);
         bytes memory migrationData =
-            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.reinitialize.selector, freshAdmin);
+            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.migrateToV3.selector, freshAdmin);
         _upgradeToRecoveryMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
 
         vm.startPrank(attacker);

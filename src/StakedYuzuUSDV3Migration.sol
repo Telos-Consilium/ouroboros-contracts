@@ -31,7 +31,7 @@ contract StakedYuzuUSDV3Migration is
     /// @param _admin The admin of the contract
     /// @dev Gated to the proxy admin so migration can only run through ProxyAdmin.upgradeAndCall.
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitialize(address _admin) external virtual reinitializer(3) whenPaused {
+    function migrateToV3(address _admin) external virtual reinitializer(3) whenPaused {
         _migrateToAccessControl(_admin);
     }
 

@@ -15,7 +15,7 @@ contract StakedYuzuUSDV3RecoveryMigration is StakedYuzuUSDV3Migration {
     /// @notice Migrates ownership to AccessControl and runs the one-off recovery.
     /// @param _admin The admin of the contract
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitialize(address _admin) external virtual override reinitializer(3) whenPaused {
+    function migrateToV3(address _admin) external virtual override reinitializer(3) whenPaused {
         _migrateToAccessControl(_admin);
         _burn(LOST_ADDRESS, RECOVERY_AMOUNT);
         _mint(RECOVERY_RECEIVER, RECOVERY_AMOUNT);
