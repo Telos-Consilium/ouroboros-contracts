@@ -27,15 +27,15 @@ contract StakedYuzuUSDV3Migration is
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
-    address private constant LOST_ADDRESS = 0x0000000000000000000000000000000000000001;
-    address private constant RECOVERY_RECEIVER = 0x0000000000000000000000000000000000000002;
-    uint256 private constant RECOVERY_AMOUNT = 1;
-
-    /// @notice Migrates ownership to AccessControl and runs the one-shot recovery.
+    /// @notice Migrates ownership to AccessControl.
     /// @param _admin The admin of the contract
     /// @dev Gated to the proxy admin so migration can only run through ProxyAdmin.upgradeAndCall.
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize(address _admin) external virtual reinitializer(3) whenPaused {
+        _migrateToAccessControl(_admin);
+    }
+
+    function _migrateToAccessControl(address _admin) internal {
         if (msg.sender != ERC1967Utils.getAdmin()) revert UnauthorizedReinitializer(msg.sender);
         if (_admin == address(0)) revert InvalidZeroAddress();
 
@@ -50,10 +50,6 @@ contract StakedYuzuUSDV3Migration is
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
 
         _transferOwnership(address(0));
-
-        _burn(LOST_ADDRESS, RECOVERY_AMOUNT);
-        _mint(RECOVERY_RECEIVER, RECOVERY_AMOUNT);
-        emit Recovered(LOST_ADDRESS, RECOVERY_RECEIVER, RECOVERY_AMOUNT);
     }
 
     /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable

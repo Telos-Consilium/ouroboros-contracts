@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-import {StakedYuzuUSDV3Migration} from "../../src/StakedYuzuUSDV3Migration.sol";
+import {StakedYuzuUSDV3RecoveryMigration} from "../../src/StakedYuzuUSDV3RecoveryMigration.sol";
 import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
 import {IStakedYuzuUSD, IStakedYuzuUSDV2} from "../../src/interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDV3Definitions} from "../../src/interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -66,10 +66,11 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         vm.prank(v2Owner);
         v2.pause();
 
-        // Upgrade V2 -> V3Migration atomically via ProxyAdmin.upgradeAndCall
-        address v3MigrationImpl = address(new StakedYuzuUSDV3Migration());
+        // Upgrade V2 -> recovery migration atomically via ProxyAdmin.upgradeAndCall
+        address v3MigrationImpl = address(new StakedYuzuUSDV3RecoveryMigration());
         address admin = makeAddr("v3Admin");
-        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, admin);
+        bytes memory migrationData =
+            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.reinitialize.selector, admin);
         vm.prank(proxyAdminOwner);
         ProxyAdmin(proxyAdmin).upgradeAndCall(
             ITransparentUpgradeableProxy(payable(proxy)), v3MigrationImpl, migrationData
@@ -78,7 +79,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         address implAfterRecovery = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
         assertEq(implAfterRecovery, v3MigrationImpl, "v3Migration impl not active");
 
-        StakedYuzuUSDV3Migration v3M = StakedYuzuUSDV3Migration(proxy);
+        StakedYuzuUSDV3RecoveryMigration v3M = StakedYuzuUSDV3RecoveryMigration(proxy);
 
         // V2 state preserved
         assertEq(v3M.redeemDelay(), redeemDelayBefore, "redeemDelay drift");

@@ -8,6 +8,7 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {StakedYuzuUSDV3Migration} from "../src/StakedYuzuUSDV3Migration.sol";
+import {StakedYuzuUSDV3RecoveryMigration} from "../src/StakedYuzuUSDV3RecoveryMigration.sol";
 import {
     IntegrationConfig,
     IStakedYuzuUSDDefinitions,
@@ -46,6 +47,26 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT);
     }
 
+    function test_MigrationWithoutRecovery_DoesNotRequireLostBalance() public {
+        address freshOwner = makeAddr("freshOwner");
+        address freshAdmin = makeAddr("freshAdmin");
+
+        TransparentUpgradeableProxy proxy = _deployV1Proxy(freshOwner);
+        ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
+        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
+
+        vm.prank(freshOwner);
+        freshStyz.pause();
+
+        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, freshAdmin);
+        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
+
+        assertEq(freshStyz.balanceOf(LOST_ADDRESS), 0);
+        assertEq(freshStyz.balanceOf(RECOVERY_RECEIVER), 0);
+        assertEq(freshStyz.owner(), freshAdmin);
+        assertTrue(freshStyz.hasRole(ADMIN_ROLE, freshAdmin));
+    }
+
     // Reinitialize gate
     function test_Reinitialize_Revert_NotProxyAdmin() public {
         address freshOwner = makeAddr("freshOwner");
@@ -72,8 +93,9 @@ contract StakedYuzuUSDV3Test is
 
         (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin, StakedYuzuUSDV3Migration freshStyz) =
             _deploySeededV1Proxy(freshOwner);
-        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.reinitialize.selector, freshAdmin);
-        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
+        bytes memory migrationData =
+            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.reinitialize.selector, freshAdmin);
+        _upgradeToRecoveryMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
 
         vm.startPrank(attacker);
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, attacker));
