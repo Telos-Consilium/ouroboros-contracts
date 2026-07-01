@@ -32,6 +32,7 @@ invariants-fail-on-revert:
 	FOUNDRY_INVARIANT_FAIL_ON_REVERT=true USE_GUARDRAILS=true forge test --match-test invariantTest_
 
 coverage:
+	mkdir -p coverage
 	forge coverage \
 		--ir-minimum \
 		--report lcov \
