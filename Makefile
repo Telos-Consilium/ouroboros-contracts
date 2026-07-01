@@ -1,10 +1,15 @@
-.PHONY: install format-sol format-python format test test-invariants test-v1 test-v2 invariants-fail-on-revert coverage coverage-html slither build
+.PHONY: install format-sol fmt-check format-python format test test-invariants test-v1 test-v2 invariants-fail-on-revert coverage coverage-html slither check-submodules build build-production
+
+SUBMODULE_PATHS := $(shell git config --file .gitmodules --get-regexp path | awk '{print $$2}')
 
 install:
 	forge install
 
 format-sol:
 	forge fmt
+
+fmt-check:
+	forge fmt --check
 
 format-python:
 	black scripts/
@@ -42,5 +47,13 @@ coverage-html:
 slither:
 	slitherin . --config-file slither.config.json
 
+check-submodules:
+	git submodule status --recursive
+	git diff --exit-code --submodule=log -- .gitmodules $(SUBMODULE_PATHS)
+	git diff --cached --exit-code --submodule=log -- .gitmodules $(SUBMODULE_PATHS)
+
 build:
 	forge build
+
+build-production:
+	FOUNDRY_PROFILE=production forge build --sizes
