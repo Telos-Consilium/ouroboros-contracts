@@ -11,21 +11,12 @@ import {YuzuILPV3} from "./YuzuILPV3.sol";
 /**
  * @title YuzuILPV3Factory
  * @notice Deploys YuzuILPV3 transparent proxies at deterministic addresses
- * @dev Proxies are deployed via CREATE3, so a proxy address depends only on this
- * factory's address and the salt. When the factory itself is deployed at the same
- * address on multiple chains, the same salt yields the same proxy address on every
- * chain with standard CREATE and CREATE2 address derivation, regardless of the
- * implementation address or initialization arguments used there. Initialization
- * runs inside the proxy constructor and the V3 reinitializer
- * is invoked in the same transaction, so a proxy is never observable in a partially
- * initialized state.
+ * @dev The proxy address depends only on this factory address and the salt.
  */
 contract YuzuILPV3Factory is AccessControl {
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
 
-    /// @notice Arguments forwarded to {YuzuILP-initialize}
-    /// @dev The admin receives DEFAULT_ADMIN_ROLE and ADMIN_ROLE directly; the
-    /// factory itself never holds any role on the deployed vault
+    /// @notice Arguments forwarded to YuzuILP.initialize
     struct InitParams {
         address asset;
         string name;
@@ -98,8 +89,7 @@ contract YuzuILPV3Factory is AccessControl {
         emit DeployedYuzuILPV3(proxy, salt, implementation, proxyAdminOwner);
     }
 
-    /// @notice Address a given salt will produce, on any chain where this factory
-    /// is deployed at its own current address
+    /// @notice Address produced by a salt for this factory
     function predictAddress(bytes32 salt) external view returns (address) {
         return CREATE3.predictDeterministicAddress(salt);
     }

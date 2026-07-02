@@ -12,7 +12,7 @@ import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinition
 
 /**
  * @title StakedYuzuUSDV3Migration
- * @notice One-time Staked Yuzu USD V3 migration implementation.
+ * @notice Staked Yuzu USD V3 migration implementation.
  */
 contract StakedYuzuUSDV3Migration is
     StakedYuzuUSDV2,
@@ -29,7 +29,7 @@ contract StakedYuzuUSDV3Migration is
 
     /// @notice Migrates ownership to AccessControl.
     /// @param _admin The admin of the contract
-    /// @dev Gated to the proxy admin so migration can only run through ProxyAdmin.upgradeAndCall.
+    /// @dev Gated to the proxy admin.
     // slither-disable-next-line pess-unprotected-initialize
     function migrateToV3(address _admin) external virtual reinitializer(3) whenPaused {
         _migrateToAccessControl(_admin);

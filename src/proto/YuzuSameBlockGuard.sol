@@ -5,11 +5,8 @@ import {IYuzuSameBlockGuardDefinitions} from "../interfaces/proto/IYuzuProtoDefi
 
 /**
  * @title YuzuSameBlockGuard
- * @notice An address that received a mint in block N cannot be the owner of a redeem in block N
- * @dev Tree-agnostic mixin with ERC-7201 namespaced storage. Consumers stamp the mint receiver via
- * `_recordMintBlock` on the instant mint path and gate the instant redeem path with
- * `_checkSameBlockRedeem` on the owner. Exempt accounts skip both, so the guard never stamps or
- * blocks them.
+ * @notice Same-block mint and redeem guard
+ * @dev Uses ERC-7201 namespaced storage. Exempt accounts are not stamped or blocked.
  */
 abstract contract YuzuSameBlockGuard is IYuzuSameBlockGuardDefinitions {
     struct YuzuSameBlockGuardStorage {

@@ -5,10 +5,8 @@ import {IYuzuMinAmountsDefinitions} from "../interfaces/proto/IYuzuProtoDefiniti
 
 /**
  * @title YuzuMinAmounts
- * @notice Minimum deposit and withdraw amounts for the instant mint/redeem paths
- * @dev Tree-agnostic mixin with ERC-7201 namespaced storage. Consumers expose `_setMinDeposit`/
- * `_setMinWithdraw` behind their own access control and call `_checkMinDeposit`/`_checkMinWithdraw`
- * on the instant paths. A minimum of 0 (the default) imposes no floor.
+ * @notice Minimum deposit and withdraw amounts
+ * @dev Uses ERC-7201 namespaced storage. A minimum of 0 imposes no floor.
  */
 abstract contract YuzuMinAmounts is IYuzuMinAmountsDefinitions {
     struct YuzuMinAmountsStorage {

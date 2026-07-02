@@ -7,10 +7,8 @@ import {IYuzuThrottleDefinitions, Throttle} from "../interfaces/proto/IYuzuThrot
 
 /**
  * @title YuzuThrottle
- * @notice Per-block and calendar-day rate limits on asset inflows (deposit/mint) and instant outflows (withdraw/redeem)
- * @dev Limits are enforced at face value: 0 halts the corresponding flow and type(uint256).max
- * never binds. Daily windows are UTC calendar days, so up to 2x the daily limit can flow across
- * a day boundary. Consumers define the exemption policy by overriding {_isThrottleExempt}.
+ * @notice Per-block and calendar-day mint/redeem limits
+ * @dev Uses ERC-7201 namespaced storage. A limit of 0 halts the flow; max uint never binds.
  */
 abstract contract YuzuThrottle is IYuzuThrottleDefinitions {
     struct YuzuThrottleStorage {

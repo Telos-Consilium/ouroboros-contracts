@@ -304,7 +304,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         _promote(10_000); // live, plus 1%/day yield
 
         vm.warp(block.timestamp + 10 days); // +10% yield = +100e6 over poolSize 1000e6
-        // netOfMgmt 1100e6, mark 1000e6, fee 20% of the 100e6 gain = 20e6
+        // net of management fee is 1100e6; mark is 1000e6; 20% of the 100e6 gain is 20e6
         assertEq(yzilp.totalAssets(), 1080e6);
     }
 
@@ -337,7 +337,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         vm.prank(admin);
         yzilp.distribute(100e6, 1 days);
         vm.warp(block.timestamp + 1 days); // fully vested
-        // netOfMgmt 1100e6, mark 1000e6, fee 20% of 100e6 = 20e6
+        // net of management fee is 1100e6; mark is 1000e6; 20% of the 100e6 gain is 20e6
         assertEq(yzilp.totalAssets(), 1080e6);
     }
 

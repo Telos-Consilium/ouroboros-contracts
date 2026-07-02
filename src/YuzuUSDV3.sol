@@ -21,12 +21,9 @@ import {
 
 /**
  * @title YuzuUSDV3
- * @notice YuzuUSD with minimum mint/redeem amounts, per-block/daily throttling, a same-block
- * mint+redeem guard on the instant paths, and an admin-set backing value that can mark the token
- * down below par
- * @dev The throttle and same-block guard gate only the instant deposit/mint and withdraw/redeem paths.
- * The order path (createRedeemOrder) is not throttled or same-block guarded. Prices
- * settle at the backing value capped at par.
+ * @notice YuzuUSD with V3 limits, throttles, same-block guard, and NAV markdowns
+ * @dev Throttles and same-block checks apply only to instant paths. Order redemptions use minWithdraw
+ * at creation and settle at the backing value capped at par.
  */
 contract YuzuUSDV3 is
     YuzuUSDV2,
@@ -38,7 +35,7 @@ contract YuzuUSDV3 is
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
     bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
 
-    /// @notice Par backing of one share, in the same scale as {nav}
+    /// @notice Par backing of one share, in the same scale as nav
     uint256 internal constant NAV_PRECISION = 1e18;
     uint256 private constant NAV_SHARE_SCALE = 1e30;
 
@@ -137,7 +134,7 @@ contract YuzuUSDV3 is
         return YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[account];
     }
 
-    /// @notice Backing value of one share, scaled so {NAV_PRECISION} is par
+    /// @notice Backing value of one share; NAV_PRECISION is par
     function nav() public view returns (uint256) {
         return YuzuNavMarkdownV3Storage.layout()._nav;
     }
@@ -157,7 +154,7 @@ contract YuzuUSDV3 is
         return YuzuNavMarkdownV3Storage.layout()._lastUpdate;
     }
 
-    /// @notice Whether the token is marked down, i.e. nav is below par
+    /// @notice Whether nav is below par
     function isMarkedDown() public view returns (bool) {
         return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
     }

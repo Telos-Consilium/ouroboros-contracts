@@ -821,14 +821,14 @@ contract StakedYuzuUSDV3Test is
         vm.startPrank(admin);
         styz3.grantRole(POOL_MANAGER_ROLE, owner);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
-        styz3.setMaxDistributePpm(100_000);
+        styz3.setMaxDistributionPpm(100_000);
         styz3.setMinDistributionPeriod(6 hours);
         vm.stopPrank();
         _deposit(user1, 1000e18);
     }
 
     function test_Reinitialize_DistributeGuardsShipOff() public view {
-        assertEq(styz3.maxDistributePpm(), type(uint256).max);
+        assertEq(styz3.maxDistributionPpm(), type(uint256).max);
         assertEq(styz3.minDistributionPeriod(), 0);
     }
 
@@ -856,7 +856,7 @@ contract StakedYuzuUSDV3Test is
     function test_Distribute_CapDisabled() public {
         _setupDistribute();
         vm.prank(admin);
-        styz3.setMaxDistributePpm(type(uint256).max);
+        styz3.setMaxDistributionPpm(type(uint256).max);
 
         // 500e18 is 50% of TVL, far above the 10% cap, but the cap is disabled
         vm.prank(owner);
@@ -878,15 +878,15 @@ contract StakedYuzuUSDV3Test is
         styz3.distribute(50e18, 6 hours - 1);
     }
 
-    function test_SetMaxDistributePpm_Updates() public {
+    function test_SetMaxDistributionPpm_Updates() public {
         vm.prank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
 
         vm.expectEmit(false, false, false, true, address(styz3));
-        emit UpdatedMaxDistributePpm(type(uint256).max, 50_000);
+        emit UpdatedMaxDistributionPpm(type(uint256).max, 50_000);
         vm.prank(admin);
-        styz3.setMaxDistributePpm(50_000);
-        assertEq(styz3.maxDistributePpm(), 50_000);
+        styz3.setMaxDistributionPpm(50_000);
+        assertEq(styz3.maxDistributionPpm(), 50_000);
     }
 
     function test_SetMinDistributionPeriod_Revert_TooHigh() public {
@@ -897,11 +897,11 @@ contract StakedYuzuUSDV3Test is
         styz3.setMinDistributionPeriod(7 days + 1);
     }
 
-    function test_SetMaxDistributePpm_Revert_NotLimitManager() public {
+    function test_SetMaxDistributionPpm_Revert_NotLimitManager() public {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
         );
-        styz3.setMaxDistributePpm(50_000);
+        styz3.setMaxDistributionPpm(50_000);
     }
 }

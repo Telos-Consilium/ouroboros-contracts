@@ -34,10 +34,10 @@ contract StakedYuzuUSDV3 is
 
     uint256 public instantRedeemFeePpm;
     bool public isInstantRedeemEnabled;
-    uint256 public maxDistributePpm;
+    uint256 public maxDistributionPpm;
     uint256 public minDistributionPeriod;
 
-    /// @notice Reinitializes the parked V3 implementation after the transient migration has run.
+    /// @notice Reinitializes the contract after V3 migration.
     /// @param _admin The admin of the contract
     /// @dev Gated to the proxy admin
     // slither-disable-next-line pess-unprotected-initialize
@@ -49,8 +49,8 @@ contract StakedYuzuUSDV3 is
         isInstantRedeemEnabled = false;
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
-        // Distribute guards ship off: max ppm is the no-cap sentinel (0 would block all), 0 floor is the default
-        maxDistributePpm = type(uint256).max;
+        // max uint disables the distribution amount cap; 0 would block all distributions.
+        maxDistributionPpm = type(uint256).max;
     }
 
     /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
@@ -64,12 +64,11 @@ contract StakedYuzuUSDV3 is
         return AccessControlDefaultAdminRulesUpgradeable.owner();
     }
 
-    /// @dev Neutralized
+    /// @dev Ownable checks are disabled after AccessControl migration.
     function _checkOwner() internal view override {}
 
     /// @inheritdoc StakedYuzuUSDV2
-    /// @dev The public instant redeem path is gated by `isInstantRedeemEnabled`. Skip-delay
-    /// integrations keep instant access while the public path is disabled.
+    /// @dev Public instant redeem is gated by isInstantRedeemEnabled; skip-delay integrations bypass it.
     function canRedeem(address _owner) public view virtual override returns (bool) {
         if (paused()) {
             return false;
@@ -93,8 +92,8 @@ contract StakedYuzuUSDV3 is
         if (period < minDistributionPeriod) {
             revert DistributionPeriodTooLow(period, minDistributionPeriod);
         }
-        if (maxDistributePpm != type(uint256).max) {
-            uint256 maxAssets = Math.mulDiv(totalAssets(), maxDistributePpm, 1e6);
+        if (maxDistributionPpm != type(uint256).max) {
+            uint256 maxAssets = Math.mulDiv(totalAssets(), maxDistributionPpm, 1e6);
             if (assets > maxAssets) {
                 revert DistributionAmountTooHigh(assets, maxAssets);
             }
@@ -165,8 +164,6 @@ contract StakedYuzuUSDV3 is
     }
 
     /// @inheritdoc YuzuThrottle
-    /// @dev THROTTLE_EXEMPT_ROLE is checked against the caller in state-changing functions
-    /// and against the owner or receiver in view functions
     function _isThrottleExempt(address account) internal view virtual override returns (bool) {
         return hasRole(THROTTLE_EXEMPT_ROLE, account);
     }
@@ -212,7 +209,7 @@ contract StakedYuzuUSDV3 is
         address caller = _msgSender();
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
-            // Throttle-exempt callers can bypass the mint throttle at execution time
+            // Throttle-exempt callers bypass the mint throttle at execution time.
             if (!_isThrottleExempt(caller) || paused()) {
                 revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
             }
@@ -235,7 +232,7 @@ contract StakedYuzuUSDV3 is
         address caller = _msgSender();
         uint256 maxShares = maxMint(receiver);
         if (shares > maxShares) {
-            // Throttle-exempt callers can bypass the mint throttle at execution time
+            // Throttle-exempt callers bypass the mint throttle at execution time.
             if (!_isThrottleExempt(caller) || paused()) {
                 revert ERC4626ExceededMaxMint(receiver, shares, maxShares);
             }
@@ -278,8 +275,7 @@ contract StakedYuzuUSDV3 is
         return _previewRedeemWithFee(shares, instantRedeemFeePpm);
     }
 
-    /// @dev Applies `redeemFeePpm` (or 0 if waived), independent of the instant
-    /// redeem fee logic.
+    /// @dev Uses redeemFeePpm, or 0 if waived.
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
         virtual
@@ -320,10 +316,10 @@ contract StakedYuzuUSDV3 is
     }
 
     /// @notice Cap on a single distribution, in ppm of current totalAssets; type(uint256).max disables it
-    function setMaxDistributePpm(uint256 newMaxPpm) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
-        uint256 oldMaxPpm = maxDistributePpm;
-        maxDistributePpm = newMaxPpm;
-        emit UpdatedMaxDistributePpm(oldMaxPpm, newMaxPpm);
+    function setMaxDistributionPpm(uint256 newMaxPpm) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+        uint256 oldMaxPpm = maxDistributionPpm;
+        maxDistributionPpm = newMaxPpm;
+        emit UpdatedMaxDistributionPpm(oldMaxPpm, newMaxPpm);
     }
 
     function setMinDistributionPeriod(uint256 newPeriod) external virtual onlyRole(LIMIT_MANAGER_ROLE) {

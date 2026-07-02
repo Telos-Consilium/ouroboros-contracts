@@ -13,12 +13,9 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
 
 /**
  * @title YuzuILPV3
- * @notice YuzuILP with minimum mint amounts, per-block/daily throttling, a tighter daily yield ceiling,
- * optional share-price bounds on pool updates and distributions, a mint fee, a continuous management fee,
- * and a high-water-mark performance fee
- * @dev yzILP has no instant redeem (only redeem orders), so the redeem throttle and minWithdraw floor
- * never bind; the order path is unguarded. THROTTLE_EXEMPT_ROLE holders bypass the throttle. Fee rates are
- * under FEE_MANAGER_ROLE; management and performance rate changes take effect at the next pool update.
+ * @notice YuzuILP with V3 limits, throttles, pool guards, and fees
+ * @dev yzILP has no instant redeem path. Fee rates are managed by FEE_MANAGER_ROLE; management
+ * and performance fee changes take effect at the next pool update.
  */
 contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
@@ -50,9 +47,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     // Routed V2
-    /// @dev Applies the tighter V3 yield ceiling, realizes the management fee then the performance fee
-    /// accrued since the last update against the admin-reported gross {newPoolSize}, advances the
-    /// high-water mark, promotes the staged fee rates, then runs the inherited logic on the net
+    /// @dev Routes to V3 fee and pool-update logic.
     function updatePool(uint256, uint256, uint256) public virtual override {
         _delegateToFacet();
     }
@@ -133,7 +128,7 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
-    /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE
+    /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setRedeemFee(uint256) external virtual override {
         _delegateToFacet();
@@ -144,15 +139,13 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
-    /// @dev Stages the rate; it takes effect at the next pool update, so a period is always charged at one
-    /// rate fixed at its start. Deferral also keeps the drift from ever accruing before the first update.
+    /// @dev Stages the rate for the next pool update.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setManagementFee(uint256) external virtual {
         _delegateToFacet();
     }
 
-    /// @dev Stages the rate; it takes effect at the next pool update. The fee is charged on the share-price
-    /// gain above the high-water mark, which advances at each update, so enabling the fee is never retroactive.
+    /// @dev Stages the rate for the next pool update.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setPerformanceFee(uint256) external virtual {
         _delegateToFacet();
@@ -167,42 +160,42 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         return YuzuThrottleV3Storage.layout()._mintThrottle;
     }
 
-    /// @notice Fee charged on the deposit/mint path, in ppm of the assets in
+    /// @notice Deposit/mint fee in ppm of assets in
     function mintFeePpm() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._mintFeePpm;
     }
 
-    /// @notice Active management fee, in ppm per year, charged as a continuous drift on poolSize
+    /// @notice Active management fee in ppm per year
     function managementFeeRatePpm() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._managementFeeRatePpm;
     }
 
-    /// @notice Management fee staged to take effect at the next pool update
+    /// @notice Management fee staged for the next pool update
     function pendingManagementFeeRatePpm() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._pendingManagementFeeRatePpm;
     }
 
-    /// @notice Total management fees withheld to the treasury, never credited to holders
+    /// @notice Total management fees withheld from holders
     function cumulativeManagementFees() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._cumulativeManagementFees;
     }
 
-    /// @notice Active performance fee, in ppm, charged on the gain above the high-water mark
+    /// @notice Active performance fee in ppm
     function performanceFeeRatePpm() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._performanceFeeRatePpm;
     }
 
-    /// @notice Performance fee staged to take effect at the next pool update
+    /// @notice Performance fee staged for the next pool update
     function pendingPerformanceFeeRatePpm() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._pendingPerformanceFeeRatePpm;
     }
 
-    /// @notice Highest net-of-management share price the fee has marked, in asset units per whole share
+    /// @notice Highest net-of-management share price reached
     function highWaterMark() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._highWaterMark;
     }
 
-    /// @notice Total performance fees withheld to the treasury, never credited to holders
+    /// @notice Total performance fees withheld from holders
     function cumulativePerformanceFees() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._cumulativePerformanceFees;
     }

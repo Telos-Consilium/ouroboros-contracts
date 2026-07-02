@@ -166,27 +166,27 @@ contract YuzuILPV3Facet is
         }
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
 
-        uint256 mgmtFee = _managementFeeSinceUpdate(Math.Rounding.Ceil);
-        uint256 netOfMgmt = newPoolSize > mgmtFee ? newPoolSize - mgmtFee : 0;
-        uint256 perfFee = _performanceFee(netOfMgmt, Math.Rounding.Ceil);
-        uint256 netPool = netOfMgmt > perfFee ? netOfMgmt - perfFee : 0;
+        uint256 managementFee = _managementFeeSinceUpdate(Math.Rounding.Ceil);
+        uint256 netOfManagementFee = newPoolSize > managementFee ? newPoolSize - managementFee : 0;
+        uint256 performanceFee = _performanceFee(netOfManagementFee, Math.Rounding.Ceil);
+        uint256 netPool = netOfManagementFee > performanceFee ? netOfManagementFee - performanceFee : 0;
 
-        if (mgmtFee > 0) {
-            uint256 cumulative = $._cumulativeManagementFees + mgmtFee;
+        if (managementFee > 0) {
+            uint256 cumulative = $._cumulativeManagementFees + managementFee;
             $._cumulativeManagementFees = cumulative;
-            emit RealizedManagementFee(mgmtFee, cumulative);
+            emit RealizedManagementFee(managementFee, cumulative);
         }
-        if (perfFee > 0) {
-            uint256 cumulative = $._cumulativePerformanceFees + perfFee;
+        if (performanceFee > 0) {
+            uint256 cumulative = $._cumulativePerformanceFees + performanceFee;
             $._cumulativePerformanceFees = cumulative;
-            emit RealizedPerformanceFee(perfFee, cumulative);
+            emit RealizedPerformanceFee(performanceFee, cumulative);
         }
 
         $._managementFeeRatePpm = $._pendingManagementFeeRatePpm;
 
         uint256 supply = IERC20(address(this)).totalSupply();
         if (supply > 0) {
-            uint256 newHwm = Math.mulDiv(netOfMgmt, 10 ** IERC20Metadata(address(this)).decimals(), supply);
+            uint256 newHwm = Math.mulDiv(netOfManagementFee, 10 ** IERC20Metadata(address(this)).decimals(), supply);
             if (newHwm > $._highWaterMark) {
                 $._highWaterMark = newHwm;
             }
@@ -367,7 +367,7 @@ contract YuzuILPV3Facet is
         emit UpdatedMintFee(oldFee, newFeePpm);
     }
 
-    /// @dev Re-homed from REDEEM_MANAGER_ROLE so all fee rates sit under FEE_MANAGER_ROLE.
+    /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setRedeemFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
@@ -391,27 +391,27 @@ contract YuzuILPV3Facet is
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setManagementFee(uint256 newRatePpm) external {
+    function setManagementFee(uint256 newFeeRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
-        if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
-            revert FeeTooHigh(newRatePpm, MAX_MANAGEMENT_FEE_PPM);
+        if (newFeeRatePpm > MAX_MANAGEMENT_FEE_PPM) {
+            revert FeeTooHigh(newFeeRatePpm, MAX_MANAGEMENT_FEE_PPM);
         }
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
-        uint256 oldPending = $._pendingManagementFeeRatePpm;
-        $._pendingManagementFeeRatePpm = newRatePpm;
-        emit UpdatedManagementFee(oldPending, newRatePpm);
+        uint256 oldPendingRatePpm = $._pendingManagementFeeRatePpm;
+        $._pendingManagementFeeRatePpm = newFeeRatePpm;
+        emit UpdatedManagementFee(oldPendingRatePpm, newFeeRatePpm);
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
-    function setPerformanceFee(uint256 newRatePpm) external {
+    function setPerformanceFee(uint256 newFeeRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
-        if (newRatePpm > 1e6) {
-            revert FeeTooHigh(newRatePpm, 1e6);
+        if (newFeeRatePpm > 1e6) {
+            revert FeeTooHigh(newFeeRatePpm, 1e6);
         }
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
-        uint256 oldPending = $._pendingPerformanceFeeRatePpm;
-        $._pendingPerformanceFeeRatePpm = newRatePpm;
-        emit UpdatedPerformanceFee(oldPending, newRatePpm);
+        uint256 oldPendingRatePpm = $._pendingPerformanceFeeRatePpm;
+        $._pendingPerformanceFeeRatePpm = newFeeRatePpm;
+        emit UpdatedPerformanceFee(oldPendingRatePpm, newFeeRatePpm);
     }
 
     // Internal
@@ -464,10 +464,10 @@ contract YuzuILPV3Facet is
         Math.Rounding feeRounding = Math.Rounding(1 - uint256(rounding));
         uint256 total = _poolSize() + _yieldSinceUpdate(rounding) + _fullyDistributedSinceUpdate()
             + _distributedAssets(rounding) - _redeemedDistributionsSinceUpdate();
-        uint256 mgmtFee = _managementFeeSinceUpdate(feeRounding);
-        uint256 netOfMgmt = mgmtFee >= total ? 0 : total - mgmtFee;
-        uint256 perfFee = _performanceFee(netOfMgmt, feeRounding);
-        return perfFee >= netOfMgmt ? 0 : netOfMgmt - perfFee;
+        uint256 managementFee = _managementFeeSinceUpdate(feeRounding);
+        uint256 netOfManagementFee = managementFee >= total ? 0 : total - managementFee;
+        uint256 performanceFee = _performanceFee(netOfManagementFee, feeRounding);
+        return performanceFee >= netOfManagementFee ? 0 : netOfManagementFee - performanceFee;
     }
 
     function _totalAssetsForProxy(address proxy, Math.Rounding rounding) private view returns (uint256) {
@@ -477,12 +477,12 @@ contract YuzuILPV3Facet is
         uint256 total = pool
             + Math.mulDiv(pool * router.dailyLinearYieldRatePpm(), _proxyTimeSinceUpdate(router), 1e6 days, rounding)
             + _proxyNetDistributedSinceUpdate(router, rounding);
-        uint256 mgmtFee = Math.mulDiv(
+        uint256 managementFee = Math.mulDiv(
             pool * router.managementFeeRatePpm(), _proxyTimeSinceUpdate(router), 1e6 * 365 days, feeRounding
         );
-        uint256 netOfMgmt = mgmtFee >= total ? 0 : total - mgmtFee;
-        uint256 perfFee = _proxyPerformanceFee(router, netOfMgmt, feeRounding);
-        return perfFee >= netOfMgmt ? 0 : netOfMgmt - perfFee;
+        uint256 netOfManagementFee = managementFee >= total ? 0 : total - managementFee;
+        uint256 performanceFee = _proxyPerformanceFee(router, netOfManagementFee, feeRounding);
+        return performanceFee >= netOfManagementFee ? 0 : netOfManagementFee - performanceFee;
     }
 
     function _proxyNetDistributedSinceUpdate(IYuzuILPV3Router router, Math.Rounding rounding)
@@ -507,7 +507,7 @@ contract YuzuILPV3Facet is
         return netDistributed + roundedDistributed - flooredDistributed;
     }
 
-    function _proxyPerformanceFee(IYuzuILPV3Router router, uint256 netOfMgmt, Math.Rounding rounding)
+    function _proxyPerformanceFee(IYuzuILPV3Router router, uint256 netOfManagementFee, Math.Rounding rounding)
         private
         view
         returns (uint256)
@@ -519,10 +519,10 @@ contract YuzuILPV3Facet is
         }
         uint256 hwmAssets =
             Math.mulDiv(router.highWaterMark(), supply, 10 ** router.decimals(), Math.Rounding(1 - uint256(rounding)));
-        if (netOfMgmt <= hwmAssets) {
+        if (netOfManagementFee <= hwmAssets) {
             return 0;
         }
-        return Math.mulDiv(rate, netOfMgmt - hwmAssets, 1e6, rounding);
+        return Math.mulDiv(rate, netOfManagementFee - hwmAssets, 1e6, rounding);
     }
 
     function _proxyTimeSinceUpdate(IYuzuILPV3Router router) private view returns (uint256) {
@@ -533,7 +533,7 @@ contract YuzuILPV3Facet is
         return Math.mulDiv(_poolSize() * _managementFeeRatePpm(), _timeSinceUpdate(), 1e6 * 365 days, rounding);
     }
 
-    function _performanceFee(uint256 netOfMgmt, Math.Rounding rounding) private view returns (uint256) {
+    function _performanceFee(uint256 netOfManagementFee, Math.Rounding rounding) private view returns (uint256) {
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 rate = $._performanceFeeRatePpm;
         uint256 supply = IERC20(address(this)).totalSupply();
@@ -546,10 +546,10 @@ contract YuzuILPV3Facet is
             10 ** IERC20Metadata(address(this)).decimals(),
             Math.Rounding(1 - uint256(rounding))
         );
-        if (netOfMgmt <= hwmAssets) {
+        if (netOfManagementFee <= hwmAssets) {
             return 0;
         }
-        return Math.mulDiv(rate, netOfMgmt - hwmAssets, 1e6, rounding);
+        return Math.mulDiv(rate, netOfManagementFee - hwmAssets, 1e6, rounding);
     }
 
     function _yieldSinceUpdate(Math.Rounding rounding) private view returns (uint256) {

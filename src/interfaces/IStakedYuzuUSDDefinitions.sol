@@ -79,6 +79,6 @@ interface IStakedYuzuUSDV3Definitions {
     event Recovered(address indexed from, address indexed to, uint256 amount);
     event UpdatedInstantRedeemFee(uint256 oldFee, uint256 newFee);
     event UpdatedIsInstantRedeemEnabled(bool oldValue, bool newValue);
-    event UpdatedMaxDistributePpm(uint256 oldMaxPpm, uint256 newMaxPpm);
+    event UpdatedMaxDistributionPpm(uint256 oldMaxPpm, uint256 newMaxPpm);
     event UpdatedMinDistributionPeriod(uint256 oldPeriod, uint256 newPeriod);
 }
