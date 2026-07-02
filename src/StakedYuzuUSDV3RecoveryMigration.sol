@@ -8,9 +8,9 @@ import {StakedYuzuUSDV3Migration} from "./StakedYuzuUSDV3Migration.sol";
  * @notice Staked Yuzu USD V3 migration with recovery.
  */
 contract StakedYuzuUSDV3RecoveryMigration is StakedYuzuUSDV3Migration {
-    address private constant LOST_ADDRESS = 0x0000000000000000000000000000000000000001;
-    address private constant RECOVERY_RECEIVER = 0x0000000000000000000000000000000000000002;
-    uint256 private constant RECOVERY_AMOUNT = 1;
+    address private constant LOST_ADDRESS = 0xB3a9009c89a3Fc46314C2df642d920c244C61c06;
+    address private constant RECOVERY_RECEIVER = 0xAFFcbAb01F7C2B3D533198B741C9E32Df2d78616;
+    uint256 private constant RECOVERY_AMOUNT = 2_913_260.544695655463689601 ether;
 
     /// @notice Migrates ownership to AccessControl and runs recovery.
     /// @param _admin The admin of the contract

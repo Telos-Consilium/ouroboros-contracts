@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -889,23 +890,26 @@ contract StakedYuzuUSDV3Test is
 
     function test_Distribute_WithinCap() public {
         _setupDistribute();
+        uint256 maxAssets = Math.mulDiv(styz3.totalAssets(), styz3.maxDistributionPpm(), 1e6);
         vm.prank(owner);
-        styz3.distribute(50e18, 1 days);
-        assertEq(styz3.lastDistributedAmount(), 50e18);
+        styz3.distribute(maxAssets / 2, 1 days);
+        assertEq(styz3.lastDistributedAmount(), maxAssets / 2);
     }
 
     function test_Distribute_AtCap() public {
         _setupDistribute();
+        uint256 maxAssets = Math.mulDiv(styz3.totalAssets(), styz3.maxDistributionPpm(), 1e6);
         vm.prank(owner);
-        styz3.distribute(100e18, 1 days);
-        assertEq(styz3.lastDistributedAmount(), 100e18);
+        styz3.distribute(maxAssets, 1 days);
+        assertEq(styz3.lastDistributedAmount(), maxAssets);
     }
 
     function test_Distribute_Revert_OverCap() public {
         _setupDistribute();
+        uint256 maxAssets = Math.mulDiv(styz3.totalAssets(), styz3.maxDistributionPpm(), 1e6);
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(DistributionAmountTooHigh.selector, 100e18 + 1, 100e18));
-        styz3.distribute(100e18 + 1, 1 days);
+        vm.expectRevert(abi.encodeWithSelector(DistributionAmountTooHigh.selector, maxAssets + 1, maxAssets));
+        styz3.distribute(maxAssets + 1, 1 days);
     }
 
     function test_Distribute_CapDisabled() public {

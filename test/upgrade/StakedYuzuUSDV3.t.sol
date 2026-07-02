@@ -23,9 +23,9 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
     bytes32 constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
     bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
-    address constant LOST_ADDRESS = address(0x01);
-    address constant RECOVERY_RECEIVER = address(0x02);
-    uint256 constant RECOVERY_AMOUNT = 1;
+    address constant LOST_ADDRESS = 0xB3a9009c89a3Fc46314C2df642d920c244C61c06;
+    address constant RECOVERY_RECEIVER = 0xAFFcbAb01F7C2B3D533198B741C9E32Df2d78616;
+    uint256 constant RECOVERY_AMOUNT = 2_913_260.544695655463689601 ether;
 
     function test_ForkUpgrade() public {
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));
@@ -59,9 +59,9 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         uint256 orderCountBefore = v2.orderCount();
         string memory nameBefore = v2.name();
         string memory symbolBefore = v2.symbol();
-        address assetAddr = v2.asset();
-
-        _seedLostAddress(proxy, assetAddr);
+        // The lost wallet must hold exactly the hardcoded recovery amount on live state so the
+        // migration burn zeroes it and the receiver is credited the exact locked balance.
+        assertEq(IERC20(proxy).balanceOf(LOST_ADDRESS), RECOVERY_AMOUNT, "lost wallet balance != RECOVERY_AMOUNT");
 
         vm.prank(v2Owner);
         v2.pause();
@@ -145,21 +145,5 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         v3.grantRole(PAUSE_MANAGER_ROLE, pauseManager);
         vm.prank(pauseManager);
         v3.unpause();
-    }
-
-    function _seedLostAddress(address proxy, address assetAddr) internal {
-        uint256 currentBalance = IERC20(proxy).balanceOf(LOST_ADDRESS);
-        if (currentBalance >= RECOVERY_AMOUNT) return;
-
-        uint256 needed = RECOVERY_AMOUNT - currentBalance;
-        address seeder = makeAddr("seeder");
-
-        uint256 assetsToDeposit = IStakedYuzuUSDV2(proxy).previewMint(needed);
-        deal(assetAddr, seeder, assetsToDeposit);
-
-        vm.startPrank(seeder);
-        IERC20(assetAddr).approve(proxy, assetsToDeposit);
-        IStakedYuzuUSDV2(proxy).mint(needed, LOST_ADDRESS);
-        vm.stopPrank();
     }
 }

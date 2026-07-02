@@ -16,9 +16,9 @@ import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
 abstract contract StakedYuzuUSDV3TestBase is Test {
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
-    address internal constant LOST_ADDRESS = address(0x01);
-    address internal constant RECOVERY_RECEIVER = address(0x02);
-    uint256 internal constant RECOVERY_AMOUNT = 1;
+    address internal constant LOST_ADDRESS = 0xB3a9009c89a3Fc46314C2df642d920c244C61c06;
+    address internal constant RECOVERY_RECEIVER = 0xAFFcbAb01F7C2B3D533198B741C9E32Df2d78616;
+    uint256 internal constant RECOVERY_AMOUNT = 2_913_260.544695655463689601 ether;
 
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
