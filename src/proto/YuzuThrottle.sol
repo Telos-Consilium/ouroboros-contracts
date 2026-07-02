@@ -35,7 +35,7 @@ abstract contract YuzuThrottle is IYuzuThrottleDefinitions {
         return false;
     }
 
-    /// @dev Returns the remaining mint throttle capacity for {account} in the current block and day, in assets
+    /// @dev Returns the remaining mint throttle capacity for account in the current block and day, in assets
     function _mintThrottleRemaining(address account) internal view returns (uint256) {
         if (_isThrottleExempt(account)) {
             return type(uint256).max;
@@ -44,7 +44,7 @@ abstract contract YuzuThrottle is IYuzuThrottleDefinitions {
         return Math.min(blockRemaining, dailyRemaining);
     }
 
-    /// @dev Returns the remaining redeem throttle capacity for {account} in the current block and day, in assets
+    /// @dev Returns the remaining redeem throttle capacity for account in the current block and day, in assets
     function _redeemThrottleRemaining(address account) internal view returns (uint256) {
         if (_isThrottleExempt(account)) {
             return type(uint256).max;
