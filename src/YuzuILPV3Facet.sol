@@ -109,6 +109,10 @@ contract YuzuILPV3Facet is
     function mint(uint256 tokens, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         uint256 netAssets = router.previewMint(tokens);
+        /// @dev A nonzero mint prices at zero only when tokens are outstanding with zero total assets
+        if (tokens > 0 && netAssets == 0) {
+            revert ZeroTotalAssets();
+        }
         uint256 fee = YuzuV3Fees.feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         _checkMinDeposit(netAssets + fee);
         uint256 maxTokens = _maxMint(address(this), receiver);
@@ -606,6 +610,10 @@ contract YuzuILPV3Facet is
             return 0;
         }
         IYuzuILPV3Router router = IYuzuILPV3Router(proxy);
+        /// @dev Nonzero mints revert while tokens are outstanding with zero total assets
+        if (router.totalSupply() > 0 && router.totalAssets() == 0) {
+            return 0;
+        }
         uint256 headroom = _supplyHeadroom(proxy);
         uint256 remaining = _mintThrottleRemaining(proxy, receiver);
         uint256 shares =
