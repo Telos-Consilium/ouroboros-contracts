@@ -732,7 +732,7 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.getRedeemThrottle().usedInBlock, 50e18);
     }
 
-    function test_RedeemThrottle_InitiateRedeem_ExemptCallerForNonExemptOwner_Bypasses() public {
+    function test_RedeemThrottle_InitiateRedeem_ExemptCallerForNonExemptOwner_Throttled() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
         styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
@@ -745,13 +745,11 @@ contract StakedYuzuUSDV3Test is
 
         assertEq(styz3.maxRedeemOrder(user2), 50e18);
         vm.prank(user1);
-        (, uint256 lockedAssets) = styz3.initiateRedeem(100e18, user1, user2);
-
-        assertGt(lockedAssets, 0);
-        assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user2, 100e18, 50e18));
+        styz3.initiateRedeem(100e18, user1, user2);
     }
 
-    function test_RedeemThrottle_InitiateRedeem_NonExemptCallerForExemptOwner_Throttled() public {
+    function test_RedeemThrottle_InitiateRedeem_NonExemptCallerForExemptOwner_Bypasses() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
         styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
@@ -764,11 +762,13 @@ contract StakedYuzuUSDV3Test is
 
         assertEq(styz3.maxRedeemOrder(user2), 100e18);
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user2, 100e18, 50e18));
-        styz3.initiateRedeem(100e18, user1, user2);
+        (, uint256 lockedAssets) = styz3.initiateRedeem(100e18, user1, user2);
+
+        assertGt(lockedAssets, 0);
+        assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
     }
 
-    function test_RedeemThrottle_InitiateRedeem_CallerFeeWaiverControlsMinWithdraw() public {
+    function test_RedeemThrottle_InitiateRedeem_IntegrationFeeWaiverIgnored() public {
         vm.startPrank(admin);
         styz3.grantRole(FEE_MANAGER_ROLE, admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
@@ -783,8 +783,8 @@ contract StakedYuzuUSDV3Test is
 
         assertEq(styz3.maxRedeemOrder(user2), 0);
         vm.prank(user1);
-        (, uint256 lockedAssets) = styz3.initiateRedeem(100e18, user1, user2);
-        assertEq(lockedAssets, 100e18);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user2, 100e18, 0));
+        styz3.initiateRedeem(100e18, user1, user2);
     }
 
     // Max view exactness (ERC-4626 compliance)

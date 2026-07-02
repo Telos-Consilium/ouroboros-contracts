@@ -206,14 +206,14 @@ contract StakedYuzuUSDV3 is
 
     /// @inheritdoc StakedYuzuUSDV2
     function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
-        return _maxRedeemOrderFor(_owner, _owner);
+        return _maxRedeemOrderFor(_owner);
     }
 
-    function _maxRedeemOrderFor(address caller, address _owner) internal view returns (uint256) {
+    function _maxRedeemOrderFor(address _owner) internal view returns (uint256) {
         uint256 maxShares = super.maxRedeemOrder(_owner);
-        uint256 remaining = _redeemThrottleRemaining(caller);
+        uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
-        (uint256 netAssets,) = _previewRedeemWithFee(shares, _redeemOrderFeePpmFor(caller));
+        (uint256 netAssets,) = _previewRedeemWithFee(shares, redeemFeePpm);
         return netAssets < minWithdraw() ? 0 : shares;
     }
 
@@ -288,7 +288,6 @@ contract StakedYuzuUSDV3 is
         return _previewRedeemWithFee(shares, instantRedeemFeePpm);
     }
 
-    /// @dev Uses redeemFeePpm, or 0 if waived.
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
         virtual
@@ -297,12 +296,12 @@ contract StakedYuzuUSDV3 is
     {
         if (receiver == address(0)) revert InvalidZeroAddress();
         address caller = _msgSender();
-        uint256 maxShares = _maxRedeemOrderFor(caller, _owner);
+        uint256 maxShares = _maxRedeemOrderFor(_owner);
         if (shares > maxShares) revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
 
-        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemOrderFeePpmFor(caller));
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, redeemFeePpm);
         _checkMinWithdraw(assets);
-        _consumeRedeemThrottle(caller, assets + fee);
+        _consumeRedeemThrottle(_owner, assets + fee);
         uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
 
         emit InitiatedRedeem(caller, receiver, _owner, orderId, assets, shares, fee);
@@ -315,13 +314,6 @@ contract StakedYuzuUSDV3 is
             return 0;
         }
         return instantRedeemFeePpm;
-    }
-
-    function _redeemOrderFeePpmFor(address account) internal view returns (uint256) {
-        if (integrations[account].waiveRedeemFee) {
-            return 0;
-        }
-        return redeemFeePpm;
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
