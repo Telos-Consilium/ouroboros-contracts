@@ -464,6 +464,25 @@ contract StakedYuzuUSDV3Test is
         styz3.setRedeemThrottle(100e18, 1000e18);
     }
 
+    function test_SetFeeReceiver_StaysAdmin() public {
+        address newReceiver = makeAddr("newReceiver");
+        vm.prank(admin);
+        styz3.setFeeReceiver(newReceiver);
+        assertEq(styz3.feeReceiver(), newReceiver);
+    }
+
+    function test_SetFeeReceiver_Revert_FeeManagerRejected() public {
+        address feeManager = makeAddr("feeManager");
+        vm.prank(admin);
+        styz3.grantRole(FEE_MANAGER_ROLE, feeManager);
+
+        vm.prank(feeManager);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, feeManager, ADMIN_ROLE)
+        );
+        styz3.setFeeReceiver(makeAddr("newReceiver"));
+    }
+
     function test_SetMintThrottle_EmitsEvent() public {
         vm.prank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
