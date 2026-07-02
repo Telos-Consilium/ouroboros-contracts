@@ -159,6 +159,12 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         assertEq(yzusd.nav(), 8e17);
     }
 
+    function test_SetNav_Revert_Zero() public {
+        vm.prank(navManager);
+        vm.expectRevert(abi.encodeWithSelector(InvalidNav.selector, 0));
+        yzusd.setNav(0);
+    }
+
     function test_SetNav_Revert_StepTooLargeUp() public {
         vm.prank(navManager);
         vm.expectRevert(abi.encodeWithSelector(NavStepTooLarge.selector, 12e17, PAR, 1e17));

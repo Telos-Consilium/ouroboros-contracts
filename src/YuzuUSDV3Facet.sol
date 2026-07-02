@@ -181,6 +181,9 @@ contract YuzuUSDV3Facet is
     // slither-disable-next-line pess-strange-setter,pess-event-setter
     function setNav(uint256 newNav) external {
         _checkRole(NAV_MANAGER_ROLE);
+        if (newNav == 0) {
+            revert InvalidNav(newNav);
+        }
         YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
         uint256 currentNav = $._nav;
 
