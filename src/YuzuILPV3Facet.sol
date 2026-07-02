@@ -97,12 +97,12 @@ contract YuzuILPV3Facet is
         }
         uint256 tokens = router.previewDeposit(assets);
         uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        uint256 netAssets = assets - fee;
+        _consumeMintThrottle(receiver, netAssets);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
-        uint256 netAssets = assets - fee;
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
-        _consumeMintThrottle(receiver, netAssets);
         return tokens;
     }
 
@@ -118,12 +118,12 @@ contract YuzuILPV3Facet is
             revert ExceededMaxMint(receiver, tokens, maxTokens);
         }
         uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        uint256 netAssets = assets - fee;
+        _consumeMintThrottle(receiver, netAssets);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
-        uint256 netAssets = assets - fee;
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
-        _consumeMintThrottle(receiver, netAssets);
         return assets;
     }
 

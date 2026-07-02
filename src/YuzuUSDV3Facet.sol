@@ -49,9 +49,9 @@ contract YuzuUSDV3Facet is
             revert ExceededMaxDeposit(receiver, assets, maxAssets);
         }
         uint256 tokens = router.previewDeposit(assets);
-        router.__routerDeposit(msg.sender, receiver, assets, tokens);
         _consumeMintThrottle(receiver, assets);
         _recordMintBlock(receiver, tokens);
+        router.__routerDeposit(msg.sender, receiver, assets, tokens);
         return tokens;
     }
 
@@ -63,9 +63,9 @@ contract YuzuUSDV3Facet is
         if (tokens > maxTokens) {
             revert ExceededMaxMint(receiver, tokens, maxTokens);
         }
-        router.__routerDeposit(msg.sender, receiver, assets, tokens);
         _consumeMintThrottle(receiver, assets);
         _recordMintBlock(receiver, tokens);
+        router.__routerDeposit(msg.sender, receiver, assets, tokens);
         return assets;
     }
 
@@ -79,8 +79,8 @@ contract YuzuUSDV3Facet is
         }
         uint256 tokens = router.previewWithdraw(assets);
         uint256 fee = YuzuV3Fees.feeOnRaw(assets, router.redeemFeePpm());
-        router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
         _consumeRedeemThrottle(owner, assets + fee);
+        router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
         return tokens;
     }
 
@@ -95,8 +95,8 @@ contract YuzuUSDV3Facet is
         uint256 assets = grossAssets - fee;
         _checkMinWithdraw(assets);
         _checkSameBlockRedeem(owner);
-        router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
         _consumeRedeemThrottle(owner, assets + fee);
+        router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
         return assets;
     }
 
