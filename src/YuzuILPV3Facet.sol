@@ -391,7 +391,7 @@ contract YuzuILPV3Facet is
     }
 
     // slither-disable-next-line pess-event-setter
-    function setManagementFee(uint256 newRatePpm) external {
+    function setPendingManagementFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
             revert FeeTooHigh(newRatePpm, MAX_MANAGEMENT_FEE_PPM);
@@ -399,11 +399,11 @@ contract YuzuILPV3Facet is
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 oldRatePpm = $._pendingManagementFeeRatePpm;
         $._pendingManagementFeeRatePpm = newRatePpm;
-        emit UpdatedManagementFee(oldRatePpm, newRatePpm);
+        emit UpdatedPendingManagementFee(oldRatePpm, newRatePpm);
     }
 
     // slither-disable-next-line pess-event-setter
-    function setPerformanceFee(uint256 newRatePpm) external {
+    function setPendingPerformanceFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newRatePpm > 1e6) {
             revert FeeTooHigh(newRatePpm, 1e6);
@@ -411,7 +411,7 @@ contract YuzuILPV3Facet is
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 oldRatePpm = $._pendingPerformanceFeeRatePpm;
         $._pendingPerformanceFeeRatePpm = newRatePpm;
-        emit UpdatedPerformanceFee(oldRatePpm, newRatePpm);
+        emit UpdatedPendingPerformanceFee(oldRatePpm, newRatePpm);
     }
 
     // Internal

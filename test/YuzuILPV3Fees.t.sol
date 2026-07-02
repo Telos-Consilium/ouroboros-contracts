@@ -173,10 +173,10 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         assertEq(yzilp.previewDeposit(1000e6), expectedShares);
     }
 
-    function test_SetManagementFee_Deferred() public {
+    function test_SetPendingManagementFee_Deferred() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setManagementFee(100_000);
+        yzilp.setPendingManagementFee(100_000);
         // Staged, not yet live
         assertEq(yzilp.pendingManagementFeeRatePpm(), 100_000);
         assertEq(yzilp.managementFeeRatePpm(), 0);
@@ -188,7 +188,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_ManagementFee_DriftsNavDown() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setManagementFee(100_000); // 10%/yr, live next period
+        yzilp.setPendingManagementFee(100_000); // 10%/yr, live next period
         _promote(0);
 
         assertEq(yzilp.totalAssets(), 1000e6);
@@ -200,7 +200,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_ManagementFee_RealizedAtUpdatePool() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setManagementFee(100_000);
+        yzilp.setPendingManagementFee(100_000);
         _promote(0);
         vm.warp(block.timestamp + 365 days);
 
@@ -215,7 +215,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_ManagementFee_RealizedEmitsEvent() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setManagementFee(100_000);
+        yzilp.setPendingManagementFee(100_000);
         _promote(0);
         vm.warp(block.timestamp + 365 days);
 
@@ -227,29 +227,29 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         yzilp.updatePool(1000e6, 1000e6, 0);
     }
 
-    function test_SetManagementFee_EmitsEvent() public {
+    function test_SetPendingManagementFee_EmitsEvent() public {
         _setupPool();
         vm.expectEmit(false, false, false, true, address(yzilp));
-        emit UpdatedManagementFee(0, 20_000);
+        emit UpdatedPendingManagementFee(0, 20_000);
         vm.prank(feeManager);
-        yzilp.setManagementFee(20_000);
+        yzilp.setPendingManagementFee(20_000);
         // Event reflects the staged transition; the rate is not live until the next update
         assertEq(yzilp.pendingManagementFeeRatePpm(), 20_000);
         assertEq(yzilp.managementFeeRatePpm(), 0);
     }
 
-    function test_SetManagementFee_Revert_TooHigh() public {
+    function test_SetPendingManagementFee_Revert_TooHigh() public {
         vm.prank(feeManager);
         vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, 100_000 + 1, 100_000));
-        yzilp.setManagementFee(100_000 + 1);
+        yzilp.setPendingManagementFee(100_000 + 1);
     }
 
-    function test_SetManagementFee_Revert_NotFeeManager() public {
+    function test_SetPendingManagementFee_Revert_NotFeeManager() public {
         vm.prank(user);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, FEE_MANAGER_ROLE)
         );
-        yzilp.setManagementFee(20_000);
+        yzilp.setPendingManagementFee(20_000);
     }
 
     // --- performance fee ---
@@ -266,42 +266,42 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         assertEq(yzilp.highWaterMark(), 1e6);
     }
 
-    function test_SetPerformanceFee_Deferred() public {
+    function test_SetPendingPerformanceFee_Deferred() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
         assertEq(yzilp.pendingPerformanceFeeRatePpm(), 200_000);
         assertEq(yzilp.performanceFeeRatePpm(), 0);
         _promote(0);
         assertEq(yzilp.performanceFeeRatePpm(), 200_000);
     }
 
-    function test_SetPerformanceFee_EmitsEvent() public {
+    function test_SetPendingPerformanceFee_EmitsEvent() public {
         _setupPool();
         vm.expectEmit(false, false, false, true, address(yzilp));
-        emit UpdatedPerformanceFee(0, 200_000);
+        emit UpdatedPendingPerformanceFee(0, 200_000);
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
     }
 
-    function test_SetPerformanceFee_Revert_TooHigh() public {
+    function test_SetPendingPerformanceFee_Revert_TooHigh() public {
         vm.prank(feeManager);
         vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, 1e6 + 1, 1e6));
-        yzilp.setPerformanceFee(1e6 + 1);
+        yzilp.setPendingPerformanceFee(1e6 + 1);
     }
 
-    function test_SetPerformanceFee_Revert_NotFeeManager() public {
+    function test_SetPendingPerformanceFee_Revert_NotFeeManager() public {
         vm.prank(user);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, FEE_MANAGER_ROLE)
         );
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
     }
 
     function test_PerformanceFee_MarksDownGainAboveHWM() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000); // 20%
+        yzilp.setPendingPerformanceFee(200_000); // 20%
         _promote(10_000); // live, plus 1%/day yield
 
         vm.warp(block.timestamp + 10 days); // +10% yield = +100e6 over poolSize 1000e6
@@ -312,7 +312,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_PerformanceFee_RealizedAndAdvancesHWM() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
         _promote(10_000);
         vm.warp(block.timestamp + 10 days);
 
@@ -332,7 +332,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_PerformanceFee_ChargedOnDistributionAboveHWM() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
         _promote(0);
 
         vm.prank(admin);
@@ -345,7 +345,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_PerformanceFee_RecoveryToHWMFree() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
         _promote(0);
 
         _reportPool(900e6); // a loss below the mark, no fee
@@ -363,7 +363,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         assertEq(yzilp.highWaterMark(), 1.5e6);
 
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
         _promote(0); // goes live with the mark already at the 1.5e6 high
 
         _reportPool(1600e6); // fee only on the 100e6 made after enabling
@@ -373,7 +373,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_PerformanceFee_DepositDoesNotTriggerFee() public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setPerformanceFee(200_000);
+        yzilp.setPendingPerformanceFee(200_000);
         _promote(0);
 
         // A deposit lifts assets and supply together, leaving the per-share price at the mark
@@ -391,7 +391,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function test_OrderFill_PreservesSharePrice_WithLiveManagementFee() public {
         _setupPool(); // poolSize 1000e6, supply 1000e18
         vm.prank(feeManager);
-        yzilp.setManagementFee(100_000); // 10%/yr
+        yzilp.setPendingManagementFee(100_000); // 10%/yr
         _promote(0);
 
         vm.warp(block.timestamp + 365 days); // markdown 100e6, share price 0.9
@@ -417,7 +417,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     function testFuzz_OrderFill_NoPoolUnderflow(uint256 warpDays, uint256 redeemShares) public {
         _setupPool();
         vm.prank(feeManager);
-        yzilp.setManagementFee(100_000);
+        yzilp.setPendingManagementFee(100_000);
         _promote(0);
 
         warpDays = bound(warpDays, 0, 3000);

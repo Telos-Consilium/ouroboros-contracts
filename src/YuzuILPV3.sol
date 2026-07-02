@@ -142,13 +142,13 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
 
     /// @dev Stages the rate for the next pool update.
     // slither-disable-next-line pess-event-setter
-    function setManagementFee(uint256) external virtual {
+    function setPendingManagementFee(uint256) external virtual {
         _delegateToFacet();
     }
 
     /// @dev Stages the rate for the next pool update.
     // slither-disable-next-line pess-event-setter
-    function setPerformanceFee(uint256) external virtual {
+    function setPendingPerformanceFee(uint256) external virtual {
         _delegateToFacet();
     }
 

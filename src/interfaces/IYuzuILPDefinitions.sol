@@ -25,8 +25,8 @@ interface IYuzuILPV3Definitions {
     error ZeroTotalAssets();
 
     event UpdatedMintFee(uint256 oldFeePpm, uint256 newFeePpm);
-    event UpdatedManagementFee(uint256 oldRatePpm, uint256 newRatePpm);
+    event UpdatedPendingManagementFee(uint256 oldRatePpm, uint256 newRatePpm);
     event RealizedManagementFee(uint256 assets, uint256 cumulative);
-    event UpdatedPerformanceFee(uint256 oldRatePpm, uint256 newRatePpm);
+    event UpdatedPendingPerformanceFee(uint256 oldRatePpm, uint256 newRatePpm);
     event RealizedPerformanceFee(uint256 assets, uint256 cumulative);
 }
