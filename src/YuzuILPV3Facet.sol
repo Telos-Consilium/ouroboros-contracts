@@ -109,7 +109,6 @@ contract YuzuILPV3Facet is
     function mint(uint256 tokens, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         uint256 assets = router.previewMint(tokens);
-        /// @dev A nonzero mint prices at zero only when tokens are outstanding with zero total assets
         if (tokens > 0 && assets == 0) {
             revert ZeroTotalAssets();
         }
@@ -118,7 +117,6 @@ contract YuzuILPV3Facet is
         if (tokens > maxTokens) {
             revert ExceededMaxMint(receiver, tokens, maxTokens);
         }
-        /// @dev feeOnTotal recovers the exact fee the fee-inclusive previewMint added on the net assets
         uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
@@ -603,7 +601,6 @@ contract YuzuILPV3Facet is
             baseMax = high >= supply ? type(uint256).max : Math.mulDiv(totalAssets_, headroom, supply);
         }
         uint256 netMax = Math.min(baseMax, _mintThrottleRemaining(proxy, receiver));
-        /// @dev Reported in gross assets including the mint fee; saturates on an unlimited budget
         uint256 fee = YuzuV3Fees.feeOnRaw(netMax, router.mintFeePpm());
         uint256 maxAssets = type(uint256).max - fee < netMax ? type(uint256).max : netMax + fee;
         uint256 min = router.minDeposit();
@@ -615,7 +612,6 @@ contract YuzuILPV3Facet is
             return 0;
         }
         IYuzuILPV3Router router = IYuzuILPV3Router(proxy);
-        /// @dev Nonzero mints revert while tokens are outstanding with zero total assets
         if (router.totalSupply() > 0 && router.totalAssets() == 0) {
             return 0;
         }
