@@ -24,7 +24,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
         _approve(exempt, address(yzusd));
     }
 
-    function test_SameBlock_Withdraw_Reverts() public {
+    function test_Withdraw_Revert_SameBlock() public {
         vm.prank(user);
         yzusd.deposit(100e6, user);
 
@@ -33,7 +33,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
         yzusd.withdraw(50e6, user, user);
     }
 
-    function test_SameBlock_Redeem_Reverts() public {
+    function test_Redeem_Revert_SameBlock() public {
         vm.prank(user);
         uint256 shares = yzusd.deposit(100e6, user);
 
@@ -42,7 +42,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
         yzusd.redeem(shares / 2, user, user);
     }
 
-    function test_NextBlock_Withdraw_Succeeds() public {
+    function test_Withdraw_NextBlock() public {
         vm.prank(user);
         yzusd.deposit(100e6, user);
 
@@ -52,7 +52,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
     }
 
     function test_SameBlock_StampsReceiverNotCaller() public {
-        // user mints to `other`; the guard stamps the receiver
+        // The guard stamps the receiver.
         vm.prank(user);
         yzusd.deposit(100e6, other);
 
@@ -68,7 +68,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
         vm.prank(admin);
         yzusd.grantRole(THROTTLE_EXEMPT_ROLE, exempt);
 
-        // Exempt receiver is never stamped, so a same-block redeem is allowed
+        // Exempt receivers are not stamped.
         vm.prank(exempt);
         yzusd.deposit(100e6, exempt);
         assertEq(yzusd.lastMintBlock(exempt), 0);
@@ -78,12 +78,12 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
     }
 
     function test_SameBlock_ZeroAmountMint_DoesNotStamp() public {
-        // user holds a redeemable position from an earlier block
+        // User holds a redeemable position from an earlier block.
         vm.prank(user);
         yzusd.deposit(100e6, user);
         vm.roll(block.number + 1);
 
-        // A zero-amount deposit or mint from `other` to `user` does not stamp user for the current block
+        // Zero-amount mint paths do not stamp the receiver.
         vm.prank(other);
         yzusd.deposit(0, user);
         assertTrue(yzusd.lastMintBlock(user) != block.number);
@@ -91,12 +91,11 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
         yzusd.mint(0, user);
         assertTrue(yzusd.lastMintBlock(user) != block.number);
 
-        // So user's same-block redeem is not blocked
         vm.prank(user);
         yzusd.withdraw(50e6, user, user);
     }
 
-    function test_Redeem_Succeeds_Control() public {
+    function test_Redeem_Control() public {
         vm.prank(user);
         yzusd.deposit(1_000e6, user);
         vm.roll(block.number + 1);
@@ -107,7 +106,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
         assertGt(assets, 0);
     }
 
-    function test_RedeemWithSlippage_Succeeds() public {
+    function test_RedeemWithSlippage() public {
         vm.prank(user);
         yzusd.deposit(1_000e6, user);
         vm.roll(block.number + 1);
@@ -118,7 +117,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefiniti
         assertGt(assets, 0);
     }
 
-    function test_WithdrawWithSlippage_Succeeds() public {
+    function test_WithdrawWithSlippage() public {
         vm.prank(user);
         yzusd.deposit(1_000e6, user);
         vm.roll(block.number + 1);

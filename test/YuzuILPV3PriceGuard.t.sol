@@ -75,7 +75,7 @@ contract YuzuILPV3PriceGuardTest is YuzuV3TestBase, IYuzuILPDefinitions, IYuzuIL
         _seedPool();
         vm.prank(poolManager);
         yzilp.startPoolUpdate();
-        // Fat-finger: 1100e6 implies a price of 11e6, far above the band
+        // 1100e6 implies a price of 11e6.
         vm.prank(poolManager);
         vm.expectRevert(abi.encodeWithSelector(SharePriceTooHigh.selector, 11_000_000, MAX_PRICE));
         yzilp.updatePool(100e6, 1100e6, 0, MIN_PRICE, MAX_PRICE);
@@ -122,7 +122,7 @@ contract YuzuILPV3PriceGuardTest is YuzuV3TestBase, IYuzuILPDefinitions, IYuzuIL
 
     function test_BoundedDistribute_Revert_AboveBand() public {
         _seedPool();
-        // Fat-finger: 1000e6 distributed implies an end price of 11e6
+        // 1000e6 distributed implies an end price of 11e6.
         vm.prank(poolManager);
         vm.expectRevert(abi.encodeWithSelector(SharePriceTooHigh.selector, 11_000_000, MAX_PRICE));
         yzilp.distribute(1000e6, 1 days, MIN_PRICE, MAX_PRICE);

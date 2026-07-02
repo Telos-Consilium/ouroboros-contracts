@@ -59,7 +59,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
 
     // --- constructor ---
 
-    function test_Constructor_ZeroRootReverts() public {
+    function test_Constructor_Revert_ZeroRoot() public {
         vm.expectRevert(YuzuILPV3Factory.InvalidZeroAddress.selector);
         new YuzuILPV3Factory(address(0));
     }
@@ -71,7 +71,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
 
     // --- access control ---
 
-    function test_Deploy_RequiresDeployerRole() public {
+    function test_Deploy_Revert_NotDeployer() public {
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, other, DEPLOYER_ROLE)
         );
@@ -79,7 +79,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         factory.deploy(SALT, impl, proxyAdminOwner, _params());
     }
 
-    function test_Deploy_RevokedDeployerCannotDeploy() public {
+    function test_Deploy_Revert_RevokedDeployer() public {
         vm.prank(root);
         factory.revokeRole(DEPLOYER_ROLE, deployer);
 
@@ -92,13 +92,13 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
 
     // --- input validation ---
 
-    function test_Deploy_ZeroImplementationReverts() public {
+    function test_Deploy_Revert_ZeroImplementation() public {
         vm.expectRevert(YuzuILPV3Factory.InvalidZeroAddress.selector);
         vm.prank(deployer);
         factory.deploy(SALT, address(0), proxyAdminOwner, _params());
     }
 
-    function test_Deploy_ZeroProxyAdminOwnerReverts() public {
+    function test_Deploy_Revert_ZeroProxyAdminOwner() public {
         vm.expectRevert(YuzuILPV3Factory.InvalidZeroAddress.selector);
         vm.prank(deployer);
         factory.deploy(SALT, impl, address(0), _params());
@@ -120,7 +120,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         bytes32 salt = keccak256("other.salt");
         address predicted = factory.predictAddress(salt);
 
-        // implementation and init arguments created only after the prediction
+        // Prediction is independent of implementation and init arguments.
         impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
         YuzuILPV3Factory.InitParams memory params = _params();
         params.asset = address(_newAsset());
@@ -133,7 +133,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         assertEq(vault, predicted);
     }
 
-    function test_Deploy_SaltReuseReverts() public {
+    function test_Deploy_Revert_SaltReuse() public {
         _deploy(SALT);
 
         vm.expectRevert(CREATE3.DeploymentFailed.selector);

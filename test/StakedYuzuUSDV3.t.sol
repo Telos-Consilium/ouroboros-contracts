@@ -225,7 +225,7 @@ contract StakedYuzuUSDV3Test is
         assertFalse(styz3.canRedeem(user2));
     }
 
-    function test_SetRedeemDelay_RevertsOnZero() public {
+    function test_SetRedeemDelay_Revert_Zero() public {
         vm.startPrank(admin);
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
         vm.expectRevert(abi.encodeWithSelector(RedeemDelayTooLow.selector, 0, 1));
@@ -336,7 +336,7 @@ contract StakedYuzuUSDV3Test is
         assertTrue(styz3.isInstantRedeemEnabled());
     }
 
-    function test_InstantRedeemDisabled_PublicUser_Reverts() public {
+    function test_InstantRedeemDisabled_Revert_PublicUser() public {
         vm.prank(admin);
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
 
@@ -731,7 +731,7 @@ contract StakedYuzuUSDV3Test is
     }
 
     // Max view exactness (ERC-4626 compliance)
-    function test_MaxMint_UnlimitedByDefault_NoRevert() public view {
+    function test_MaxMint_UnlimitedByDefault() public view {
         assertEq(styz3.maxMint(user1), type(uint256).max);
     }
 
@@ -744,8 +744,8 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.maxMint(user1), styz3.previewDeposit(100e18));
     }
 
-    function test_MaxMint_UnlimitedAboveParPrice_NoRevert() public {
-        // Exempt the depositor so the mint throttle stays pristine (remaining == uint256.max)
+    function test_MaxMint_UnlimitedAboveParPrice() public {
+        // Keep the mint throttle at its unlimited default.
         vm.startPrank(admin);
         styz3.grantRole(POOL_MANAGER_ROLE, admin);
         styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
@@ -776,7 +776,7 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.maxDeposit(user1), 0);
         assertEq(styz3.maxMint(user1), 0);
 
-        // Entry points revert with the precise UnderMin error, not ExceededMax
+        // Entry points revert with UnderMin, not ExceededMax.
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(UnderMinDeposit.selector, 50e18, 100e18));
         styz3.deposit(50e18, user1);
@@ -813,10 +813,8 @@ contract StakedYuzuUSDV3Test is
         styz3.withdraw(achievable, user1, user1);
     }
 
-    // --- distribute cap (upper-only, syzUSD NAV is monotonic up) + min-period floor ---
+    // Distribution guards
 
-    // Grants POOL_MANAGER to owner (who funds the distribution) and LIMIT_MANAGER to admin, turns the
-    // guards on (10% cap, 6h floor), and funds the vault so totalAssets is ~1000e18 and 10% floors to 100e18.
     function _setupDistribute() internal {
         vm.startPrank(admin);
         styz3.grantRole(POOL_MANAGER_ROLE, owner);
@@ -827,7 +825,7 @@ contract StakedYuzuUSDV3Test is
         _deposit(user1, 1000e18);
     }
 
-    function test_Reinitialize_DistributeGuardsShipOff() public view {
+    function test_Reinitialize_DistributionGuardsDefaultOff() public view {
         assertEq(styz3.maxDistributionPpm(), type(uint256).max);
         assertEq(styz3.minDistributionPeriod(), 0);
     }
@@ -858,7 +856,6 @@ contract StakedYuzuUSDV3Test is
         vm.prank(admin);
         styz3.setMaxDistributionPpm(type(uint256).max);
 
-        // 500e18 is 50% of TVL, far above the 10% cap, but the cap is disabled
         vm.prank(owner);
         styz3.distribute(500e18, 1 days);
         assertEq(styz3.lastDistributedAmount(), 500e18);

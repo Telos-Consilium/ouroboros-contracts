@@ -103,14 +103,14 @@ contract YuzuUSDV3ThrottleTest is YuzuV3TestBase, IYuzuIssuerDefinitions, IYuzuT
     }
 
     function test_RedeemThrottle_BlockLimit() public {
-        // Fund the instant liquidity buffer
+        // Fund the instant liquidity buffer.
         vm.prank(admin);
         yzusd.grantRole(REDEEM_MANAGER_ROLE, admin);
         vm.prank(admin);
         yzusd.setLiquidityBufferTargetSize(1_000_000e6);
         vm.prank(user);
         yzusd.deposit(1000e6, user);
-        vm.roll(block.number + 1); // same-block guard: redeem in a later block than the mint
+        vm.roll(block.number + 1);
 
         vm.prank(limitManager);
         yzusd.setRedeemThrottle(100e6, type(uint256).max);

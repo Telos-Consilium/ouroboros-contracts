@@ -51,7 +51,7 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
 
     // yzUSD instant paths
 
-    function test_YuzUSD_Deposit_Revert_UnderMinDeposit() public {
+    function test_YuzuUSD_Deposit_Revert_UnderMinDeposit() public {
         vm.prank(limitManager);
         yzusd.setMinDeposit(10e6);
 
@@ -60,26 +60,26 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
         yzusd.deposit(5e6, user);
 
         vm.prank(user);
-        yzusd.deposit(10e6, user); // at the floor, succeeds
+        yzusd.deposit(10e6, user);
     }
 
-    function test_YuzUSD_Mint_Revert_UnderMinDeposit() public {
+    function test_YuzuUSD_Mint_Revert_UnderMinDeposit() public {
         vm.prank(limitManager);
         yzusd.setMinDeposit(10e6);
 
-        uint256 shares = yzusd.previewDeposit(5e6); // worth 5e6 assets
+        uint256 shares = yzusd.previewDeposit(5e6);
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(UnderMinDeposit.selector, 5e6, 10e6));
         yzusd.mint(shares, user);
     }
 
-    function test_YuzUSD_Withdraw_Revert_UnderMinWithdraw() public {
-        // Fund the instant liquidity buffer so maxWithdraw is non-zero
+    function test_YuzuUSD_Withdraw_Revert_UnderMinWithdraw() public {
+        // Fund the instant liquidity buffer.
         vm.prank(admin);
         yzusd.setLiquidityBufferTargetSize(1_000_000e6);
         vm.prank(user);
         yzusd.deposit(100e6, user);
-        vm.roll(block.number + 1); // same-block guard: redeem in a later block than the mint
+        vm.roll(block.number + 1);
 
         vm.prank(limitManager);
         yzusd.setMinWithdraw(10e6);
@@ -89,10 +89,10 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
         yzusd.withdraw(5e6, user, user);
 
         vm.prank(user);
-        yzusd.withdraw(10e6, user, user); // at the floor, succeeds
+        yzusd.withdraw(10e6, user, user);
     }
 
-    function test_YuzUSD_CreateRedeemOrder_Revert_UnderMinWithdraw() public {
+    function test_YuzuUSD_CreateRedeemOrder_Revert_UnderMinWithdraw() public {
         vm.prank(user);
         yzusd.deposit(100e6, user);
 
@@ -104,12 +104,12 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
         yzusd.createRedeemOrder(5e18, user, user);
 
         vm.prank(user);
-        yzusd.createRedeemOrder(10e18, user, user); // at the floor, succeeds
+        yzusd.createRedeemOrder(10e18, user, user);
     }
 
     // yzILP mint path
 
-    function test_YuzILP_Deposit_Revert_UnderMinDeposit() public {
+    function test_YuzuILP_Deposit_Revert_UnderMinDeposit() public {
         vm.prank(limitManager);
         yzilp.setMinDeposit(10e6);
 
@@ -118,22 +118,22 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
         yzilp.deposit(5e6, user);
 
         vm.prank(user);
-        yzilp.deposit(10e6, user); // at the floor, succeeds
+        yzilp.deposit(10e6, user);
     }
 
-    // Min floor reflected in the ERC-4626 max views (clamped to 0 when remaining capacity is below the floor)
+    // ERC-4626 max views clamp to 0 below the configured floor.
 
-    function test_YuzUSD_MaxDeposit_ClampedToZero_BelowMinFloor() public {
+    function test_YuzuUSD_MaxDeposit_ClampedToZero_BelowMinFloor() public {
         vm.startPrank(limitManager);
         yzusd.setMinDeposit(10e6);
-        yzusd.setMintThrottle(5e6, type(uint256).max); // remaining below the floor
+        yzusd.setMintThrottle(5e6, type(uint256).max);
         vm.stopPrank();
 
         assertEq(yzusd.maxDeposit(user), 0);
         assertEq(yzusd.maxMint(user), 0);
     }
 
-    function test_YuzUSD_MaxWithdraw_ClampedToZero_BelowMinFloor() public {
+    function test_YuzuUSD_MaxWithdraw_ClampedToZero_BelowMinFloor() public {
         vm.prank(admin);
         yzusd.setLiquidityBufferTargetSize(1_000_000e6);
         vm.prank(user);
@@ -141,17 +141,17 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
 
         vm.startPrank(limitManager);
         yzusd.setMinWithdraw(10e6);
-        yzusd.setRedeemThrottle(5e6, type(uint256).max); // remaining below the floor
+        yzusd.setRedeemThrottle(5e6, type(uint256).max);
         vm.stopPrank();
 
         assertEq(yzusd.maxWithdraw(user), 0);
         assertEq(yzusd.maxRedeem(user), 0);
     }
 
-    function test_YuzILP_MaxDeposit_ClampedToZero_BelowMinFloor() public {
+    function test_YuzuILP_MaxDeposit_ClampedToZero_BelowMinFloor() public {
         vm.startPrank(limitManager);
         yzilp.setMinDeposit(10e6);
-        yzilp.setMintThrottle(5e6, type(uint256).max); // remaining below the floor
+        yzilp.setMintThrottle(5e6, type(uint256).max);
         vm.stopPrank();
 
         assertEq(yzilp.maxDeposit(user), 0);
