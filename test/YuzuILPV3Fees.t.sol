@@ -3,7 +3,8 @@ pragma solidity ^0.8.30;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuProtoDefinitions, IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
@@ -469,5 +470,141 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, POOL_MANAGER_ROLE)
         );
         yzilp.terminateDistribution();
+    }
+
+    // --- mint fee preview and max coupling ---
+
+    function testFuzz_MintFee_PreviewDepositMatchesDeposit(uint256 feePpm, uint256 assets) public {
+        _setupPool();
+        feePpm = bound(feePpm, 0, 1e6);
+        assets = bound(assets, 1, 1_000_000e6);
+        _setMintFee(feePpm);
+
+        uint256 previewed = yzilp.previewDeposit(assets);
+        uint256 balanceBefore = yzilp.balanceOf(user);
+        vm.prank(user);
+        uint256 tokens = yzilp.deposit(assets, user);
+
+        assertEq(tokens, previewed);
+        assertEq(yzilp.balanceOf(user) - balanceBefore, previewed);
+    }
+
+    function testFuzz_MintFee_PreviewMintMatchesMint(uint256 feePpm, uint256 tokens) public {
+        _setupPool();
+        feePpm = bound(feePpm, 0, 1e6);
+        tokens = bound(tokens, 1, 1_000_000e18);
+        _setMintFee(feePpm);
+
+        uint256 previewedCost = yzilp.previewMint(tokens);
+        uint256 balanceBefore = asset.balanceOf(user);
+        vm.prank(user);
+        uint256 paid = yzilp.mint(tokens, user);
+
+        assertEq(paid, previewedCost);
+        assertEq(balanceBefore - asset.balanceOf(user), previewedCost);
+    }
+
+    function testFuzz_MintFee_DepositMaxDepositExhaustsThrottle(uint256 feePpm) public {
+        _setupPool();
+        // roll past the setup deposit's daily throttle usage
+        vm.warp(block.timestamp + 1 days);
+        feePpm = bound(feePpm, 0, 1e6);
+        _setMintFee(feePpm);
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzilp.setMintThrottle(type(uint256).max, 500e6);
+        vm.stopPrank();
+
+        uint256 maxAssets = yzilp.maxDeposit(user);
+        vm.prank(user);
+        yzilp.deposit(maxAssets, user);
+
+        assertEq(yzilp.maxDeposit(user), 0);
+    }
+
+    function testFuzz_MintFee_DepositAboveMaxReverts(uint256 feePpm) public {
+        _setupPool();
+        // roll past the setup deposit's daily throttle usage
+        vm.warp(block.timestamp + 1 days);
+        feePpm = bound(feePpm, 0, 1e6);
+        _setMintFee(feePpm);
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzilp.setMintThrottle(type(uint256).max, 500e6);
+        vm.stopPrank();
+
+        uint256 maxAssets = yzilp.maxDeposit(user);
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IYuzuIssuerDefinitions.ExceededMaxDeposit.selector, user, maxAssets + 1, maxAssets)
+        );
+        yzilp.deposit(maxAssets + 1, user);
+    }
+
+    function test_MintFee_MaxDepositIsGrossOfFee() public {
+        _setupPool();
+        // roll past the setup deposit's daily throttle usage
+        vm.warp(block.timestamp + 1 days);
+        _setMintFee(100_000); // 10%
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzilp.setMintThrottle(type(uint256).max, 100e6);
+        vm.stopPrank();
+
+        // 100 net budget costs 110 gross at a 10% fee
+        assertEq(yzilp.maxDeposit(user), 110e6);
+    }
+
+    function test_MintFee_MaxDepositMinClampUsesGross() public {
+        _setupPool();
+        // roll past the setup deposit's daily throttle usage
+        vm.warp(block.timestamp + 1 days);
+        _setMintFee(100_000); // 10%
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzilp.setMintThrottle(type(uint256).max, 100e6);
+        yzilp.setMinDeposit(110e6);
+        vm.stopPrank();
+
+        assertEq(yzilp.maxDeposit(user), 110e6);
+
+        vm.prank(admin);
+        yzilp.setMinDeposit(110e6 + 1);
+        assertEq(yzilp.maxDeposit(user), 0);
+    }
+
+    function test_MintFee_MaxMintMinClampUsesGrossCost() public {
+        _setupPool();
+        // roll past the setup deposit's daily throttle usage
+        vm.warp(block.timestamp + 1 days);
+        _setMintFee(100_000); // 10%
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzilp.setMintThrottle(type(uint256).max, 100e6);
+        yzilp.setMinDeposit(110e6);
+        vm.stopPrank();
+
+        // 100e18 tokens cost 110e6 gross, meeting the minimum exactly
+        assertEq(yzilp.maxMint(user), 100e18);
+
+        vm.prank(admin);
+        yzilp.setMinDeposit(110e6 + 1);
+        assertEq(yzilp.maxMint(user), 0);
+    }
+
+    function test_MintFee_MinDepositAppliesToGrossInput() public {
+        _setupPool();
+        _setMintFee(100_000); // 10%
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzilp.setMinDeposit(110e6);
+        vm.stopPrank();
+
+        vm.prank(user);
+        yzilp.deposit(110e6, user);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuMinAmountsDefinitions.UnderMinDeposit.selector, 110e6 - 1, 110e6));
+        yzilp.deposit(110e6 - 1, user);
     }
 }

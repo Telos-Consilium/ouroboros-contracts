@@ -8,6 +8,7 @@ import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {Order} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
@@ -201,6 +202,18 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     // User routes
+    /// @notice Preview tokens minted for {assets}, net of the mint fee
+    function previewDeposit(uint256 assets) public view virtual override returns (uint256) {
+        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        return super.previewDeposit(assets - fee);
+    }
+
+    /// @notice Preview assets paid to mint {tokens}, including the mint fee
+    function previewMint(uint256 tokens) public view virtual override returns (uint256) {
+        uint256 netAssets = super.previewMint(tokens);
+        return netAssets + YuzuV3Fees.feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+    }
+
     function maxDeposit(address) public view virtual override returns (uint256) {
         _staticcallFacet();
     }

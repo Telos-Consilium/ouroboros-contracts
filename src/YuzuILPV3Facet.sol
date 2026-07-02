@@ -91,16 +91,16 @@ contract YuzuILPV3Facet is
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         _checkMinDeposit(assets);
+        uint256 maxAssets = _maxDeposit(address(this), receiver);
+        if (assets > maxAssets) {
+            revert ExceededMaxDeposit(receiver, assets, maxAssets);
+        }
+        uint256 tokens = router.previewDeposit(assets);
         uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
         uint256 netAssets = assets - fee;
-        uint256 maxAssets = _maxDeposit(address(this), receiver);
-        if (netAssets > maxAssets) {
-            revert ExceededMaxDeposit(receiver, netAssets, maxAssets);
-        }
-        uint256 tokens = router.previewDeposit(netAssets);
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
         _consumeMintThrottle(receiver, netAssets);
         return tokens;
@@ -108,23 +108,25 @@ contract YuzuILPV3Facet is
 
     function mint(uint256 tokens, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
-        uint256 netAssets = router.previewMint(tokens);
+        uint256 assets = router.previewMint(tokens);
         /// @dev A nonzero mint prices at zero only when tokens are outstanding with zero total assets
-        if (tokens > 0 && netAssets == 0) {
+        if (tokens > 0 && assets == 0) {
             revert ZeroTotalAssets();
         }
-        uint256 fee = YuzuV3Fees.feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
-        _checkMinDeposit(netAssets + fee);
+        _checkMinDeposit(assets);
         uint256 maxTokens = _maxMint(address(this), receiver);
         if (tokens > maxTokens) {
             revert ExceededMaxMint(receiver, tokens, maxTokens);
         }
+        /// @dev feeOnTotal recovers the exact fee the fee-inclusive previewMint added on the net assets
+        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
+        uint256 netAssets = assets - fee;
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
         _consumeMintThrottle(receiver, netAssets);
-        return netAssets + fee;
+        return assets;
     }
 
     function withdrawCollateral(uint256 assets, address receiver) external {
@@ -600,7 +602,10 @@ contract YuzuILPV3Facet is
             (uint256 high,) = Math.mul512(totalAssets_, headroom);
             baseMax = high >= supply ? type(uint256).max : Math.mulDiv(totalAssets_, headroom, supply);
         }
-        uint256 maxAssets = Math.min(baseMax, _mintThrottleRemaining(proxy, receiver));
+        uint256 netMax = Math.min(baseMax, _mintThrottleRemaining(proxy, receiver));
+        /// @dev Reported in gross assets including the mint fee; saturates on an unlimited budget
+        uint256 fee = YuzuV3Fees.feeOnRaw(netMax, router.mintFeePpm());
+        uint256 maxAssets = type(uint256).max - fee < netMax ? type(uint256).max : netMax + fee;
         uint256 min = router.minDeposit();
         return maxAssets < min ? 0 : maxAssets;
     }
