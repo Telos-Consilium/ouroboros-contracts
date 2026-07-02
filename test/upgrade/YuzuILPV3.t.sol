@@ -65,9 +65,7 @@ contract YuzuILPV3UpgradeForkTest is Test {
         address impl = address(new YuzuILPV3(facet));
         vm.prank(proxyAdminOwner);
         ProxyAdmin(adminBefore).upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(proxy)),
-            impl,
-            abi.encodeWithSelector(YuzuILPV3.reinitialize.selector)
+            ITransparentUpgradeableProxy(payable(proxy)), impl, abi.encodeWithSelector(YuzuILPV3.reinitialize.selector)
         );
 
         assertTrue(implBefore != _implementation(proxy), "implementation unchanged");
