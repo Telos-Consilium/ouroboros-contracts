@@ -1,0 +1,142 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {Test} from "forge-std/Test.sol";
+
+import {YuzuMinAmounts} from "../src/proto/YuzuMinAmounts.sol";
+import {YuzuSameBlockGuard} from "../src/proto/YuzuSameBlockGuard.sol";
+import {YuzuThrottle} from "../src/proto/YuzuThrottle.sol";
+import {
+    YuzuILPFeesV3Storage,
+    YuzuMinAmountsV3Storage,
+    YuzuNavMarkdownV3Storage,
+    YuzuSameBlockGuardV3Storage,
+    YuzuThrottleV3Storage
+} from "../src/storage/YuzuV3Storage.sol";
+import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
+
+/// @dev ERC-7201: keccak256(abi.encode(uint256(keccak256(id)) - 1)) & ~bytes32(uint256(0xff))
+function _erc7201(string memory id) pure returns (bytes32) {
+    return keccak256(abi.encode(uint256(keccak256(bytes(id))) - 1)) & ~bytes32(uint256(0xff));
+}
+
+contract MinAmountsHarness is YuzuMinAmounts {}
+
+contract ThrottleHarness is YuzuThrottle {}
+
+contract SameBlockGuardHarness is YuzuSameBlockGuard {}
+
+/// @notice Pins every V3 ERC-7201 storage location to the value derived from its namespace string. Each
+/// location is hardcoded independently in the proto mixin (private) and the YuzuV3Storage library
+/// (internal); if the two drift, a namespace splits across two slots and state silently corrupts. Part one
+/// anchors each library constant to the canonical formula; part two proves each mixin resolves the same
+/// namespace to that same slot. Complements YuzuILPV3FacetStorageLayout, which pins the raw sequential slots.
+contract YuzuV3StorageLayoutTest is Test {
+    // Library locations match their namespace string
+
+    function test_Location_MinAmounts() public pure {
+        assertEq(YuzuMinAmountsV3Storage.LOCATION, _erc7201("yuzu.storage.minamounts"));
+    }
+
+    function test_Location_Throttle() public pure {
+        assertEq(YuzuThrottleV3Storage.LOCATION, _erc7201("yuzu.storage.throttle"));
+    }
+
+    function test_Location_SameBlockGuard() public pure {
+        assertEq(YuzuSameBlockGuardV3Storage.LOCATION, _erc7201("yuzu.storage.sameblockguard"));
+    }
+
+    function test_Location_NavMarkdown() public pure {
+        assertEq(YuzuNavMarkdownV3Storage.LOCATION, _erc7201("yuzu.storage.navmarkdown"));
+    }
+
+    function test_Location_IlpFees() public pure {
+        assertEq(YuzuILPFeesV3Storage.LOCATION, _erc7201("yuzu.storage.ilpfees"));
+    }
+
+    // Proto mixins resolve the same namespace to the library slot. The mixin location is a private constant,
+    // so it is observed by storing at the library slot and reading back through the mixin getter.
+
+    function test_MixinMatchesLibrary_MinAmounts() public {
+        MinAmountsHarness h = new MinAmountsHarness();
+        bytes32 base = YuzuMinAmountsV3Storage.LOCATION;
+        vm.store(address(h), base, bytes32(uint256(111)));
+        vm.store(address(h), bytes32(uint256(base) + 1), bytes32(uint256(222)));
+        assertEq(h.minDeposit(), 111, "minDeposit at base slot");
+        assertEq(h.minWithdraw(), 222, "minWithdraw at base + 1");
+    }
+
+    function test_MixinMatchesLibrary_Throttle() public {
+        ThrottleHarness h = new ThrottleHarness();
+        bytes32 base = YuzuThrottleV3Storage.LOCATION;
+        // blockLimit is the first field of Throttle; _mintThrottle starts at base, _redeemThrottle six slots later.
+        vm.store(address(h), base, bytes32(uint256(333)));
+        vm.store(address(h), bytes32(uint256(base) + 6), bytes32(uint256(444)));
+        assertEq(h.getMintThrottle().blockLimit, 333, "mint throttle at base slot");
+        assertEq(h.getRedeemThrottle().blockLimit, 444, "redeem throttle at base + 6");
+    }
+
+    function test_MixinMatchesLibrary_SameBlockGuard() public {
+        SameBlockGuardHarness h = new SameBlockGuardHarness();
+        address who = address(0xA11CE);
+        bytes32 slot = keccak256(abi.encode(who, YuzuSameBlockGuardV3Storage.LOCATION));
+        vm.store(address(h), slot, bytes32(uint256(1234)));
+        assertEq(h.lastMintBlock(who), 1234, "lastMintBlock at mapping slot");
+    }
+}
+
+/// @notice Pins the issuer and orderbook ERC-7201 namespaces, which YuzuILPV3Facet hardcodes as its own
+/// private copies of the proto-base (YuzuIssuer/YuzuOrderBook) locations and reaches under delegatecall. The
+/// base and facet run on the same proxy, so a drift between the two copies corrupts a live vault outright.
+/// The base copy is anchored to the formula by storing at the computed slot and reading a base getter; the
+/// facet copy is proven equal to the base by writing through a facet setter and reading it back through the
+/// base getter.
+contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
+    function setUp() public {
+        asset = _newAsset();
+        yzilp = _deployYuzuILPV3(address(asset), "Token", "TKN", false);
+
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, limitManager);
+        yzilp.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
+        vm.stopPrank();
+    }
+
+    // issuer: _supplyCap (field 0), _liquidityBufferTargetSize (field 1)
+
+    function test_IssuerLocation_BaseMatchesFormula() public {
+        bytes32 base = _erc7201("yuzu.storage.issuer");
+        vm.store(address(yzilp), base, bytes32(uint256(111)));
+        vm.store(address(yzilp), bytes32(uint256(base) + 1), bytes32(uint256(222)));
+        assertEq(yzilp.cap(), 111, "supplyCap at issuer base slot");
+        assertEq(yzilp.liquidityBufferTargetSize(), 222, "liquidityBufferTargetSize at base + 1");
+    }
+
+    function test_IssuerLocation_FacetMatchesBase() public {
+        vm.prank(limitManager);
+        yzilp.setSupplyCap(777);
+        assertEq(yzilp.cap(), 777, "facet setSupplyCap visible through base getter");
+    }
+
+    // orderbook: _fillWindow (field 0), _orderCount (field 3), _minRedeemOrder (field 4)
+
+    function test_OrderBookLocation_BaseMatchesFormula() public {
+        bytes32 base = _erc7201("yuzu.storage.orderbook");
+        vm.store(address(yzilp), base, bytes32(uint256(123)));
+        vm.store(address(yzilp), bytes32(uint256(base) + 3), bytes32(uint256(9)));
+        vm.store(address(yzilp), bytes32(uint256(base) + 4), bytes32(uint256(55)));
+        assertEq(yzilp.fillWindow(), 123, "fillWindow at orderbook base slot");
+        assertEq(yzilp.orderCount(), 9, "orderCount at base + 3");
+        assertEq(yzilp.minRedeemOrder(), 55, "minRedeemOrder at base + 4");
+    }
+
+    function test_OrderBookLocation_FacetMatchesBase() public {
+        vm.prank(redeemManager);
+        yzilp.setFillWindow(3600);
+        assertEq(yzilp.fillWindow(), 3600, "facet setFillWindow visible through base getter");
+
+        vm.prank(redeemManager);
+        yzilp.setMinRedeemOrder(42);
+        assertEq(yzilp.minRedeemOrder(), 42, "facet setMinRedeemOrder visible through base getter");
+    }
+}
