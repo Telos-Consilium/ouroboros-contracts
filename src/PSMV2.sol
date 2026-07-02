@@ -95,9 +95,9 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
     /// @inheritdoc PSM
     /// @dev Not nonReentrant; super holds the guard and the trailing throttle write touches only storage.
     function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
-        _checkMinWithdraw(_previewRedeemAssets(shares));
         _checkSameBlockRedeem(_owner);
         uint256 assetsOut = super.redeem(shares, receiver, _owner);
+        _checkMinWithdraw(assetsOut);
         _consumeRedeemThrottle(_owner, assetsOut);
         return assetsOut;
     }

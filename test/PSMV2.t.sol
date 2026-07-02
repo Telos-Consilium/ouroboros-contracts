@@ -23,7 +23,6 @@ contract PSMV2Test is PSMTest {
 
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-
     uint256 internal constant LIQUIDITY = 5_000_000e6;
 
     function setUp() public override {
@@ -133,6 +132,23 @@ contract PSMV2Test is PSMTest {
         vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(IYuzuMinAmountsDefinitions.UnderMinWithdraw.selector, 1e6, 10e6));
         psmV2.redeem(1e18, user1, user1);
+    }
+
+    function test_Redeem_Revert_UnderMinWithdraw_AfterStakedFee() public {
+        _deposit(user1, 100e6);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        styz.setIntegration(address(psmV2), true, false);
+        styz.setRedeemFee(10_000); // 1%
+        vm.stopPrank();
+
+        vm.prank(limitManager);
+        psmV2.setMinWithdraw(100e6);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuMinAmountsDefinitions.UnderMinWithdraw.selector, 99_009_900, 100e6));
+        psmV2.redeem(100e18, user1, user1);
     }
 
     function test_CreateRedeemOrder_Revert_UnderMinWithdraw() public {
