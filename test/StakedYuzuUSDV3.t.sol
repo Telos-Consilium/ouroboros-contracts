@@ -441,8 +441,9 @@ contract StakedYuzuUSDV3Test is
         vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
         styz3.redeem(shares, user1, user1);
 
+        assertEq(styz3.maxRedeemOrder(user1), 0);
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 0));
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, shares, 0));
         styz3.initiateRedeem(shares, user1, user1);
     }
 
@@ -720,14 +721,70 @@ contract StakedYuzuUSDV3Test is
         vm.prank(admin);
         styz3.setRedeemThrottle(50e18, type(uint256).max);
 
+        assertEq(styz3.maxRedeemOrder(user1), 50e18);
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 50e18));
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user1, 100e18, 50e18));
         styz3.initiateRedeem(100e18, user1, user1);
 
         vm.prank(user1);
         (, uint256 lockedAssets) = styz3.initiateRedeem(50e18, user1, user1);
         assertGt(lockedAssets, 0);
         assertEq(styz3.getRedeemThrottle().usedInBlock, 50e18);
+    }
+
+    function test_RedeemThrottle_InitiateRedeem_ExemptCallerForNonExemptOwner_Bypasses() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
+        styz3.setRedeemThrottle(50e18, type(uint256).max);
+        vm.stopPrank();
+
+        _deposit(user2, 100e18);
+        vm.prank(user2);
+        styz3.approve(user1, type(uint256).max);
+
+        assertEq(styz3.maxRedeemOrder(user2), 50e18);
+        vm.prank(user1);
+        (, uint256 lockedAssets) = styz3.initiateRedeem(100e18, user1, user2);
+
+        assertGt(lockedAssets, 0);
+        assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
+    }
+
+    function test_RedeemThrottle_InitiateRedeem_NonExemptCallerForExemptOwner_Throttled() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+        styz3.setRedeemThrottle(50e18, type(uint256).max);
+        vm.stopPrank();
+
+        _deposit(user2, 100e18);
+        vm.prank(user2);
+        styz3.approve(user1, type(uint256).max);
+
+        assertEq(styz3.maxRedeemOrder(user2), 100e18);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user2, 100e18, 50e18));
+        styz3.initiateRedeem(100e18, user1, user2);
+    }
+
+    function test_RedeemThrottle_InitiateRedeem_CallerFeeWaiverControlsMinWithdraw() public {
+        vm.startPrank(admin);
+        styz3.grantRole(FEE_MANAGER_ROLE, admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.setRedeemFee(100_000);
+        styz3.setMinWithdraw(100e18);
+        styz3.setIntegration(user1, false, true);
+        vm.stopPrank();
+
+        _deposit(user2, 100e18);
+        vm.prank(user2);
+        styz3.approve(user1, type(uint256).max);
+
+        assertEq(styz3.maxRedeemOrder(user2), 0);
+        vm.prank(user1);
+        (, uint256 lockedAssets) = styz3.initiateRedeem(100e18, user1, user2);
+        assertEq(lockedAssets, 100e18);
     }
 
     // Max view exactness (ERC-4626 compliance)

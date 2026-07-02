@@ -204,6 +204,19 @@ contract StakedYuzuUSDV3 is
         return netAssets < minWithdraw() ? 0 : shares;
     }
 
+    /// @inheritdoc StakedYuzuUSDV2
+    function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
+        return _maxRedeemOrderFor(_owner, _owner);
+    }
+
+    function _maxRedeemOrderFor(address caller, address _owner) internal view returns (uint256) {
+        uint256 maxShares = super.maxRedeemOrder(_owner);
+        uint256 remaining = _redeemThrottleRemaining(caller);
+        uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
+        (uint256 netAssets,) = _previewRedeemWithFee(shares, _redeemOrderFeePpmFor(caller));
+        return netAssets < minWithdraw() ? 0 : shares;
+    }
+
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         _checkMinDeposit(assets);
         address caller = _msgSender();
@@ -283,12 +296,11 @@ contract StakedYuzuUSDV3 is
         returns (uint256, uint256)
     {
         if (receiver == address(0)) revert InvalidZeroAddress();
-        uint256 maxShares = maxRedeemOrder(_owner);
+        address caller = _msgSender();
+        uint256 maxShares = _maxRedeemOrderFor(caller, _owner);
         if (shares > maxShares) revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
 
-        address caller = _msgSender();
-        uint256 callerFeePpm = integrations[caller].waiveRedeemFee ? 0 : redeemFeePpm;
-        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, callerFeePpm);
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemOrderFeePpmFor(caller));
         _checkMinWithdraw(assets);
         _consumeRedeemThrottle(caller, assets + fee);
         uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
@@ -303,6 +315,13 @@ contract StakedYuzuUSDV3 is
             return 0;
         }
         return instantRedeemFeePpm;
+    }
+
+    function _redeemOrderFeePpmFor(address account) internal view returns (uint256) {
+        if (integrations[account].waiveRedeemFee) {
+            return 0;
+        }
+        return redeemFeePpm;
     }
 
     // slither-disable-next-line pess-strange-setter,pess-event-setter
