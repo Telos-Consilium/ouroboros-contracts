@@ -114,40 +114,40 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     // Routed V3
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMintFee(uint256) external virtual {
         _delegateToFacet();
     }
 
     /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setRedeemFee(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setRedeemOrderFee(uint256) external virtual override {
         _delegateToFacet();
     }
 
     /// @dev Stages the rate for the next pool update.
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setManagementFee(uint256) external virtual {
         _delegateToFacet();
     }
 
     /// @dev Stages the rate for the next pool update.
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setPerformanceFee(uint256) external virtual {
         _delegateToFacet();
     }

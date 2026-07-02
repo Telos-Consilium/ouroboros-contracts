@@ -295,22 +295,18 @@ abstract contract YuzuProto is
         _unpause();
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setSupplyCap(uint256 newCap) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setSupplyCap(newCap);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setLiquidityBufferTargetSize(uint256 newSize) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setLiquidityBufferTargetSize(newSize);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setFillWindow(uint256 newWindow) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setFillWindow(newWindow);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setMinRedeemOrder(uint256 newMin) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setMinRedeemOrder(newMin);
     }

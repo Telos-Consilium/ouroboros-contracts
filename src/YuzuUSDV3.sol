@@ -76,37 +76,37 @@ contract YuzuUSDV3 is
     }
 
     // V3 config routes
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setRedeemThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMinWithdraw(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setNav(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setNavStepCap(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setNavCooldown(uint256) external virtual {
         _delegateToFacet();
     }

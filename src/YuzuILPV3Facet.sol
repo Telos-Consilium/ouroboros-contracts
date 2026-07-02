@@ -286,7 +286,6 @@ contract YuzuILPV3Facet is
         emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setSupplyCap(uint256 newCap) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
@@ -295,7 +294,6 @@ contract YuzuILPV3Facet is
         emit UpdatedSupplyCap(oldCap, newCap);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setLiquidityBufferTargetSize(uint256 newSize) external {
         _checkRole(REDEEM_MANAGER_ROLE);
         YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
@@ -304,7 +302,6 @@ contract YuzuILPV3Facet is
         emit UpdatedLiquidityBufferTargetSize(oldSize, newSize);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setFillWindow(uint256 newWindow) external {
         _checkRole(REDEEM_MANAGER_ROLE);
         if (newWindow > 365 days) {
@@ -316,7 +313,6 @@ contract YuzuILPV3Facet is
         emit UpdatedFillWindow(oldWindow, newWindow);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setMinRedeemOrder(uint256 newMin) external {
         _checkRole(REDEEM_MANAGER_ROLE);
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
@@ -339,7 +335,7 @@ contract YuzuILPV3Facet is
         emit UpdatedIsRedeemRestricted(oldValue, restricted);
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
@@ -350,7 +346,7 @@ contract YuzuILPV3Facet is
         emit UpdatedMintThrottle(oldBlockLimit, newBlockLimit, oldDailyLimit, newDailyLimit);
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
@@ -359,7 +355,7 @@ contract YuzuILPV3Facet is
         emit UpdatedMinDeposit(oldMin, newMin);
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMintFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
@@ -372,7 +368,7 @@ contract YuzuILPV3Facet is
     }
 
     /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setRedeemFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
@@ -383,7 +379,7 @@ contract YuzuILPV3Facet is
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setRedeemOrderFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
@@ -394,7 +390,7 @@ contract YuzuILPV3Facet is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setManagementFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
@@ -406,7 +402,7 @@ contract YuzuILPV3Facet is
         emit UpdatedManagementFee(oldRatePpm, newRatePpm);
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setPerformanceFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newRatePpm > 1e6) {

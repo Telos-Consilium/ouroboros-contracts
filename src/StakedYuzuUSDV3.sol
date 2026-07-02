@@ -114,7 +114,6 @@ contract StakedYuzuUSDV3 is
         super.rescueTokens(token, receiver, amount);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setRedeemDelay(uint256 newDelay) public virtual override onlyRole(REDEEM_MANAGER_ROLE) {
         if (newDelay == 0) {
             revert RedeemDelayTooLow(newDelay, 1);
@@ -122,7 +121,6 @@ contract StakedYuzuUSDV3 is
         super.setRedeemDelay(newDelay);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setRedeemFee(uint256 newFeePpm) public virtual override onlyRole(FEE_MANAGER_ROLE) {
         super.setRedeemFee(newFeePpm);
     }
@@ -140,7 +138,6 @@ contract StakedYuzuUSDV3 is
         emit UpdatedInstantRedeemFee(oldFee, newFeePpm);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setFeeReceiver(address newFeeReceiver) public virtual override onlyRole(FEE_MANAGER_ROLE) {
         super.setFeeReceiver(newFeeReceiver);
     }
@@ -153,7 +150,6 @@ contract StakedYuzuUSDV3 is
         super.unpause();
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
         public
         virtual
@@ -316,12 +312,12 @@ contract StakedYuzuUSDV3 is
         return instantRedeemFeePpm;
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setMinDeposit(newMin);
     }
 
-    // slither-disable-next-line pess-strange-setter,pess-event-setter
+    // slither-disable-next-line pess-event-setter
     function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setMinWithdraw(newMin);
     }
@@ -342,7 +338,6 @@ contract StakedYuzuUSDV3 is
         emit UpdatedMinDistributionPeriod(oldPeriod, newPeriod);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
         external
         virtual
@@ -351,7 +346,6 @@ contract StakedYuzuUSDV3 is
         _setMintThrottle(newBlockLimit, newDailyLimit);
     }
 
-    // slither-disable-next-line pess-strange-setter
     function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
         external
         virtual
