@@ -22,6 +22,9 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 
+    /// @notice Maximum management fee, in ppm per year (10%)
+    uint256 internal constant MAX_MANAGEMENT_FEE_PPM = 100_000;
+
     address private immutable _facet;
 
     // Construction
@@ -33,9 +36,29 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     // V3 init
-    /// @notice Reinitializes the contract for the V3 upgrade
+    /// @notice Initializes a fresh proxy directly at V3 with combined V1 and V3 setup
+    /// @dev Guarded so it can only run before any prior init has set the asset
+    // slither-disable-next-line pess-unprotected-initialize
+    function initializeV3(InitParams calldata p, ConfigParams calldata c) external reinitializer(3) {
+        if (_asset != address(0)) revert AlreadyInitialized();
+        __YuzuProto_init(
+            p.asset, p.name, p.symbol, p.admin, p.treasury, p.feeReceiver, p.supplyCap, p.fillWindow, p.minRedeemOrder
+        );
+        _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
+        __YuzuILPV3_init_unchained();
+        _applyConfig(c);
+    }
+
+    /// @notice Reinitializes an existing V1/V2 proxy for the V3 upgrade
+    /// @dev Guarded so it can only run on a proxy that already went through prior init
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize() external override reinitializer(3) {
+        if (_asset == address(0)) revert NotMigrating();
+        __YuzuILPV3_init_unchained();
+    }
+
+    // slither-disable-next-line pess-unprotected-initialize
+    function __YuzuILPV3_init_unchained() internal onlyInitializing {
         __YuzuProtoV2_init_unchained();
         __EIP712_init(name(), "2");
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
@@ -45,6 +68,32 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         $._mintThrottle.dailyLimit = type(uint256).max;
         $._redeemThrottle.blockLimit = type(uint256).max;
         $._redeemThrottle.dailyLimit = type(uint256).max;
+    }
+
+    function _applyConfig(ConfigParams calldata c) internal {
+        if (c.mintFeePpm > 1e6) revert FeeTooHigh(c.mintFeePpm, 1e6);
+        if (c.redeemOrderFeePpm > 1e6) revert FeeTooHigh(c.redeemOrderFeePpm, 1e6);
+        if (c.pendingManagementFeeRatePpm > MAX_MANAGEMENT_FEE_PPM) {
+            revert FeeTooHigh(c.pendingManagementFeeRatePpm, MAX_MANAGEMENT_FEE_PPM);
+        }
+        if (c.pendingPerformanceFeeRatePpm > 1e6) revert FeeTooHigh(c.pendingPerformanceFeeRatePpm, 1e6);
+
+        isMintRestricted = c.isMintRestricted;
+        isRedeemRestricted = c.isRedeemRestricted;
+        redeemOrderFeePpm = c.redeemOrderFeePpm;
+
+        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
+        $._mintFeePpm = c.mintFeePpm;
+        $._pendingManagementFeeRatePpm = c.pendingManagementFeeRatePpm;
+        $._pendingPerformanceFeeRatePpm = c.pendingPerformanceFeeRatePpm;
+
+        // Mirror the setter events
+        emit UpdatedIsMintRestricted(true, c.isMintRestricted);
+        emit UpdatedIsRedeemRestricted(true, c.isRedeemRestricted);
+        emit UpdatedRedeemOrderFee(0, c.redeemOrderFeePpm);
+        emit UpdatedMintFee(0, c.mintFeePpm);
+        emit UpdatedPendingManagementFee(0, c.pendingManagementFeeRatePpm);
+        emit UpdatedPendingPerformanceFee(0, c.pendingPerformanceFeeRatePpm);
     }
 
     // Routed V2

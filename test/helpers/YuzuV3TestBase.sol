@@ -14,6 +14,7 @@ import {YuzuILP} from "../../src/YuzuILP.sol";
 import {YuzuILPV2} from "../../src/YuzuILPV2.sol";
 import {YuzuILPV3} from "../../src/YuzuILPV3.sol";
 import {YuzuILPV3Facet} from "../../src/YuzuILPV3Facet.sol";
+import {IYuzuILPV3Definitions} from "../../src/interfaces/IYuzuILPDefinitions.sol";
 
 contract YuzuV3USDT0Mock is ERC20Mock {
     function decimals() public pure virtual override returns (uint8) {
@@ -95,21 +96,28 @@ abstract contract YuzuV3TestBase is Test {
         returns (YuzuILPV3 deployed)
     {
         address impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
-        bytes memory initData = abi.encodeWithSelector(
-            YuzuILP.initialize.selector,
-            asset_,
-            name,
-            symbol,
-            admin,
-            treasury,
-            feeReceiver,
-            type(uint256).max,
-            1 days,
-            0
-        );
+        IYuzuILPV3Definitions.InitParams memory initParams = IYuzuILPV3Definitions.InitParams({
+            asset: asset_,
+            name: name,
+            symbol: symbol,
+            admin: admin,
+            treasury: treasury,
+            feeReceiver: feeReceiver,
+            supplyCap: type(uint256).max,
+            fillWindow: 1 days,
+            minRedeemOrder: 0
+        });
+        IYuzuILPV3Definitions.ConfigParams memory configParams = IYuzuILPV3Definitions.ConfigParams({
+            isMintRestricted: true,
+            isRedeemRestricted: true,
+            mintFeePpm: 0,
+            redeemOrderFeePpm: 0,
+            pendingManagementFeeRatePpm: 0,
+            pendingPerformanceFeeRatePpm: 0
+        });
+        bytes memory initData = abi.encodeCall(YuzuILPV3.initializeV3, (initParams, configParams));
         address proxy = address(new ERC1967Proxy(impl, initData));
         deployed = YuzuILPV3(proxy);
-        deployed.reinitialize();
     }
 
     function _approve(address owner, address spender) internal {

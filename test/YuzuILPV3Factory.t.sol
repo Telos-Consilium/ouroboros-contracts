@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {CREATE3} from "solady/utils/CREATE3.sol";
 
@@ -10,6 +11,8 @@ import {YuzuILP} from "../src/YuzuILP.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
 import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {YuzuILPV3Factory} from "../src/YuzuILPV3Factory.sol";
+import {IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3FactoryTest is YuzuV3TestBase {
@@ -34,8 +37,8 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         factory.grantRole(DEPLOYER_ROLE, deployer);
     }
 
-    function _params() internal view returns (YuzuILPV3Factory.InitParams memory) {
-        return YuzuILPV3Factory.InitParams({
+    function _params() internal view returns (IYuzuILPV3Definitions.InitParams memory) {
+        return IYuzuILPV3Definitions.InitParams({
             asset: address(asset),
             name: "Yuzu ILP",
             symbol: "yzILP",
@@ -48,9 +51,20 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         });
     }
 
+    function _config() internal pure returns (IYuzuILPV3Definitions.ConfigParams memory) {
+        return IYuzuILPV3Definitions.ConfigParams({
+            isMintRestricted: true,
+            isRedeemRestricted: true,
+            mintFeePpm: 0,
+            redeemOrderFeePpm: 0,
+            pendingManagementFeeRatePpm: 0,
+            pendingPerformanceFeeRatePpm: 0
+        });
+    }
+
     function _deploy(bytes32 salt) internal returns (YuzuILPV3) {
         vm.prank(deployer);
-        return YuzuILPV3(factory.deploy(salt, impl, proxyAdminOwner, _params()));
+        return YuzuILPV3(factory.deploy(salt, impl, proxyAdminOwner, _params(), _config()));
     }
 
     function _proxyAdminOf(address proxy) internal view returns (ProxyAdmin) {
@@ -76,7 +90,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, other, DEPLOYER_ROLE)
         );
         vm.prank(other);
-        factory.deploy(SALT, impl, proxyAdminOwner, _params());
+        factory.deploy(SALT, impl, proxyAdminOwner, _params(), _config());
     }
 
     function test_Deploy_Revert_RevokedDeployer() public {
@@ -87,7 +101,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, deployer, DEPLOYER_ROLE)
         );
         vm.prank(deployer);
-        factory.deploy(SALT, impl, proxyAdminOwner, _params());
+        factory.deploy(SALT, impl, proxyAdminOwner, _params(), _config());
     }
 
     // --- input validation ---
@@ -95,13 +109,13 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
     function test_Deploy_Revert_ZeroImplementation() public {
         vm.expectRevert(YuzuILPV3Factory.InvalidZeroAddress.selector);
         vm.prank(deployer);
-        factory.deploy(SALT, address(0), proxyAdminOwner, _params());
+        factory.deploy(SALT, address(0), proxyAdminOwner, _params(), _config());
     }
 
     function test_Deploy_Revert_ZeroProxyAdminOwner() public {
         vm.expectRevert(YuzuILPV3Factory.InvalidZeroAddress.selector);
         vm.prank(deployer);
-        factory.deploy(SALT, impl, address(0), _params());
+        factory.deploy(SALT, impl, address(0), _params(), _config());
     }
 
     // --- determinism ---
@@ -122,13 +136,13 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
 
         // Prediction is independent of implementation and init arguments.
         impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
-        YuzuILPV3Factory.InitParams memory params = _params();
+        IYuzuILPV3Definitions.InitParams memory params = _params();
         params.asset = address(_newAsset());
         params.name = "Other Name";
         params.supplyCap = 123e18;
 
         vm.prank(deployer);
-        address vault = factory.deploy(salt, impl, proxyAdminOwner, params);
+        address vault = factory.deploy(salt, impl, proxyAdminOwner, params, _config());
 
         assertEq(vault, predicted);
     }
@@ -138,7 +152,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
 
         vm.expectRevert(CREATE3.DeploymentFailed.selector);
         vm.prank(deployer);
-        factory.deploy(SALT, impl, proxyAdminOwner, _params());
+        factory.deploy(SALT, impl, proxyAdminOwner, _params(), _config());
     }
 
     // --- initialization state ---
@@ -197,6 +211,100 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
 
         assertEq(address(uint160(uint256(vm.load(address(vault), ERC1967_IMPL_SLOT)))), newImpl);
         assertEq(vault.name(), "Yuzu ILP");
+    }
+
+    // --- config application ---
+
+    function test_Deploy_AppliesConfig_Restrictions() public {
+        IYuzuILPV3Definitions.ConfigParams memory config = _config();
+        config.isMintRestricted = false;
+        config.isRedeemRestricted = false;
+
+        vm.prank(deployer);
+        YuzuILPV3 vault = YuzuILPV3(factory.deploy(SALT, impl, proxyAdminOwner, _params(), config));
+
+        assertFalse(vault.isMintRestricted());
+        assertFalse(vault.isRedeemRestricted());
+    }
+
+    function test_Deploy_AppliesConfig_Fees() public {
+        IYuzuILPV3Definitions.ConfigParams memory config = _config();
+        config.mintFeePpm = 5_000;
+        config.redeemOrderFeePpm = 1_000;
+        config.pendingManagementFeeRatePpm = 50_000;
+        config.pendingPerformanceFeeRatePpm = 200_000;
+
+        vm.prank(deployer);
+        YuzuILPV3 vault = YuzuILPV3(factory.deploy(SALT, impl, proxyAdminOwner, _params(), config));
+
+        assertEq(vault.mintFeePpm(), 5_000);
+        assertEq(vault.redeemOrderFeePpm(), 1_000);
+        assertEq(vault.pendingManagementFeeRatePpm(), 50_000);
+        assertEq(vault.pendingPerformanceFeeRatePpm(), 200_000);
+        assertEq(vault.managementFeeRatePpm(), 0, "active mgmt rate unchanged until updatePool");
+        assertEq(vault.performanceFeeRatePpm(), 0, "active perf rate unchanged until updatePool");
+    }
+
+    function test_Deploy_Revert_ConfigOutOfBounds_WrappedAsDeploymentFailed() public {
+        IYuzuILPV3Definitions.ConfigParams memory config = _config();
+        config.mintFeePpm = 1e6 + 1;
+        // Inner FeeTooHigh is opaque through CREATE3; direct-impl tests below assert the specific selector.
+        vm.expectRevert(CREATE3.DeploymentFailed.selector);
+        vm.prank(deployer);
+        factory.deploy(SALT, impl, proxyAdminOwner, _params(), config);
+    }
+
+    // --- init guards and bound checks at the impl level ---
+
+    function _rawFreshProxy() internal returns (address) {
+        return address(new TransparentUpgradeableProxy(impl, proxyAdminOwner, ""));
+    }
+
+    function test_Reinitialize_Revert_NotMigrating_OnFreshProxy() public {
+        address freshProxy = _rawFreshProxy();
+        vm.expectRevert(IYuzuILPV3Definitions.NotMigrating.selector);
+        YuzuILPV3(freshProxy).reinitialize();
+    }
+
+    function test_InitializeV3_Revert_AlreadyInitialized_AfterV1Init() public {
+        bytes memory data = abi.encodeCall(
+            YuzuILP.initialize, (address(asset), "x", "x", admin, treasury, feeReceiver, type(uint256).max, 1 days, 0)
+        );
+        address proxy = address(new TransparentUpgradeableProxy(impl, proxyAdminOwner, data));
+        vm.expectRevert(IYuzuILPV3Definitions.AlreadyInitialized.selector);
+        YuzuILPV3(proxy).initializeV3(_params(), _config());
+    }
+
+    function test_InitializeV3_Revert_MintFeeTooHigh() public {
+        address freshProxy = _rawFreshProxy();
+        IYuzuILPV3Definitions.ConfigParams memory config = _config();
+        config.mintFeePpm = 1e6 + 1;
+        vm.expectRevert(abi.encodeWithSelector(IYuzuProtoDefinitions.FeeTooHigh.selector, 1e6 + 1, 1e6));
+        YuzuILPV3(freshProxy).initializeV3(_params(), config);
+    }
+
+    function test_InitializeV3_Revert_RedeemOrderFeeTooHigh() public {
+        address freshProxy = _rawFreshProxy();
+        IYuzuILPV3Definitions.ConfigParams memory config = _config();
+        config.redeemOrderFeePpm = 1e6 + 1;
+        vm.expectRevert(abi.encodeWithSelector(IYuzuProtoDefinitions.FeeTooHigh.selector, 1e6 + 1, 1e6));
+        YuzuILPV3(freshProxy).initializeV3(_params(), config);
+    }
+
+    function test_InitializeV3_Revert_PendingManagementFeeTooHigh() public {
+        address freshProxy = _rawFreshProxy();
+        IYuzuILPV3Definitions.ConfigParams memory config = _config();
+        config.pendingManagementFeeRatePpm = 100_001;
+        vm.expectRevert(abi.encodeWithSelector(IYuzuProtoDefinitions.FeeTooHigh.selector, 100_001, 100_000));
+        YuzuILPV3(freshProxy).initializeV3(_params(), config);
+    }
+
+    function test_InitializeV3_Revert_PendingPerformanceFeeTooHigh() public {
+        address freshProxy = _rawFreshProxy();
+        IYuzuILPV3Definitions.ConfigParams memory config = _config();
+        config.pendingPerformanceFeeRatePpm = 1e6 + 1;
+        vm.expectRevert(abi.encodeWithSelector(IYuzuProtoDefinitions.FeeTooHigh.selector, 1e6 + 1, 1e6));
+        YuzuILPV3(freshProxy).initializeV3(_params(), config);
     }
 
     // --- behavior ---

@@ -5,8 +5,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {CREATE3} from "solady/utils/CREATE3.sol";
 
-import {YuzuILP} from "./YuzuILP.sol";
 import {YuzuILPV3} from "./YuzuILPV3.sol";
+import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 
 /**
  * @title YuzuILPV3Factory
@@ -15,19 +15,6 @@ import {YuzuILPV3} from "./YuzuILPV3.sol";
  */
 contract YuzuILPV3Factory is AccessControl {
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
-
-    /// @notice Arguments forwarded to YuzuILP.initialize
-    struct InitParams {
-        address asset;
-        string name;
-        string symbol;
-        address admin;
-        address treasury;
-        address feeReceiver;
-        uint256 supplyCap;
-        uint256 fillWindow;
-        uint256 minRedeemOrder;
-    }
 
     event DeployedYuzuILPV3(
         address indexed proxy, bytes32 indexed salt, address indexed implementation, address proxyAdminOwner
@@ -48,14 +35,17 @@ contract YuzuILPV3Factory is AccessControl {
      * a salt can be used at most once per factory deployment
      * @param implementation The YuzuILPV3 implementation to back the proxy
      * @param proxyAdminOwner Owner of the ProxyAdmin created by the proxy constructor
-     * @param params Arguments forwarded to {YuzuILP-initialize}
+     * @param initParams Arguments forwarded to {YuzuILPV3-initializeV3}
+     * @param configParams V3 configuration applied atomically at deploy
      * @return proxy The deployed proxy address
      */
-    function deploy(bytes32 salt, address implementation, address proxyAdminOwner, InitParams calldata params)
-        external
-        onlyRole(DEPLOYER_ROLE)
-        returns (address proxy)
-    {
+    function deploy(
+        bytes32 salt,
+        address implementation,
+        address proxyAdminOwner,
+        IYuzuILPV3Definitions.InitParams calldata initParams,
+        IYuzuILPV3Definitions.ConfigParams calldata configParams
+    ) external onlyRole(DEPLOYER_ROLE) returns (address proxy) {
         if (implementation == address(0) || proxyAdminOwner == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -64,26 +54,10 @@ contract YuzuILPV3Factory is AccessControl {
         bytes memory initCode = abi.encodePacked(
             type(TransparentUpgradeableProxy).creationCode,
             abi.encode(
-                implementation,
-                proxyAdminOwner,
-                abi.encodeCall(
-                    YuzuILP.initialize,
-                    (
-                        params.asset,
-                        params.name,
-                        params.symbol,
-                        params.admin,
-                        params.treasury,
-                        params.feeReceiver,
-                        params.supplyCap,
-                        params.fillWindow,
-                        params.minRedeemOrder
-                    )
-                )
+                implementation, proxyAdminOwner, abi.encodeCall(YuzuILPV3.initializeV3, (initParams, configParams))
             )
         );
         proxy = CREATE3.deployDeterministic(initCode, salt);
-        YuzuILPV3(proxy).reinitialize();
 
         // slither-disable-next-line reentrancy-events
         emit DeployedYuzuILPV3(proxy, salt, implementation, proxyAdminOwner);
