@@ -11,7 +11,7 @@ import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 
 /**
  * @title YuzuILP
- * @notice Insurance Liquidity Pool that accrues yield
+ * @notice Protection Pool that accrues yield
  */
 contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
