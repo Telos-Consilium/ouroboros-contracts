@@ -138,7 +138,7 @@ contract StakedYuzuUSDV3 is
         emit UpdatedInstantRedeemFee(oldFee, newFeePpm);
     }
 
-    function setFeeReceiver(address newFeeReceiver) public virtual override onlyRole(FEE_MANAGER_ROLE) {
+    function setFeeReceiver(address newFeeReceiver) public virtual override onlyRole(ADMIN_ROLE) {
         super.setFeeReceiver(newFeeReceiver);
     }
 
