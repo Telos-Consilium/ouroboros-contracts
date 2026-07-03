@@ -9,6 +9,7 @@ import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {Order} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
+import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
@@ -290,6 +291,60 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     }
 
     // Native hooks
+    /// @dev Tokens are priced against fee-net total assets, while poolSize bears fee accrual for the
+    /// full period since the last update. Crediting poolSize with an increment whose fee-net value
+    /// equals the deposited assets keeps the share price unchanged and spares the deposit from fees
+    /// accrued before it entered.
+    function _deposit(address caller, address receiver, uint256 assets, uint256 tokens)
+        internal
+        virtual
+        override(YuzuILPV2)
+    {
+        poolSize += _poolSizeCredit(assets);
+        YuzuIssuer._deposit(caller, receiver, assets, tokens);
+    }
+
+    /// @dev Returns the poolSize increment whose fee-net value equals {assets} now. Management fee
+    /// accrues on poolSize but not on distributed assets, so the deposit is first restated gross of
+    /// the performance fee, then converted into last-update pool units through the pool bucket's own
+    /// net-of-management value. Falls back to the yield discount when the pool is empty. Reverts when
+    /// accrued fees have consumed the pool's net value: pool units then add nothing, so no credit can
+    /// match the deposit and deposits stay closed until the next pool update.
+    function _poolSizeCredit(uint256 assets) private view returns (uint256) {
+        uint256 pool = poolSize;
+        // slither-disable-next-line incorrect-equality
+        if (pool == 0) {
+            return _discountYield(assets, Math.Rounding.Floor);
+        }
+        uint256 managementFee = Math.mulDiv(
+            pool * YuzuILPFeesV3Storage.layout()._managementFeeRatePpm,
+            _timeSinceUpdate(),
+            1e6 * 365 days,
+            Math.Rounding.Ceil
+        );
+        uint256 grossTotalAssets = super._totalAssets(Math.Rounding.Floor);
+        if (grossTotalAssets <= managementFee) {
+            revert PoolFeeEroded();
+        }
+        uint256 netOfManagementFee = grossTotalAssets - managementFee;
+        uint256 totalAssetsFromDistributions = netDistributedSinceUpdate();
+        if (netOfManagementFee <= totalAssetsFromDistributions) {
+            revert PoolFeeEroded();
+        }
+        uint256 netTotalAssets = _totalAssets(Math.Rounding.Floor);
+        // slither-disable-next-line incorrect-equality
+        if (netTotalAssets == 0) {
+            revert PoolFeeEroded();
+        }
+        uint256 poolNetOfManagementFee = netOfManagementFee - totalAssetsFromDistributions;
+        return Math.mulDiv(
+            Math.mulDiv(assets, netOfManagementFee, netTotalAssets, Math.Rounding.Floor),
+            pool,
+            poolNetOfManagementFee,
+            Math.Rounding.Floor
+        );
+    }
+
     function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
         internal
         virtual

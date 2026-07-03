@@ -586,6 +586,9 @@ contract YuzuILPV3Facet is
             return 0;
         }
         IYuzuILPV3Router router = IYuzuILPV3Router(proxy);
+        if (_isPoolFeeEroded(router)) {
+            return 0;
+        }
         uint256 headroom = _supplyHeadroom(proxy);
         uint256 supply = router.totalSupply();
         uint256 baseMax;
@@ -611,12 +614,31 @@ contract YuzuILPV3Facet is
         if (router.totalSupply() > 0 && router.totalAssets() == 0) {
             return 0;
         }
+        if (_isPoolFeeEroded(router)) {
+            return 0;
+        }
         uint256 headroom = _supplyHeadroom(proxy);
         uint256 remaining = _mintThrottleRemaining(proxy, receiver);
         uint256 shares =
             remaining >= type(uint128).max ? headroom : Math.min(headroom, router.convertToShares(remaining));
         uint256 min = router.minDeposit();
         return router.previewMint(shares) < min ? 0 : shares;
+    }
+
+    /// @dev True when the accrued management fee has consumed the pool bucket's entire net value,
+    /// leaving pool units with no marginal worth; deposits cannot be priced until the next pool update.
+    function _isPoolFeeEroded(IYuzuILPV3Router router) private view returns (bool) {
+        uint256 pool = router.poolSize();
+        // slither-disable-next-line incorrect-equality
+        if (pool == 0) {
+            return false;
+        }
+        uint256 elapsed = _proxyTimeSinceUpdate(router);
+        uint256 managementFee =
+            Math.mulDiv(pool * router.managementFeeRatePpm(), elapsed, 1e6 * 365 days, Math.Rounding.Ceil);
+        uint256 poolGross =
+            pool + Math.mulDiv(pool * router.dailyLinearYieldRatePpm(), elapsed, 1e6 days, Math.Rounding.Floor);
+        return poolGross <= managementFee;
     }
 
     function _canMint(address proxy, address receiver) private view returns (bool) {

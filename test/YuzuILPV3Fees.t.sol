@@ -440,6 +440,168 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         assertLe(yzilp.poolSize(), 1000e6);
     }
 
+    // --- deposit neutrality under live fees ---
+
+    // A deposit is priced at the fee-net share price, so it must not move the share price for existing
+    // holders. Probes the _deposit gross-up, which credits poolSize in fee-free units while the payment
+    // was priced off the fee-net totalAssets.
+    function test_Deposit_PreservesSharePrice_WithLiveManagementFee() public {
+        _setupPool(); // poolSize 1000e6, supply 1000e18
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10%/yr
+        _promote(0);
+
+        vm.warp(block.timestamp + 365 days); // markdown 100e6, share price 0.9
+
+        uint256 sharePriceBefore = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+
+        vm.prank(user);
+        uint256 shares = yzilp.deposit(90e6, user);
+        assertEq(shares, 100e18);
+
+        // 90e6 net buys 100e6 of fee-free pool units, which then bear the full year of accrued fee
+        assertEq(yzilp.poolSize(), 1100e6);
+
+        uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+        assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "deposit moved the share price while a fee was live");
+    }
+
+    function test_Mint_PreservesSharePrice_WithLiveManagementFee() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000);
+        _promote(0);
+
+        vm.warp(block.timestamp + 365 days);
+
+        uint256 sharePriceBefore = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+
+        vm.prank(user);
+        uint256 paid = yzilp.mint(100e18, user);
+        assertEq(paid, 90e6);
+        assertEq(yzilp.poolSize(), 1100e6);
+
+        uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+        assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "mint moved the share price while a fee was live");
+    }
+
+    function test_Deposit_PreservesSharePrice_WithPerformanceFeeAboveHWM() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPendingPerformanceFee(200_000); // 20%
+        _promote(10_000); // 1%/day yield
+
+        vm.warp(block.timestamp + 10 days); // +100e6 gross yield, 20e6 marked down, share price 1.08
+
+        uint256 sharePriceBefore = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+
+        vm.prank(user);
+        uint256 shares = yzilp.deposit(108e6, user);
+        assertEq(shares, 100e18);
+
+        // 108e6 net buys 110e6 of fee-free assets, worth 100e6 at the last update
+        assertEq(yzilp.poolSize(), 1100e6);
+
+        uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+        assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "deposit moved the share price above the mark");
+    }
+
+    // Management fee accrues on poolSize but not on distributed assets, so the deposit credit must be
+    // converted through the pool bucket's own fee-net value rather than the blended totals ratio.
+    function test_Deposit_PreservesSharePrice_WithOutstandingDistribution() public {
+        _setupPool(); // poolSize 1000e6, supply 1000e18
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10%/yr
+        _promote(0);
+
+        vm.prank(admin);
+        yzilp.distribute(500e6, 1 days);
+        vm.warp(block.timestamp + 365 days); // fully vested; 1500e6 gross, 100e6 fee, 1400e6 net
+
+        uint256 sharePriceBefore = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+
+        vm.prank(user);
+        uint256 shares = yzilp.deposit(140e6, user);
+        assertEq(shares, 100e18);
+
+        // 140e6 net buys 155.55e6 of pool units whose value net of a year of accrued fee is 140e6;
+        // the distribution bucket bears no management fee and takes no part of the credit
+        assertEq(yzilp.poolSize(), 1_155_555_555);
+
+        uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+        assertApproxEqAbs(
+            sharePriceAfter, sharePriceBefore, 1, "deposit moved the share price with a distribution outstanding"
+        );
+    }
+
+    // Once the accrued fee consumes the pool bucket's entire value, pool units are worthless and no
+    // credit can price a deposit; deposits must close until a pool update resets the fee accrual.
+    function test_Deposit_ClosedWhenPoolFeeEroded() public {
+        _setupPool(); // poolSize 1000e6
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10%/yr
+        _promote(0);
+
+        vm.prank(admin);
+        yzilp.distribute(500e6, 1 days);
+        vm.warp(block.timestamp + 11 * 365 days); // accrued fee 1100e6 exceeds the 1000e6 pool
+
+        // Distributions keep net assets positive while the pool bucket is fully eroded
+        assertEq(yzilp.totalAssets(), 400e6);
+        assertEq(yzilp.maxDeposit(user), 0);
+        assertEq(yzilp.maxMint(user), 0);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuIssuerDefinitions.ExceededMaxDeposit.selector, user, 100e6, 0));
+        yzilp.deposit(100e6, user);
+
+        // A pool update settles the accrued fee (1500e6 gross reported, 1100e6 netted) and reopens deposits
+        _reportPool(1500e6);
+        assertEq(yzilp.poolSize(), 400e6);
+        assertGt(yzilp.maxDeposit(user), 0);
+        vm.prank(user);
+        yzilp.deposit(100e6, user);
+    }
+
+    function testFuzz_Deposit_NeverDecreasesSharePrice(
+        uint256 mgmtPpm,
+        uint256 perfPpm,
+        uint256 yieldPpm,
+        uint256 distroAssets,
+        uint256 warpSecs,
+        uint256 assets
+    ) public {
+        _setupPool();
+        mgmtPpm = bound(mgmtPpm, 0, 100_000);
+        perfPpm = bound(perfPpm, 0, 1e6);
+        yieldPpm = bound(yieldPpm, 0, 10_000);
+        distroAssets = bound(distroAssets, 0, 500e6);
+        warpSecs = bound(warpSecs, 0, 365 days);
+        assets = bound(assets, 1, 1_000_000e6);
+
+        vm.startPrank(feeManager);
+        yzilp.setPendingManagementFee(mgmtPpm);
+        yzilp.setPendingPerformanceFee(perfPpm);
+        vm.stopPrank();
+        _promote(yieldPpm);
+
+        if (distroAssets > 0) {
+            vm.prank(admin);
+            yzilp.distribute(distroAssets, 1 days);
+        }
+
+        vm.warp(block.timestamp + warpSecs);
+        asset.mint(user, assets);
+
+        uint256 sharePriceBefore = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+
+        vm.prank(user);
+        yzilp.deposit(assets, user);
+
+        uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
+        assertGe(sharePriceAfter + 1, sharePriceBefore, "deposit decreased the share price");
+    }
+
     function test_TerminateDistribution_FreezesAtVested() public {
         _setupPool(); // poolSize 1000e6
 
