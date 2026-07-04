@@ -4,9 +4,11 @@ pragma solidity ^0.8.30;
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {YuzuILPV2} from "./YuzuILPV2.sol";
+import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {FEE_MANAGER_ROLE, MAX_MANAGEMENT_FEE_PPM, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
@@ -17,22 +19,9 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
  * @dev yzILP has no instant redeem path. Fee rates are managed by FEE_MANAGER_ROLE; management
  * and performance fee changes take effect at the next pool update.
  */
-contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-
-    /// @notice Maximum management fee, in ppm per year (10%)
-    uint256 internal constant MAX_MANAGEMENT_FEE_PPM = 100_000;
-
-    address private immutable _facet;
-
+contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     // Construction
-    constructor(address facet_) {
-        if (facet_ == address(0)) {
-            revert InvalidZeroAddress();
-        }
-        _facet = facet_;
-    }
+    constructor(address facet_) YuzuV3FacetRouting(facet_) {}
 
     /// @dev V3 proxies initialize via initializeV3 (fresh) or reinitialize (migration); the inherited
     /// V1 initializer is unreachable on V3, so it is disabled to save runtime bytecode.
@@ -380,9 +369,9 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _deposit(caller, receiver, assets, tokens);
     }
 
-    function __routerBurn(address owner, uint256 tokens) external {
+    function __routerBurn(address _owner, uint256 tokens) external {
         _requireRouterSelfCall();
-        _burn(owner, tokens);
+        _burn(_owner, tokens);
     }
 
     function __routerTransfer(address from, address to, uint256 value) external {
@@ -390,43 +379,12 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _transfer(from, to, value);
     }
 
-    function __routerSpendAllowance(address owner, address spender, uint256 value) external {
+    function __routerSpendAllowance(address _owner, address spender, uint256 value) external {
         _requireRouterSelfCall();
-        _spendAllowance(owner, spender, value);
-    }
-
-    function _requireRouterSelfCall() private view {
-        if (msg.sender != address(this)) {
-            revert();
-        }
+        _spendAllowance(_owner, spender, value);
     }
 
     // Router helpers
-    function _delegateToFacet() private {
-        address facet = _facet;
-        // slither-disable-next-line assembly,low-level-calls
-        assembly {
-            calldatacopy(0, 0, calldatasize())
-            let result := delegatecall(gas(), facet, 0, calldatasize(), 0, 0)
-            returndatacopy(0, 0, returndatasize())
-            switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
-        }
-    }
-
-    function _staticcallFacet() private view {
-        address facet = _facet;
-        // slither-disable-next-line assembly,low-level-calls
-        assembly {
-            calldatacopy(0, 0, calldatasize())
-            let result := staticcall(gas(), facet, 0, calldatasize(), 0, 0)
-            returndatacopy(0, 0, returndatasize())
-            switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
-        }
-    }
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

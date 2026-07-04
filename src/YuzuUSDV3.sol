@@ -3,10 +3,12 @@ pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import {NAV_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuUSD} from "./YuzuUSD.sol";
 import {YuzuUSDV2} from "./YuzuUSDV2.sol";
+import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
 import {
     IYuzuMinAmountsDefinitions,
     IYuzuNavMarkdownDefinitions,
@@ -28,14 +30,12 @@ import {
  */
 contract YuzuUSDV3 is
     YuzuUSDV2,
+    YuzuV3FacetRouting,
     IYuzuMinAmountsDefinitions,
     IYuzuThrottleDefinitions,
     IYuzuSameBlockGuardDefinitions,
     IYuzuNavMarkdownDefinitions
 {
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-    bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
-
     /// @notice Par backing of one share, in the same scale as nav
     uint256 internal constant NAV_PRECISION = 1e18;
     uint256 private constant NAV_SHARE_SCALE = 1e30;
@@ -43,15 +43,8 @@ contract YuzuUSDV3 is
     uint256 internal constant DEFAULT_NAV_STEP_CAP_PPM = 100_000;
     uint256 internal constant DEFAULT_NAV_COOLDOWN = 1 days;
 
-    address private immutable _facet;
-
     // Construction
-    constructor(address facet_) {
-        if (facet_ == address(0)) {
-            revert InvalidZeroAddress();
-        }
-        _facet = facet_;
-    }
+    constructor(address facet_) YuzuV3FacetRouting(facet_) {}
 
     // V3 init
     /// @notice Reinitializes the contract for the V3 upgrade
@@ -402,30 +395,14 @@ contract YuzuUSDV3 is
         if (_isThrottleExempt(account)) {
             return;
         }
-        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
-        if (assets > blockRemaining) {
-            revert ExceededMintBlockLimit(assets, blockRemaining);
-        }
-        if (assets > dailyRemaining) {
-            revert ExceededMintDailyLimit(assets, dailyRemaining);
-        }
-        YuzuV3Throttle.consume(throttle, assets);
+        YuzuV3Throttle.consumeMintChecked(YuzuThrottleV3Storage.layout()._mintThrottle, assets);
     }
 
     function _consumeRedeemThrottle(address account, uint256 assets) private {
         if (_isThrottleExempt(account)) {
             return;
         }
-        Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
-        if (assets > blockRemaining) {
-            revert ExceededRedeemBlockLimit(assets, blockRemaining);
-        }
-        if (assets > dailyRemaining) {
-            revert ExceededRedeemDailyLimit(assets, dailyRemaining);
-        }
-        YuzuV3Throttle.consume(throttle, assets);
+        YuzuV3Throttle.consumeRedeemChecked(YuzuThrottleV3Storage.layout()._redeemThrottle, assets);
     }
 
     function _recordMintBlock(address receiver, uint256 amount) private {
@@ -470,41 +447,8 @@ contract YuzuUSDV3 is
         _spendAllowance(_owner, spender, value);
     }
 
-    // Router helpers
-    function _requireRouterSelfCall() private view {
-        if (msg.sender != address(this)) {
-            revert();
-        }
-    }
-
     function _effectiveNav() private view returns (uint256) {
         return Math.min(YuzuNavMarkdownV3Storage.layout()._nav, NAV_PRECISION);
-    }
-
-    function _delegateToFacet() private {
-        address facet = _facet;
-        // slither-disable-next-line assembly,low-level-calls
-        assembly {
-            calldatacopy(0, 0, calldatasize())
-            let result := delegatecall(gas(), facet, 0, calldatasize(), 0, 0)
-            returndatacopy(0, 0, returndatasize())
-            switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
-        }
-    }
-
-    function _staticcallFacet() private view {
-        address facet = _facet;
-        // slither-disable-next-line assembly,low-level-calls
-        assembly {
-            calldatacopy(0, 0, calldatasize())
-            let result := staticcall(gas(), facet, 0, calldatasize(), 0, 0)
-            returndatacopy(0, 0, returndatasize())
-            switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
-        }
     }
 
     /**

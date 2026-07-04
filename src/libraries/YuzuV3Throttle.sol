@@ -1,9 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Throttle} from "../interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {IYuzuThrottleDefinitions, Throttle} from "../interfaces/proto/IYuzuThrottleDefinitions.sol";
 
 library YuzuV3Throttle {
+    function consumeMintChecked(Throttle storage throttle, uint256 assets) internal {
+        (uint256 blockRemaining, uint256 dailyRemaining) = remaining(throttle);
+        if (assets > blockRemaining) {
+            revert IYuzuThrottleDefinitions.ExceededMintBlockLimit(assets, blockRemaining);
+        }
+        if (assets > dailyRemaining) {
+            revert IYuzuThrottleDefinitions.ExceededMintDailyLimit(assets, dailyRemaining);
+        }
+        consume(throttle, assets);
+    }
+
+    function consumeRedeemChecked(Throttle storage throttle, uint256 assets) internal {
+        (uint256 blockRemaining, uint256 dailyRemaining) = remaining(throttle);
+        if (assets > blockRemaining) {
+            revert IYuzuThrottleDefinitions.ExceededRedeemBlockLimit(assets, blockRemaining);
+        }
+        if (assets > dailyRemaining) {
+            revert IYuzuThrottleDefinitions.ExceededRedeemDailyLimit(assets, dailyRemaining);
+        }
+        consume(throttle, assets);
+    }
+
     function remaining(Throttle memory throttle)
         internal
         view
