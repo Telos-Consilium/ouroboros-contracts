@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuUSD} from "./YuzuUSD.sol";
 import {YuzuUSDV2} from "./YuzuUSDV2.sol";
@@ -111,6 +112,49 @@ contract YuzuUSDV3 is
         _delegateToFacet();
     }
 
+    // Routed proto setters
+    function setTreasury(address) external virtual override {
+        _delegateToFacet();
+    }
+
+    function setFeeReceiver(address) external virtual override {
+        _delegateToFacet();
+    }
+
+    function setSupplyCap(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    function setLiquidityBufferTargetSize(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    function setFillWindow(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    function setMinRedeemOrder(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setRedeemFee(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setRedeemOrderFee(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    function setIsMintRestricted(bool) external virtual override {
+        _delegateToFacet();
+    }
+
+    function setIsRedeemRestricted(bool) external virtual override {
+        _delegateToFacet();
+    }
+
     // V3 views
     /// @notice Returns the mint throttle limits and usage
     function getMintThrottle() external view returns (Throttle memory) {
@@ -159,54 +203,149 @@ contract YuzuUSDV3 is
         return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
     }
 
-    // ERC4626 view routes
-    function maxDeposit(address) public view virtual override returns (uint256) {
-        _staticcallFacet();
+    // ERC4626 views
+    function maxDeposit(address receiver) public view virtual override returns (uint256) {
+        if (!canMint(receiver)) {
+            return 0;
+        }
+        uint256 baseMax = _convertToAssets(_supplyHeadroom(), Math.Rounding.Floor);
+        uint256 maxAssets = Math.min(baseMax, _mintThrottleRemaining(receiver));
+        return maxAssets < minDeposit() ? 0 : maxAssets;
     }
 
     /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
     /// keeps convertToShares from overflowing (proto share price is not bounded below 1).
-    function maxMint(address) public view virtual override returns (uint256) {
-        _staticcallFacet();
+    function maxMint(address receiver) public view virtual override returns (uint256) {
+        if (!canMint(receiver)) {
+            return 0;
+        }
+        uint256 headroom = _supplyHeadroom();
+        uint256 remaining = _mintThrottleRemaining(receiver);
+        uint256 shares = remaining >= type(uint128).max
+            ? headroom
+            : Math.min(headroom, _convertToShares(remaining, Math.Rounding.Floor));
+        return previewMint(shares) < minDeposit() ? 0 : shares;
     }
 
     /// @dev Reported net of the fee; throttle capacity is denominated in gross outflow
-    function maxWithdraw(address) public view virtual override returns (uint256) {
-        _staticcallFacet();
+    function maxWithdraw(address _owner) public view virtual override returns (uint256) {
+        if (!canRedeem(_owner)) {
+            return 0;
+        }
+        uint256 liquid = liquidityBufferSize();
+        uint256 fee = _feeOnTotal(liquid, redeemFeePpm);
+        (uint256 redeemable,) = _previewRedeem(balanceOf(_owner));
+        uint256 baseMax = Math.min(redeemable, liquid - fee);
+        uint256 remaining = _redeemThrottleRemaining(_owner);
+        uint256 throttleMax = remaining - _feeOnTotal(remaining, redeemFeePpm);
+        uint256 maxAssets = Math.min(baseMax, throttleMax);
+        return maxAssets < minWithdraw() ? 0 : maxAssets;
     }
 
-    function maxRedeem(address) public view virtual override returns (uint256) {
-        _staticcallFacet();
+    function maxRedeem(address _owner) public view virtual override returns (uint256) {
+        if (!canRedeem(_owner)) {
+            return 0;
+        }
+        uint256 maxTokens = Math.min(_convertToShares(liquidityBufferSize(), Math.Rounding.Floor), balanceOf(_owner));
+        uint256 remaining = _redeemThrottleRemaining(_owner);
+        uint256 shares = _convertToAssets(maxTokens, Math.Rounding.Floor) <= remaining
+            ? maxTokens
+            : _convertToShares(remaining, Math.Rounding.Floor);
+        (uint256 previewed,) = _previewRedeem(shares);
+        return previewed < minWithdraw() ? 0 : shares;
     }
 
-    // ERC4626 write routes
-    function deposit(uint256, address) public virtual override returns (uint256) {
+    // ERC4626 flows
+    function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
+        _checkMinDeposit(assets);
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) {
+            revert ExceededMaxDeposit(receiver, assets, maxAssets);
+        }
+        uint256 tokens = previewDeposit(assets);
+        _consumeMintThrottle(receiver, assets);
+        _recordMintBlock(receiver, tokens);
+        _deposit(_msgSender(), receiver, assets, tokens);
+        return tokens;
+    }
+
+    function mint(uint256 tokens, address receiver) public virtual override returns (uint256) {
+        uint256 assets = previewMint(tokens);
+        _checkMinDeposit(assets);
+        uint256 maxTokens = maxMint(receiver);
+        if (tokens > maxTokens) {
+            revert ExceededMaxMint(receiver, tokens, maxTokens);
+        }
+        _consumeMintThrottle(receiver, assets);
+        _recordMintBlock(receiver, tokens);
+        _deposit(_msgSender(), receiver, assets, tokens);
+        return assets;
+    }
+
+    function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
+        _checkMinWithdraw(assets);
+        _checkSameBlockRedeem(_owner);
+        uint256 maxAssets = maxWithdraw(_owner);
+        if (assets > maxAssets) {
+            revert ExceededMaxWithdraw(_owner, assets, maxAssets);
+        }
+        (uint256 tokens, uint256 fee) = _previewWithdraw(assets);
+        _consumeRedeemThrottle(_owner, assets + fee);
+        _withdraw(_msgSender(), receiver, _owner, assets, tokens, fee);
+        return tokens;
+    }
+
+    function redeem(uint256 tokens, address receiver, address _owner) public virtual override returns (uint256) {
+        uint256 maxTokens = maxRedeem(_owner);
+        if (tokens > maxTokens) {
+            revert ExceededMaxRedeem(_owner, tokens, maxTokens);
+        }
+        (uint256 assets, uint256 fee) = _previewRedeem(tokens);
+        _checkMinWithdraw(assets);
+        _checkSameBlockRedeem(_owner);
+        _consumeRedeemThrottle(_owner, assets + fee);
+        _withdraw(_msgSender(), receiver, _owner, assets, tokens, fee);
+        return assets;
+    }
+
+    // Order path routes
+    function createRedeemOrder(uint256, address, address) public virtual override returns (uint256) {
         _delegateToFacet();
     }
 
-    function mint(uint256, address) public virtual override returns (uint256) {
-        _delegateToFacet();
-    }
-
-    function withdraw(uint256, address, address) public virtual override returns (uint256) {
-        _delegateToFacet();
-    }
-
-    function redeem(uint256, address, address) public virtual override returns (uint256) {
-        _delegateToFacet();
-    }
-
-    // Order path
-    function _createRedeemOrder(address caller, address receiver, address owner, uint256 tokens)
-        internal
+    function createRedeemOrderWithMaxFee(uint256, address, address, uint256)
+        external
         virtual
         override
         returns (uint256)
     {
-        uint256 assets = previewRedeemOrder(tokens);
-        uint256 min = minWithdraw();
-        if (assets < min) revert UnderMinWithdraw(assets, min);
-        return super._createRedeemOrder(caller, receiver, owner, tokens);
+        _delegateToFacet();
+    }
+
+    function fillRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function finalizeRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function cancelRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    /// @dev Routed so the quote and the fill settlement derive from the facet's single valuation.
+    function previewRedeemOrder(uint256) public view virtual override returns (uint256) {
+        _staticcallFacet();
+    }
+
+    // Admin routes
+    function rescueTokens(address, address, uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    function withdrawCollateral(uint256, address) public virtual override {
+        _delegateToFacet();
     }
 
     // Conversion hooks
@@ -230,22 +369,105 @@ contract YuzuUSDV3 is
         return Math.mulDiv(shares, _effectiveNav(), NAV_SHARE_SCALE, rounding);
     }
 
-    // Router callbacks
-    function __routerDeposit(address caller, address receiver, uint256 assets, uint256 tokens) external {
-        _requireRouterSelfCall();
-        _deposit(caller, receiver, assets, tokens);
+    // Limit and guard helpers
+    function _supplyHeadroom() private view returns (uint256) {
+        uint256 supplyCap = cap();
+        uint256 supply = totalSupply();
+        return supply >= supplyCap ? 0 : supplyCap - supply;
     }
 
-    function __routerWithdraw(
-        address caller,
-        address receiver,
-        address _owner,
-        uint256 assets,
-        uint256 tokens,
-        uint256 fee
-    ) external {
+    function _isThrottleExempt(address account) private view returns (bool) {
+        return hasRole(THROTTLE_EXEMPT_ROLE, account);
+    }
+
+    function _mintThrottleRemaining(address account) private view returns (uint256) {
+        if (_isThrottleExempt(account)) {
+            return type(uint256).max;
+        }
+        (uint256 blockRemaining, uint256 dailyRemaining) =
+            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._mintThrottle);
+        return Math.min(blockRemaining, dailyRemaining);
+    }
+
+    function _redeemThrottleRemaining(address account) private view returns (uint256) {
+        if (_isThrottleExempt(account)) {
+            return type(uint256).max;
+        }
+        (uint256 blockRemaining, uint256 dailyRemaining) =
+            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._redeemThrottle);
+        return Math.min(blockRemaining, dailyRemaining);
+    }
+
+    function _consumeMintThrottle(address account, uint256 assets) private {
+        if (_isThrottleExempt(account)) {
+            return;
+        }
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
+        if (assets > blockRemaining) {
+            revert ExceededMintBlockLimit(assets, blockRemaining);
+        }
+        if (assets > dailyRemaining) {
+            revert ExceededMintDailyLimit(assets, dailyRemaining);
+        }
+        YuzuV3Throttle.consume(throttle, assets);
+    }
+
+    function _consumeRedeemThrottle(address account, uint256 assets) private {
+        if (_isThrottleExempt(account)) {
+            return;
+        }
+        Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
+        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
+        if (assets > blockRemaining) {
+            revert ExceededRedeemBlockLimit(assets, blockRemaining);
+        }
+        if (assets > dailyRemaining) {
+            revert ExceededRedeemDailyLimit(assets, dailyRemaining);
+        }
+        YuzuV3Throttle.consume(throttle, assets);
+    }
+
+    function _recordMintBlock(address receiver, uint256 amount) private {
+        if (amount == 0 || _isThrottleExempt(receiver)) {
+            return;
+        }
+        YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[receiver] = block.number;
+    }
+
+    function _checkSameBlockRedeem(address _owner) private view {
+        if (_isThrottleExempt(_owner)) {
+            return;
+        }
+        if (YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[_owner] == block.number) {
+            revert SameBlockMintRedeem(_owner);
+        }
+    }
+
+    function _checkMinDeposit(uint256 assets) private view {
+        uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
+        if (assets < min) revert UnderMinDeposit(assets, min);
+    }
+
+    function _checkMinWithdraw(uint256 assets) private view {
+        uint256 min = YuzuMinAmountsV3Storage.layout()._minWithdraw;
+        if (assets < min) revert UnderMinWithdraw(assets, min);
+    }
+
+    // Router callbacks
+    function __routerBurn(address _owner, uint256 tokens) external {
         _requireRouterSelfCall();
-        _withdraw(caller, receiver, _owner, assets, tokens, fee);
+        _burn(_owner, tokens);
+    }
+
+    function __routerTransfer(address from, address to, uint256 value) external {
+        _requireRouterSelfCall();
+        _transfer(from, to, value);
+    }
+
+    function __routerSpendAllowance(address _owner, address spender, uint256 value) external {
+        _requireRouterSelfCall();
+        _spendAllowance(_owner, spender, value);
     }
 
     // Router helpers

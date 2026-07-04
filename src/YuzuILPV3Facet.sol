@@ -6,6 +6,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {IYuzuIssuerDefinitions} from "./interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuOrderBookDefinitions, Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
@@ -23,6 +25,8 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
 
 /**
  * @title YuzuILPV3Facet
+ * @dev Fee and pricing math reads state through the vault's external interface so every path prices
+ * from one implementation; storage writes and the pool state machine use the pinned slots below.
  */
 contract YuzuILPV3Facet is
     IYuzuIssuerDefinitions,
@@ -92,7 +96,7 @@ contract YuzuILPV3Facet is
     // External
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
-        _checkMinDeposit(assets);
+        _checkMinDeposit(router, assets);
         uint256 maxAssets = _maxDeposit(address(this), receiver);
         if (assets > maxAssets) {
             revert ExceededMaxDeposit(receiver, assets, maxAssets);
@@ -104,7 +108,7 @@ contract YuzuILPV3Facet is
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
-        _applyPoolSizeCredit(netAssets);
+        _applyPoolSizeCredit(router, netAssets);
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
         return tokens;
     }
@@ -115,7 +119,7 @@ contract YuzuILPV3Facet is
         if (tokens > 0 && assets == 0) {
             revert ZeroTotalAssets();
         }
-        _checkMinDeposit(assets);
+        _checkMinDeposit(router, assets);
         uint256 maxTokens = _maxMint(address(this), receiver);
         if (tokens > maxTokens) {
             revert ExceededMaxMint(receiver, tokens, maxTokens);
@@ -126,7 +130,7 @@ contract YuzuILPV3Facet is
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
-        _applyPoolSizeCredit(netAssets);
+        _applyPoolSizeCredit(router, netAssets);
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
         return assets;
     }
@@ -154,6 +158,125 @@ contract YuzuILPV3Facet is
         router.__routerBurn(owner, tokens);
     }
 
+    function createRedeemOrder(uint256 tokens, address receiver, address owner) public returns (uint256) {
+        IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
+        if (receiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        uint256 maxTokens = router.maxRedeemOrder(owner);
+        if (tokens > maxTokens) {
+            revert ExceededMaxRedeemOrder(owner, tokens, maxTokens);
+        }
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        uint256 minTokens = $._minRedeemOrder;
+        if (tokens < minTokens) {
+            revert UnderMinRedeemOrder(tokens, minTokens);
+        }
+        uint256 feePpm = router.redeemOrderFeePpm();
+
+        $._totalPendingOrderSize += tokens;
+        uint256 orderId = $._orderCount;
+        // slither-disable-next-line pess-dubious-typecast
+        $._orders[orderId] = Order({
+            assets: 0,
+            tokens: tokens,
+            owner: owner,
+            receiver: receiver,
+            controller: msg.sender,
+            dueTime: SafeCast.toUint40(block.timestamp + $._fillWindow),
+            status: OrderStatus.Pending,
+            feePpm: uint24(feePpm)
+        });
+        $._orderCount++;
+
+        if (msg.sender != owner) {
+            router.__routerSpendAllowance(owner, msg.sender, tokens);
+        }
+        router.__routerTransfer(owner, address(this), tokens);
+
+        emit CreatedRedeemOrder(msg.sender, receiver, owner, orderId, tokens);
+        return orderId;
+    }
+
+    function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address owner, uint256 maxFeePpm)
+        external
+        returns (uint256)
+    {
+        uint256 feePpm = IYuzuILPV3Router(address(this)).redeemOrderFeePpm();
+        if (feePpm > maxFeePpm) {
+            revert FeeOverMaxFee(feePpm, maxFeePpm);
+        }
+        return createRedeemOrder(tokens, receiver, owner);
+    }
+
+    function finalizeRedeemOrder(uint256 orderId) external {
+        IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        Order storage order = $._orders[orderId];
+        if (msg.sender != order.owner && msg.sender != order.controller) {
+            revert UnauthorizedOrderFinalizer(msg.sender, order.owner, order.controller);
+        }
+        if (order.status != OrderStatus.Filled) {
+            revert OrderNotFilled(orderId);
+        }
+        if (router.paused()) {
+            revert PausableUpgradeable.EnforcedPause();
+        }
+
+        order.status = OrderStatus.Finalized;
+        $._totalUnfinalizedOrderValue -= order.assets;
+
+        SafeERC20.safeTransfer(IERC20(router.asset()), order.receiver, order.assets);
+
+        // slither-disable-next-line reentrancy-events
+        emit FinalizedRedeemOrder(msg.sender, order.receiver, order.owner, orderId, order.assets, order.tokens);
+        // slither-disable-next-line reentrancy-events
+        emit Withdraw(msg.sender, order.receiver, order.owner, order.assets, order.tokens);
+    }
+
+    /// @dev Order fillers may force-cancel any pending order, even while paused and before it is due.
+    function cancelRedeemOrder(uint256 orderId) external {
+        IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        Order storage order = $._orders[orderId];
+        if (order.status != OrderStatus.Pending) {
+            revert OrderNotPending(orderId);
+        }
+        if (!IAccessControl(address(this)).hasRole(ORDER_FILLER_ROLE, msg.sender)) {
+            if (router.paused()) {
+                revert PausableUpgradeable.EnforcedPause();
+            }
+            if (msg.sender != order.owner && msg.sender != order.controller) {
+                revert UnauthorizedOrderManager(msg.sender, order.owner, order.controller);
+            }
+            if (block.timestamp < order.dueTime) {
+                revert OrderNotDue(orderId);
+            }
+        }
+
+        order.status = OrderStatus.Cancelled;
+        $._totalPendingOrderSize -= order.tokens;
+        router.__routerTransfer(address(this), order.owner, order.tokens);
+
+        // slither-disable-next-line reentrancy-events
+        emit CancelledRedeemOrder(msg.sender, orderId);
+    }
+
+    function rescueTokens(address token, address to, uint256 amount) external {
+        _checkRole(ADMIN_ROLE);
+        IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
+        if (token == address(this)) {
+            uint256 outstandingBalance =
+                router.balanceOf(address(this)) - _getYuzuOrderBookStorage()._totalPendingOrderSize;
+            if (amount > outstandingBalance) {
+                revert ExceededOutstandingBalance(amount, outstandingBalance);
+            }
+        } else if (token == router.asset()) {
+            revert InvalidAssetRescue(token);
+        }
+        SafeERC20.safeTransfer(IERC20(token), to, amount);
+    }
+
     /// @dev Splits the redemption between the pool and distribution buckets so neither bears the
     /// other's share, restating the fee-net redemption gross of accrued V3 fees first.
     function fillRedeemOrder(uint256 orderId) external {
@@ -163,17 +286,15 @@ contract YuzuILPV3Facet is
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
         }
-        uint256 grossAssets = router.convertToAssets(order.tokens);
-        uint256 fee = YuzuV3Fees.feeOnTotal(grossAssets, order.feePpm);
-        uint256 assets = grossAssets - fee;
+        (uint256 assets, uint256 fee) = _orderValue(router, order.tokens, order.feePpm);
 
-        uint256 grossTotalAssets = _grossTotalAssets(Math.Rounding.Floor);
-        uint256 grossRedeemed = grossAssets;
-        uint256 netTotalAssets = _netTotalAssets(Math.Rounding.Floor);
+        uint256 grossTotalAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
+        uint256 grossRedeemed = assets + fee;
+        uint256 netTotalAssets = _proxyTotalAssets(router, Math.Rounding.Floor);
         if (netTotalAssets > 0) {
-            grossRedeemed = Math.mulDiv(grossAssets, grossTotalAssets, netTotalAssets, Math.Rounding.Ceil);
+            grossRedeemed = Math.mulDiv(assets + fee, grossTotalAssets, netTotalAssets, Math.Rounding.Ceil);
         }
-        uint256 totalAssetsFromDistributions = _netDistributedSinceUpdate();
+        uint256 totalAssetsFromDistributions = router.netDistributedSinceUpdate();
         uint256 redeemFromDistributions =
             grossTotalAssets > 0 ? Math.mulDiv(grossRedeemed, totalAssetsFromDistributions, grossTotalAssets) : 0;
         uint256 redeemedFromPool = grossRedeemed - redeemFromDistributions;
@@ -184,7 +305,7 @@ contract YuzuILPV3Facet is
         $._totalPendingOrderSize -= order.tokens;
         $._totalUnfinalizedOrderValue += assets;
         _setRedeemedDistributionsSinceUpdate(_redeemedDistributionsSinceUpdate() + redeemFromDistributions);
-        _setPoolSize(_poolSize() - _discountYield(redeemedFromPool, Math.Rounding.Ceil));
+        _setPoolSize(router.poolSize() - _proxyDiscountYield(router, redeemedFromPool, Math.Rounding.Ceil));
 
         router.__routerBurn(address(this), order.tokens);
         SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, address(this), assets);
@@ -202,7 +323,14 @@ contract YuzuILPV3Facet is
     }
 
     function totalAssetsWithRounding(uint256 rounding) external view returns (uint256) {
-        return _proxyTotalAssets(msg.sender, Math.Rounding(rounding));
+        return _proxyTotalAssets(IYuzuILPV3Router(msg.sender), Math.Rounding(rounding));
+    }
+
+    /// @notice Preview the assets paid out for redeeming {tokens} with an order at the current fee
+    function previewRedeemOrder(uint256 tokens) external view returns (uint256) {
+        IYuzuILPV3Router router = IYuzuILPV3Router(msg.sender);
+        (uint256 assets,) = _orderValue(router, tokens, router.redeemOrderFeePpm());
+        return assets;
     }
 
     /// @dev Applies V3 fees, then runs the V2 pool-update state transition on the net pool.
@@ -211,11 +339,12 @@ contract YuzuILPV3Facet is
         if (newDailyLinearYieldRatePpm > MAX_DAILY_YIELD_PPM) {
             revert InvalidYield(newDailyLinearYieldRatePpm);
         }
+        IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
 
-        uint256 managementFee = _managementFeeSinceUpdate(Math.Rounding.Ceil);
+        uint256 managementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
         uint256 netOfManagementFee = newPoolSize > managementFee ? newPoolSize - managementFee : 0;
-        uint256 performanceFee = _performanceFee(netOfManagementFee, Math.Rounding.Ceil);
+        uint256 performanceFee = _proxyPerformanceFee(router, netOfManagementFee, Math.Rounding.Ceil);
         uint256 netPool = netOfManagementFee > performanceFee ? netOfManagementFee - performanceFee : 0;
 
         if (managementFee > 0) {
@@ -231,9 +360,9 @@ contract YuzuILPV3Facet is
 
         $._managementFeeRatePpm = $._pendingManagementFeeRatePpm;
 
-        uint256 supply = IERC20(address(this)).totalSupply();
+        uint256 supply = router.totalSupply();
         if (supply > 0) {
-            uint256 newHwm = Math.mulDiv(netOfManagementFee, 10 ** IERC20Metadata(address(this)).decimals(), supply);
+            uint256 newHwm = Math.mulDiv(netOfManagementFee, 10 ** router.decimals(), supply);
             if (newHwm > $._highWaterMark) {
                 $._highWaterMark = newHwm;
             }
@@ -252,7 +381,8 @@ contract YuzuILPV3Facet is
         uint256 maxSharePrice
     ) external {
         updatePool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
-        _checkSharePriceWithin(_netTotalAssets(Math.Rounding.Floor), minSharePrice, maxSharePrice);
+        IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
+        _checkSharePriceWithin(router, _proxyTotalAssets(router, Math.Rounding.Floor), minSharePrice, maxSharePrice);
     }
 
     /// @notice Initiate a gradual increase in total assets.
@@ -278,7 +408,10 @@ contract YuzuILPV3Facet is
     /// @notice Distribute and revert if the projected end-of-distribution share price leaves the band.
     function distribute(uint256 assets, uint256 period, uint256 minSharePrice, uint256 maxSharePrice) external {
         distribute(assets, period);
-        _checkSharePriceWithin(_netTotalAssets(Math.Rounding.Floor) + assets, minSharePrice, maxSharePrice);
+        IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
+        _checkSharePriceWithin(
+            router, _proxyTotalAssets(router, Math.Rounding.Floor) + assets, minSharePrice, maxSharePrice
+        );
     }
 
     /// @notice Terminate an in-progress distribution.
@@ -489,12 +622,17 @@ contract YuzuILPV3Facet is
         emit UpdatedPool(currentPoolSize, newPoolSize, newDailyLinearYieldRatePpm);
     }
 
-    function _checkSharePriceWithin(uint256 totalAssets_, uint256 minSharePrice, uint256 maxSharePrice) private view {
-        uint256 supply = IERC20(address(this)).totalSupply();
+    function _checkSharePriceWithin(
+        IYuzuILPV3Router router,
+        uint256 totalAssets_,
+        uint256 minSharePrice,
+        uint256 maxSharePrice
+    ) private view {
+        uint256 supply = router.totalSupply();
         if (supply == 0) {
             return;
         }
-        uint256 sharePrice = Math.mulDiv(totalAssets_, 10 ** IERC20Metadata(address(this)).decimals(), supply);
+        uint256 sharePrice = Math.mulDiv(totalAssets_, 10 ** router.decimals(), supply);
         if (sharePrice > maxSharePrice) {
             revert SharePriceTooHigh(sharePrice, maxSharePrice);
         }
@@ -503,12 +641,23 @@ contract YuzuILPV3Facet is
         }
     }
 
+    /// @dev Values a redeem order: the tokens' worth at the current share price, minus the order fee.
+    function _orderValue(IYuzuILPV3Router router, uint256 tokens, uint256 feePpm)
+        private
+        view
+        returns (uint256 assets, uint256 fee)
+    {
+        uint256 grossAssets = router.convertToAssets(tokens);
+        fee = YuzuV3Fees.feeOnTotal(grossAssets, feePpm);
+        assets = grossAssets - fee;
+    }
+
     /// @dev Credits poolSize with an increment whose fee-net value equals {assets}. Tokens are priced
     /// against fee-net total assets, while poolSize bears fee accrual for the full period since the
     /// last update; the credit keeps the share price unchanged and spares the deposit from fees
     /// accrued before it entered.
-    function _applyPoolSizeCredit(uint256 assets) private {
-        _setPoolSize(_poolSize() + _poolSizeCredit(assets));
+    function _applyPoolSizeCredit(IYuzuILPV3Router router, uint256 assets) private {
+        _setPoolSize(router.poolSize() + _poolSizeCredit(router, assets));
     }
 
     /// @dev Returns the poolSize increment whose fee-net value equals {assets} now. Management fee
@@ -517,23 +666,23 @@ contract YuzuILPV3Facet is
     /// net-of-management value. Falls back to the yield discount when the pool is empty. Reverts when
     /// accrued fees have consumed the pool's net value: pool units then add nothing, so no credit can
     /// match the deposit and deposits stay closed until the next pool update.
-    function _poolSizeCredit(uint256 assets) private view returns (uint256) {
-        uint256 pool = _poolSize();
+    function _poolSizeCredit(IYuzuILPV3Router router, uint256 assets) private view returns (uint256) {
+        uint256 pool = router.poolSize();
         // slither-disable-next-line incorrect-equality
         if (pool == 0) {
-            return _discountYield(assets, Math.Rounding.Floor);
+            return _proxyDiscountYield(router, assets, Math.Rounding.Floor);
         }
-        uint256 managementFee = _managementFeeSinceUpdate(Math.Rounding.Ceil);
-        uint256 grossTotalAssets = _grossTotalAssets(Math.Rounding.Floor);
+        uint256 managementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
+        uint256 grossTotalAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
         if (grossTotalAssets <= managementFee) {
             revert PoolFeeEroded();
         }
         uint256 netOfManagementFee = grossTotalAssets - managementFee;
-        uint256 totalAssetsFromDistributions = _netDistributedSinceUpdate();
+        uint256 totalAssetsFromDistributions = router.netDistributedSinceUpdate();
         if (netOfManagementFee <= totalAssetsFromDistributions) {
             revert PoolFeeEroded();
         }
-        uint256 netTotalAssets = _netTotalAssets(Math.Rounding.Floor);
+        uint256 netTotalAssets = _proxyTotalAssets(router, Math.Rounding.Floor);
         // slither-disable-next-line incorrect-equality
         if (netTotalAssets == 0) {
             revert PoolFeeEroded();
@@ -547,44 +696,42 @@ contract YuzuILPV3Facet is
         );
     }
 
-    /// @dev Restates {assets} in last-update pool units by discounting the linear yield accrued since.
-    function _discountYield(uint256 assets, Math.Rounding rounding) private view returns (uint256) {
-        return Math.mulDiv(assets, 1e6 days, 1e6 days + _dailyLinearYieldRatePpm() * _timeSinceUpdate(), rounding);
-    }
-
-    /// @dev Total assets before V3 fee accrual: pool with linear yield plus net distributions.
-    function _grossTotalAssets(Math.Rounding rounding) private view returns (uint256) {
-        return _poolSize() + _yieldSinceUpdate(rounding) + _fullyDistributedSinceUpdate() + _distributedAssets(rounding)
-            - _redeemedDistributionsSinceUpdate();
-    }
-
-    function _netDistributedSinceUpdate() private view returns (uint256) {
-        return _fullyDistributedSinceUpdate() + _distributedAssets(Math.Rounding.Floor)
-            - _redeemedDistributionsSinceUpdate();
-    }
-
-    function _netTotalAssets(Math.Rounding rounding) private view returns (uint256) {
+    function _proxyTotalAssets(IYuzuILPV3Router router, Math.Rounding rounding) private view returns (uint256) {
         Math.Rounding feeRounding = Math.Rounding(1 - uint256(rounding));
-        uint256 total = _grossTotalAssets(rounding);
-        uint256 managementFee = _managementFeeSinceUpdate(feeRounding);
-        uint256 netOfManagementFee = managementFee >= total ? 0 : total - managementFee;
-        uint256 performanceFee = _performanceFee(netOfManagementFee, feeRounding);
-        return performanceFee >= netOfManagementFee ? 0 : netOfManagementFee - performanceFee;
-    }
-
-    function _proxyTotalAssets(address proxy, Math.Rounding rounding) private view returns (uint256) {
-        Math.Rounding feeRounding = Math.Rounding(1 - uint256(rounding));
-        IYuzuILPV3Router router = IYuzuILPV3Router(proxy);
-        uint256 pool = router.poolSize();
-        uint256 total = pool
-            + Math.mulDiv(pool * router.dailyLinearYieldRatePpm(), _proxyTimeSinceUpdate(router), 1e6 days, rounding)
-            + _proxyNetDistributedSinceUpdate(router, rounding);
-        uint256 managementFee = Math.mulDiv(
-            pool * router.managementFeeRatePpm(), _proxyTimeSinceUpdate(router), 1e6 * 365 days, feeRounding
-        );
+        uint256 total = _proxyGrossTotalAssets(router, rounding);
+        uint256 managementFee = _proxyManagementFee(router, feeRounding);
         uint256 netOfManagementFee = managementFee >= total ? 0 : total - managementFee;
         uint256 performanceFee = _proxyPerformanceFee(router, netOfManagementFee, feeRounding);
         return performanceFee >= netOfManagementFee ? 0 : netOfManagementFee - performanceFee;
+    }
+
+    /// @dev Total assets before V3 fee accrual: pool with linear yield plus net distributions.
+    function _proxyGrossTotalAssets(IYuzuILPV3Router router, Math.Rounding rounding) private view returns (uint256) {
+        return router.poolSize() + _proxyYieldSinceUpdate(router, rounding)
+            + _proxyNetDistributedSinceUpdate(router, rounding);
+    }
+
+    function _proxyYieldSinceUpdate(IYuzuILPV3Router router, Math.Rounding rounding) private view returns (uint256) {
+        return Math.mulDiv(
+            router.poolSize() * router.dailyLinearYieldRatePpm(), _proxyTimeSinceUpdate(router), 1e6 days, rounding
+        );
+    }
+
+    function _proxyManagementFee(IYuzuILPV3Router router, Math.Rounding rounding) private view returns (uint256) {
+        return Math.mulDiv(
+            router.poolSize() * router.managementFeeRatePpm(), _proxyTimeSinceUpdate(router), 1e6 * 365 days, rounding
+        );
+    }
+
+    /// @dev Restates {assets} in last-update pool units by discounting the linear yield accrued since.
+    function _proxyDiscountYield(IYuzuILPV3Router router, uint256 assets, Math.Rounding rounding)
+        private
+        view
+        returns (uint256)
+    {
+        return Math.mulDiv(
+            assets, 1e6 days, 1e6 days + router.dailyLinearYieldRatePpm() * _proxyTimeSinceUpdate(router), rounding
+        );
     }
 
     function _proxyNetDistributedSinceUpdate(IYuzuILPV3Router router, Math.Rounding rounding)
@@ -629,33 +776,6 @@ contract YuzuILPV3Facet is
 
     function _proxyTimeSinceUpdate(IYuzuILPV3Router router) private view returns (uint256) {
         return block.timestamp - router.lastPoolUpdateTimestamp();
-    }
-
-    function _managementFeeSinceUpdate(Math.Rounding rounding) private view returns (uint256) {
-        return Math.mulDiv(_poolSize() * _managementFeeRatePpm(), _timeSinceUpdate(), 1e6 * 365 days, rounding);
-    }
-
-    function _performanceFee(uint256 netOfManagementFee, Math.Rounding rounding) private view returns (uint256) {
-        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
-        uint256 rate = $._performanceFeeRatePpm;
-        uint256 supply = IERC20(address(this)).totalSupply();
-        if (rate == 0 || supply == 0) {
-            return 0;
-        }
-        uint256 hwmAssets = Math.mulDiv(
-            $._highWaterMark,
-            supply,
-            10 ** IERC20Metadata(address(this)).decimals(),
-            Math.Rounding(1 - uint256(rounding))
-        );
-        if (netOfManagementFee <= hwmAssets) {
-            return 0;
-        }
-        return Math.mulDiv(rate, netOfManagementFee - hwmAssets, 1e6, rounding);
-    }
-
-    function _yieldSinceUpdate(Math.Rounding rounding) private view returns (uint256) {
-        return Math.mulDiv(_poolSize() * _dailyLinearYieldRatePpm(), _timeSinceUpdate(), 1e6 days, rounding);
     }
 
     function _isDistributionInProgress() private view returns (bool) {
@@ -729,18 +849,16 @@ contract YuzuILPV3Facet is
 
     /// @dev True when the accrued management fee has consumed the pool bucket's entire net value,
     /// leaving pool units with no marginal worth; deposits cannot be priced until the next pool update.
+    /// Matches the second {_poolSizeCredit} revert guard: with netDistributed constant on both sides
+    /// of that comparison, it reduces to this pool-only predicate.
     function _isPoolFeeEroded(IYuzuILPV3Router router) private view returns (bool) {
         uint256 pool = router.poolSize();
         // slither-disable-next-line incorrect-equality
         if (pool == 0) {
             return false;
         }
-        uint256 elapsed = _proxyTimeSinceUpdate(router);
-        uint256 managementFee =
-            Math.mulDiv(pool * router.managementFeeRatePpm(), elapsed, 1e6 * 365 days, Math.Rounding.Ceil);
-        uint256 poolGross =
-            pool + Math.mulDiv(pool * router.dailyLinearYieldRatePpm(), elapsed, 1e6 days, Math.Rounding.Floor);
-        return poolGross <= managementFee;
+        uint256 poolGross = pool + _proxyYieldSinceUpdate(router, Math.Rounding.Floor);
+        return poolGross <= _proxyManagementFee(router, Math.Rounding.Ceil);
     }
 
     function _canMint(address proxy, address receiver) private view returns (bool) {
@@ -780,8 +898,8 @@ contract YuzuILPV3Facet is
         YuzuV3Throttle.consume(throttle, assets);
     }
 
-    function _checkMinDeposit(uint256 assets) private view {
-        uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
+    function _checkMinDeposit(IYuzuILPV3Router router, uint256 assets) private view {
+        uint256 min = router.minDeposit();
         if (assets < min) revert UnderMinDeposit(assets, min);
     }
 
@@ -822,21 +940,9 @@ contract YuzuILPV3Facet is
         }
     }
 
-    function _dailyLinearYieldRatePpm() private view returns (uint256 value) {
-        assembly {
-            value := sload(YUZU_ILP_DAILY_LINEAR_YIELD_RATE_PPM_SLOT)
-        }
-    }
-
     function _setDailyLinearYieldRatePpm(uint256 value) private {
         assembly {
             sstore(YUZU_ILP_DAILY_LINEAR_YIELD_RATE_PPM_SLOT, value)
-        }
-    }
-
-    function _lastPoolUpdateTimestamp() private view returns (uint256 value) {
-        assembly {
-            value := sload(YUZU_ILP_LAST_POOL_UPDATE_TIMESTAMP_SLOT)
         }
     }
 
@@ -936,14 +1042,6 @@ contract YuzuILPV3Facet is
         assembly {
             sstore(YUZU_PROTO_REDEEM_ORDER_FEE_SLOT, value)
         }
-    }
-
-    function _timeSinceUpdate() private view returns (uint256) {
-        return block.timestamp - _lastPoolUpdateTimestamp();
-    }
-
-    function _managementFeeRatePpm() private view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._managementFeeRatePpm;
     }
 
     function _getYuzuIssuerStorage() private pure returns (YuzuIssuerStorage storage $) {

@@ -304,6 +304,61 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    /// @dev Routed so the quote and the fill settlement derive from the facet's single valuation.
+    function previewRedeemOrder(uint256) public view virtual override returns (uint256) {
+        _staticcallFacet();
+    }
+
+    function createRedeemOrder(uint256, address, address) public virtual override returns (uint256) {
+        _delegateToFacet();
+    }
+
+    function createRedeemOrderWithMaxFee(uint256, address, address, uint256)
+        external
+        virtual
+        override
+        returns (uint256)
+    {
+        _delegateToFacet();
+    }
+
+    function finalizeRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function cancelRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function rescueTokens(address, address, uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // Disabled instant redemptions
+    /// @dev yzILP has no instant redeem path; the inherited entrypoints always revert, so they are
+    /// disabled to save runtime bytecode.
+    function withdraw(uint256, address, address) public pure virtual override returns (uint256) {
+        revert();
+    }
+
+    function redeem(uint256, address, address) public pure virtual override returns (uint256) {
+        revert();
+    }
+
+    function withdrawWithSlippage(uint256, address, address, uint256)
+        external
+        pure
+        virtual
+        override
+        returns (uint256)
+    {
+        revert();
+    }
+
+    function redeemWithSlippage(uint256, address, address, uint256) external pure virtual override returns (uint256) {
+        revert();
+    }
+
     // Native hooks
     /// @dev The facet credits poolSize with the deposit's fee-adjusted value before routing here, so
     /// only the base transfer-and-mint runs.
@@ -328,6 +383,16 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
     function __routerBurn(address owner, uint256 tokens) external {
         _requireRouterSelfCall();
         _burn(owner, tokens);
+    }
+
+    function __routerTransfer(address from, address to, uint256 value) external {
+        _requireRouterSelfCall();
+        _transfer(from, to, value);
+    }
+
+    function __routerSpendAllowance(address owner, address spender, uint256 value) external {
+        _requireRouterSelfCall();
+        _spendAllowance(owner, spender, value);
     }
 
     function _requireRouterSelfCall() private view {

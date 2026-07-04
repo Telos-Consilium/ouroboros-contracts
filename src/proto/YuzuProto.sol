@@ -210,7 +210,7 @@ abstract contract YuzuProto is
     }
 
     /// @inheritdoc YuzuOrderBook
-    function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
+    function previewRedeemOrder(uint256 tokens) public view virtual override returns (uint256) {
         (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
         return assets;
     }
@@ -218,6 +218,7 @@ abstract contract YuzuProto is
     /// @notice Create a redeem order and revert if the fee exceeds the maximum fee
     function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address _owner, uint256 maxFeePpm)
         external
+        virtual
         returns (uint256)
     {
         if (redeemOrderFeePpm > maxFeePpm) {
@@ -237,7 +238,7 @@ abstract contract YuzuProto is
     }
 
     /// @notice Rescue tokens from the contract
-    function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
+    function rescueTokens(address token, address to, uint256 amount) external virtual onlyRole(ADMIN_ROLE) {
         if (token == address(this)) {
             uint256 outstandingBalance = balanceOf(address(this)) - totalPendingOrderSize();
             if (amount > outstandingBalance) {

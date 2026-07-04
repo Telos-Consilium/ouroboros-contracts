@@ -2,140 +2,232 @@
 pragma solidity ^0.8.30;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import {IYuzuIssuerDefinitions} from "./interfaces/proto/IYuzuIssuerDefinitions.sol";
+import {IYuzuOrderBookDefinitions, Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
-import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {
     IYuzuMinAmountsDefinitions,
     IYuzuNavMarkdownDefinitions,
-    IYuzuSameBlockGuardDefinitions
+    IYuzuProtoDefinitions
 } from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuUSDV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {
-    YuzuMinAmountsV3Storage,
-    YuzuNavMarkdownV3Storage,
-    YuzuSameBlockGuardV3Storage,
-    YuzuThrottleV3Storage
-} from "./storage/YuzuV3Storage.sol";
+import {YuzuMinAmountsV3Storage, YuzuNavMarkdownV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuUSDV3Facet
+ * @dev Fee and pricing math reads state through the vault's external interface so every path prices
+ * from one implementation; storage writes use the pinned slots below.
  */
 contract YuzuUSDV3Facet is
     IYuzuIssuerDefinitions,
+    IYuzuOrderBookDefinitions,
+    IYuzuProtoDefinitions,
     IYuzuMinAmountsDefinitions,
     IYuzuThrottleDefinitions,
-    IYuzuNavMarkdownDefinitions,
-    IYuzuSameBlockGuardDefinitions
+    IYuzuNavMarkdownDefinitions
 {
     bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
-    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
+    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
 
-    uint256 internal constant NAV_PRECISION = 1e18;
+    uint256 private constant YUZU_PROTO_TREASURY_SLOT = 1;
+    uint256 private constant YUZU_PROTO_REDEEM_FEE_SLOT = 2;
+    uint256 private constant YUZU_PROTO_REDEEM_ORDER_FEE_SLOT = 3;
+    uint256 private constant YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT = 4;
+    uint256 private constant IS_MINT_RESTRICTED_SHIFT = 160;
+    uint256 private constant IS_REDEEM_RESTRICTED_SHIFT = 168;
+
+    struct YuzuIssuerStorage {
+        uint256 _supplyCap;
+        uint256 _liquidityBufferTargetSize;
+    }
+
+    struct YuzuOrderBookStorage {
+        uint256 _fillWindow;
+        uint256 _totalPendingOrderSize;
+        uint256 _totalUnfinalizedOrderValue;
+        uint256 _orderCount;
+        uint256 _minRedeemOrder;
+        mapping(uint256 => Order) _orders;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.issuer")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant YuzuIssuerStorageLocation =
+        0x542408f99cbd5a3e32919127cd9d8984eb4635c3ab0f9f17273c636c42e08d00;
+
+    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.orderbook")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant YuzuOrderBookStorageLocation =
+        0x747f75a735bbbfd5f9552c4d2a106ffbc4ca977c3f429389a57413d9a643a500;
 
     // External
-    function deposit(uint256 assets, address receiver) external returns (uint256) {
+    function createRedeemOrder(uint256 tokens, address receiver, address owner) public returns (uint256) {
         IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
-        _checkMinDeposit(assets);
-        uint256 maxAssets = _maxDeposit(address(this), receiver);
-        if (assets > maxAssets) {
-            revert ExceededMaxDeposit(receiver, assets, maxAssets);
+        if (receiver == address(0)) {
+            revert InvalidZeroAddress();
         }
-        uint256 tokens = router.previewDeposit(assets);
-        _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver, tokens);
-        router.__routerDeposit(msg.sender, receiver, assets, tokens);
-        return tokens;
-    }
-
-    function mint(uint256 tokens, address receiver) external returns (uint256) {
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
-        uint256 assets = router.previewMint(tokens);
-        _checkMinDeposit(assets);
-        uint256 maxTokens = _maxMint(address(this), receiver);
+        uint256 maxTokens = router.maxRedeemOrder(owner);
         if (tokens > maxTokens) {
-            revert ExceededMaxMint(receiver, tokens, maxTokens);
+            revert ExceededMaxRedeemOrder(owner, tokens, maxTokens);
         }
-        _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver, tokens);
-        router.__routerDeposit(msg.sender, receiver, assets, tokens);
-        return assets;
-    }
-
-    function withdraw(uint256 assets, address receiver, address owner) public returns (uint256) {
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        uint256 minTokens = $._minRedeemOrder;
+        if (tokens < minTokens) {
+            revert UnderMinRedeemOrder(tokens, minTokens);
+        }
+        uint256 feePpm = router.redeemOrderFeePpm();
+        (uint256 assets,) = _orderValue(router, tokens, feePpm);
         _checkMinWithdraw(assets);
-        _checkSameBlockRedeem(owner);
-        uint256 maxAssets = _maxWithdraw(address(this), owner);
-        if (assets > maxAssets) {
-            revert ExceededMaxWithdraw(owner, assets, maxAssets);
+
+        $._totalPendingOrderSize += tokens;
+        uint256 orderId = $._orderCount;
+        // slither-disable-next-line pess-dubious-typecast
+        $._orders[orderId] = Order({
+            assets: 0,
+            tokens: tokens,
+            owner: owner,
+            receiver: receiver,
+            controller: msg.sender,
+            dueTime: SafeCast.toUint40(block.timestamp + $._fillWindow),
+            status: OrderStatus.Pending,
+            feePpm: uint24(feePpm)
+        });
+        $._orderCount++;
+
+        if (msg.sender != owner) {
+            router.__routerSpendAllowance(owner, msg.sender, tokens);
         }
-        uint256 tokens = router.previewWithdraw(assets);
-        uint256 fee = YuzuV3Fees.feeOnRaw(assets, router.redeemFeePpm());
-        _consumeRedeemThrottle(owner, assets + fee);
-        router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
-        return tokens;
+        router.__routerTransfer(owner, address(this), tokens);
+
+        emit CreatedRedeemOrder(msg.sender, receiver, owner, orderId, tokens);
+        return orderId;
     }
 
-    function redeem(uint256 tokens, address receiver, address owner) public returns (uint256) {
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
-        uint256 maxTokens = _maxRedeem(address(this), owner);
-        if (tokens > maxTokens) {
-            revert ExceededMaxRedeem(owner, tokens, maxTokens);
-        }
-        uint256 grossAssets = router.convertToAssets(tokens);
-        uint256 fee = YuzuV3Fees.feeOnTotal(grossAssets, router.redeemFeePpm());
-        uint256 assets = grossAssets - fee;
-        _checkMinWithdraw(assets);
-        _checkSameBlockRedeem(owner);
-        _consumeRedeemThrottle(owner, assets + fee);
-        router.__routerWithdraw(msg.sender, receiver, owner, assets, tokens, fee);
-        return assets;
-    }
-
-    function withdrawWithSlippage(uint256 assets, address receiver, address owner, uint256 maxTokens)
+    function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address owner, uint256 maxFeePpm)
         external
         returns (uint256)
     {
-        uint256 tokens = withdraw(assets, receiver, owner);
-        if (tokens > maxTokens) {
-            revert RedeemedMoreThanMaxTokens(tokens, maxTokens);
+        uint256 feePpm = IYuzuUSDV3Router(address(this)).redeemOrderFeePpm();
+        if (feePpm > maxFeePpm) {
+            revert FeeOverMaxFee(feePpm, maxFeePpm);
         }
-        return tokens;
+        return createRedeemOrder(tokens, receiver, owner);
     }
 
-    function redeemWithSlippage(uint256 tokens, address receiver, address owner, uint256 minAssets)
-        external
-        returns (uint256)
-    {
-        uint256 assets = redeem(tokens, receiver, owner);
-        if (assets < minAssets) {
-            revert WithdrewLessThanMinAssets(assets, minAssets);
+    function fillRedeemOrder(uint256 orderId) external {
+        _checkRole(ORDER_FILLER_ROLE);
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        Order storage order = $._orders[orderId];
+        if (order.status != OrderStatus.Pending) {
+            revert OrderNotPending(orderId);
         }
+        (uint256 assets, uint256 fee) = _orderValue(router, order.tokens, order.feePpm);
+
+        order.status = OrderStatus.Filled;
+        order.assets = assets;
+        $._totalPendingOrderSize -= order.tokens;
+        $._totalUnfinalizedOrderValue += assets;
+
+        router.__routerBurn(address(this), order.tokens);
+        SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, address(this), assets);
+
+        // slither-disable-next-line reentrancy-events
+        emit FilledRedeemOrder(msg.sender, order.receiver, order.owner, orderId, assets, order.tokens, fee);
+    }
+
+    function finalizeRedeemOrder(uint256 orderId) external {
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        Order storage order = $._orders[orderId];
+        if (msg.sender != order.owner && msg.sender != order.controller) {
+            revert UnauthorizedOrderFinalizer(msg.sender, order.owner, order.controller);
+        }
+        if (order.status != OrderStatus.Filled) {
+            revert OrderNotFilled(orderId);
+        }
+        if (router.paused()) {
+            revert PausableUpgradeable.EnforcedPause();
+        }
+
+        order.status = OrderStatus.Finalized;
+        $._totalUnfinalizedOrderValue -= order.assets;
+
+        SafeERC20.safeTransfer(IERC20(router.asset()), order.receiver, order.assets);
+
+        // slither-disable-next-line reentrancy-events
+        emit FinalizedRedeemOrder(msg.sender, order.receiver, order.owner, orderId, order.assets, order.tokens);
+        // slither-disable-next-line reentrancy-events
+        emit Withdraw(msg.sender, order.receiver, order.owner, order.assets, order.tokens);
+    }
+
+    /// @dev Order fillers may force-cancel any pending order, even while paused and before it is due.
+    function cancelRedeemOrder(uint256 orderId) external {
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        Order storage order = $._orders[orderId];
+        if (order.status != OrderStatus.Pending) {
+            revert OrderNotPending(orderId);
+        }
+        if (!IAccessControl(address(this)).hasRole(ORDER_FILLER_ROLE, msg.sender)) {
+            if (router.paused()) {
+                revert PausableUpgradeable.EnforcedPause();
+            }
+            if (msg.sender != order.owner && msg.sender != order.controller) {
+                revert UnauthorizedOrderManager(msg.sender, order.owner, order.controller);
+            }
+            if (block.timestamp < order.dueTime) {
+                revert OrderNotDue(orderId);
+            }
+        }
+
+        order.status = OrderStatus.Cancelled;
+        $._totalPendingOrderSize -= order.tokens;
+        router.__routerTransfer(address(this), order.owner, order.tokens);
+
+        // slither-disable-next-line reentrancy-events
+        emit CancelledRedeemOrder(msg.sender, orderId);
+    }
+
+    function rescueTokens(address token, address to, uint256 amount) external {
+        _checkRole(ADMIN_ROLE);
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
+        if (token == address(this)) {
+            uint256 outstandingBalance =
+                router.balanceOf(address(this)) - _getYuzuOrderBookStorage()._totalPendingOrderSize;
+            if (amount > outstandingBalance) {
+                revert ExceededOutstandingBalance(amount, outstandingBalance);
+            }
+        } else if (token == router.asset()) {
+            revert InvalidAssetRescue(token);
+        }
+        SafeERC20.safeTransfer(IERC20(token), to, amount);
+    }
+
+    function withdrawCollateral(uint256 assets, address receiver) external {
+        _checkRole(ADMIN_ROLE);
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
+        uint256 liquidityBuffer = router.liquidityBufferSize();
+        if (assets == type(uint256).max) {
+            assets = liquidityBuffer;
+        } else if (assets > liquidityBuffer) {
+            revert ExceededLiquidityBuffer(assets, liquidityBuffer);
+        }
+        SafeERC20.safeTransfer(IERC20(router.asset()), receiver, assets);
+        emit WithdrawnCollateral(receiver, assets);
+    }
+
+    function previewRedeemOrder(uint256 tokens) external view returns (uint256) {
+        IYuzuUSDV3Router router = IYuzuUSDV3Router(msg.sender);
+        (uint256 assets,) = _orderValue(router, tokens, router.redeemOrderFeePpm());
         return assets;
-    }
-
-    function maxDeposit(address receiver) public view returns (uint256) {
-        return _maxDeposit(msg.sender, receiver);
-    }
-
-    function maxMint(address receiver) public view returns (uint256) {
-        return _maxMint(msg.sender, receiver);
-    }
-
-    function maxWithdraw(address owner) public view returns (uint256) {
-        return _maxWithdraw(msg.sender, owner);
-    }
-
-    function maxRedeem(address owner) public view returns (uint256) {
-        return _maxRedeem(msg.sender, owner);
     }
 
     // slither-disable-next-line pess-event-setter
@@ -229,6 +321,97 @@ contract YuzuUSDV3Facet is
         emit UpdatedNavCooldown(oldCooldown, newCooldown);
     }
 
+    function setTreasury(address newTreasury) external {
+        _checkRole(ADMIN_ROLE);
+        if (newTreasury == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        address oldTreasury = IYuzuUSDV3Router(address(this)).treasury();
+        _setPackedAddress(YUZU_PROTO_TREASURY_SLOT, newTreasury);
+        emit UpdatedTreasury(oldTreasury, newTreasury);
+    }
+
+    function setFeeReceiver(address newFeeReceiver) external {
+        _checkRole(ADMIN_ROLE);
+        if (newFeeReceiver == address(0)) {
+            revert InvalidZeroAddress();
+        }
+        address oldFeeReceiver = IYuzuUSDV3Router(address(this)).feeReceiver();
+        _setPackedAddress(YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT, newFeeReceiver);
+        emit UpdatedFeeReceiver(oldFeeReceiver, newFeeReceiver);
+    }
+
+    function setSupplyCap(uint256 newCap) external {
+        _checkRole(LIMIT_MANAGER_ROLE);
+        YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
+        uint256 oldCap = $._supplyCap;
+        $._supplyCap = newCap;
+        emit UpdatedSupplyCap(oldCap, newCap);
+    }
+
+    function setLiquidityBufferTargetSize(uint256 newSize) external {
+        _checkRole(REDEEM_MANAGER_ROLE);
+        YuzuIssuerStorage storage $ = _getYuzuIssuerStorage();
+        uint256 oldSize = $._liquidityBufferTargetSize;
+        $._liquidityBufferTargetSize = newSize;
+        emit UpdatedLiquidityBufferTargetSize(oldSize, newSize);
+    }
+
+    function setFillWindow(uint256 newWindow) external {
+        _checkRole(REDEEM_MANAGER_ROLE);
+        if (newWindow > 365 days) {
+            revert FillWindowTooHigh(newWindow, 365 days);
+        }
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        uint256 oldWindow = $._fillWindow;
+        $._fillWindow = newWindow;
+        emit UpdatedFillWindow(oldWindow, newWindow);
+    }
+
+    function setMinRedeemOrder(uint256 newMin) external {
+        _checkRole(REDEEM_MANAGER_ROLE);
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        uint256 oldMin = $._minRedeemOrder;
+        $._minRedeemOrder = newMin;
+        emit UpdatedMinRedeemOrder(oldMin, newMin);
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setRedeemFee(uint256 newFeePpm) external {
+        _checkRole(REDEEM_MANAGER_ROLE);
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(newFeePpm, 1e6);
+        }
+        uint256 oldFee = _redeemFeePpm();
+        _setRedeemFeePpm(newFeePpm);
+        emit UpdatedRedeemFee(oldFee, newFeePpm);
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setRedeemOrderFee(uint256 newFeePpm) external {
+        _checkRole(REDEEM_MANAGER_ROLE);
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(newFeePpm, 1e6);
+        }
+        uint256 oldFee = _redeemOrderFeePpm();
+        _setRedeemOrderFeePpm(newFeePpm);
+        emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
+    }
+
+    function setIsMintRestricted(bool restricted) external {
+        _checkRole(ADMIN_ROLE);
+        bool oldValue =
+            _setPackedBool(YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT, IS_MINT_RESTRICTED_SHIFT, restricted);
+        emit UpdatedIsMintRestricted(oldValue, restricted);
+    }
+
+    function setIsRedeemRestricted(bool restricted) external {
+        _checkRole(ADMIN_ROLE);
+        bool oldValue =
+            _setPackedBool(YUZU_PROTO_FEE_RECEIVER_AND_RESTRICTIONS_SLOT, IS_REDEEM_RESTRICTED_SHIFT, restricted);
+        emit UpdatedIsRedeemRestricted(oldValue, restricted);
+    }
+
     // Internal
     function _checkRole(bytes32 role) private view {
         if (!IAccessControl(address(this)).hasRole(role, msg.sender)) {
@@ -236,101 +419,15 @@ contract YuzuUSDV3Facet is
         }
     }
 
-    function _isThrottleExempt(address account) private view returns (bool) {
-        return IAccessControl(address(this)).hasRole(THROTTLE_EXEMPT_ROLE, account);
-    }
-
-    function _canMint(address proxy, address receiver) private view returns (bool) {
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        return !router.paused() && (!router.isMintRestricted() || IAccessControl(proxy).hasRole(MINTER_ROLE, receiver));
-    }
-
-    function _canRedeem(address proxy, address owner) private view returns (bool) {
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        return !router.paused() && (!router.isRedeemRestricted() || IAccessControl(proxy).hasRole(REDEEMER_ROLE, owner));
-    }
-
-    function _maxDeposit(address proxy, address receiver) private view returns (uint256) {
-        if (!_canMint(proxy, receiver)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 headroom = _supplyHeadroom(proxy);
-        uint256 baseMax = router.convertToAssets(headroom);
-        uint256 maxAssets = Math.min(baseMax, _mintThrottleRemaining(proxy, receiver));
-        uint256 min = router.minDeposit();
-        return maxAssets < min ? 0 : maxAssets;
-    }
-
-    function _maxMint(address proxy, address receiver) private view returns (uint256) {
-        if (!_canMint(proxy, receiver)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 headroom = _supplyHeadroom(proxy);
-        uint256 remaining = _mintThrottleRemaining(proxy, receiver);
-        uint256 shares =
-            remaining >= type(uint128).max ? headroom : Math.min(headroom, router.convertToShares(remaining));
-        uint256 min = router.minDeposit();
-        return router.previewMint(shares) < min ? 0 : shares;
-    }
-
-    function _maxWithdraw(address proxy, address owner) private view returns (uint256) {
-        if (!_canRedeem(proxy, owner)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 feePpm = router.redeemFeePpm();
-        uint256 liquid = router.liquidityBufferSize();
-        uint256 fee = YuzuV3Fees.feeOnTotal(liquid, feePpm);
-        uint256 baseMax = Math.min(router.previewRedeem(router.balanceOf(owner)), liquid - fee);
-        uint256 remaining = _redeemThrottleRemaining(proxy, owner);
-        uint256 throttleMax = remaining - YuzuV3Fees.feeOnTotal(remaining, feePpm);
-        uint256 maxAssets = Math.min(baseMax, throttleMax);
-        uint256 min = router.minWithdraw();
-        return maxAssets < min ? 0 : maxAssets;
-    }
-
-    function _maxRedeem(address proxy, address owner) private view returns (uint256) {
-        if (!_canRedeem(proxy, owner)) {
-            return 0;
-        }
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 maxTokens = Math.min(router.convertToShares(router.liquidityBufferSize()), router.balanceOf(owner));
-        uint256 remaining = _redeemThrottleRemaining(proxy, owner);
-        uint256 shares = router.convertToAssets(maxTokens) <= remaining ? maxTokens : router.convertToShares(remaining);
-        uint256 min = router.minWithdraw();
-        return router.previewRedeem(shares) < min ? 0 : shares;
-    }
-
-    function _supplyHeadroom(address proxy) private view returns (uint256) {
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(proxy);
-        uint256 supplyCap = router.cap();
-        uint256 supply = router.totalSupply();
-        return supply >= supplyCap ? 0 : supplyCap - supply;
-    }
-
-    function _mintThrottleRemaining(address proxy, address account) private view returns (uint256) {
-        if (IAccessControl(proxy).hasRole(THROTTLE_EXEMPT_ROLE, account)) {
-            return type(uint256).max;
-        }
-        Throttle memory throttle = IYuzuUSDV3Router(proxy).getMintThrottle();
-        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
-        return Math.min(blockRemaining, dailyRemaining);
-    }
-
-    function _redeemThrottleRemaining(address proxy, address account) private view returns (uint256) {
-        if (IAccessControl(proxy).hasRole(THROTTLE_EXEMPT_ROLE, account)) {
-            return type(uint256).max;
-        }
-        Throttle memory throttle = IYuzuUSDV3Router(proxy).getRedeemThrottle();
-        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
-        return Math.min(blockRemaining, dailyRemaining);
-    }
-
-    function _checkMinDeposit(uint256 assets) private view {
-        uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
-        if (assets < min) revert UnderMinDeposit(assets, min);
+    /// @dev Values a redeem order: the tokens' worth at the current share price, minus the order fee.
+    function _orderValue(IYuzuUSDV3Router router, uint256 tokens, uint256 feePpm)
+        private
+        view
+        returns (uint256 assets, uint256 fee)
+    {
+        uint256 grossAssets = router.convertToAssets(tokens);
+        fee = YuzuV3Fees.feeOnTotal(grossAssets, feePpm);
+        assets = grossAssets - fee;
     }
 
     function _checkMinWithdraw(uint256 assets) private view {
@@ -338,49 +435,66 @@ contract YuzuUSDV3Facet is
         if (assets < min) revert UnderMinWithdraw(assets, min);
     }
 
-    function _consumeMintThrottle(address account, uint256 assets) private {
-        if (_isThrottleExempt(account)) {
-            return;
+    // Storage
+    function _setPackedAddress(uint256 slot, address value) private {
+        uint256 mask = type(uint160).max;
+        assembly {
+            let oldValue := sload(slot)
+            sstore(slot, or(and(oldValue, not(mask)), and(value, mask)))
         }
-        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
-        if (assets > blockRemaining) {
-            revert ExceededMintBlockLimit(assets, blockRemaining);
-        }
-        if (assets > dailyRemaining) {
-            revert ExceededMintDailyLimit(assets, dailyRemaining);
-        }
-        YuzuV3Throttle.consume(throttle, assets);
     }
 
-    function _consumeRedeemThrottle(address account, uint256 assets) private {
-        if (_isThrottleExempt(account)) {
-            return;
+    function _setPackedBool(uint256 slot, uint256 shift, bool value) private returns (bool oldValue) {
+        uint256 mask = 0xff << shift;
+        uint256 oldSlot;
+        assembly {
+            oldSlot := sload(slot)
         }
-        Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
-        (uint256 blockRemaining, uint256 dailyRemaining) = YuzuV3Throttle.remaining(throttle);
-        if (assets > blockRemaining) {
-            revert ExceededRedeemBlockLimit(assets, blockRemaining);
+        oldValue = ((oldSlot >> shift) & 0xff) != 0;
+        uint256 newSlot = oldSlot & ~mask;
+        if (value) {
+            newSlot |= 1 << shift;
         }
-        if (assets > dailyRemaining) {
-            revert ExceededRedeemDailyLimit(assets, dailyRemaining);
+        assembly {
+            sstore(slot, newSlot)
         }
-        YuzuV3Throttle.consume(throttle, assets);
     }
 
-    function _recordMintBlock(address receiver, uint256 amount) private {
-        if (amount == 0 || _isThrottleExempt(receiver)) {
-            return;
+    function _redeemFeePpm() private view returns (uint256 value) {
+        assembly {
+            value := sload(YUZU_PROTO_REDEEM_FEE_SLOT)
         }
-        YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[receiver] = block.number;
     }
 
-    function _checkSameBlockRedeem(address owner) private view {
-        if (_isThrottleExempt(owner)) {
-            return;
+    function _setRedeemFeePpm(uint256 value) private {
+        assembly {
+            sstore(YUZU_PROTO_REDEEM_FEE_SLOT, value)
         }
-        if (YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[owner] == block.number) {
-            revert SameBlockMintRedeem(owner);
+    }
+
+    function _redeemOrderFeePpm() private view returns (uint256 value) {
+        assembly {
+            value := sload(YUZU_PROTO_REDEEM_ORDER_FEE_SLOT)
+        }
+    }
+
+    function _setRedeemOrderFeePpm(uint256 value) private {
+        assembly {
+            sstore(YUZU_PROTO_REDEEM_ORDER_FEE_SLOT, value)
+        }
+    }
+
+    function _getYuzuIssuerStorage() private pure returns (YuzuIssuerStorage storage $) {
+        // slither-disable-next-line assembly
+        assembly {
+            $.slot := YuzuIssuerStorageLocation
+        }
+    }
+
+    function _getYuzuOrderBookStorage() private pure returns (YuzuOrderBookStorage storage $) {
+        // slither-disable-next-line assembly
+        assembly {
+            $.slot := YuzuOrderBookStorageLocation
         }
     }
 }

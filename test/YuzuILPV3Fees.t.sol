@@ -425,6 +425,34 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "order fill moved the share price while a fee was live");
     }
 
+    // The public quote and the fill settlement must price an order identically: an order filled right
+    // after being quoted settles at exactly the quoted assets, with fees and yield accrual live.
+    function test_OrderFill_SettlesAtPreviewRedeemOrderQuote() public {
+        _setupPool();
+        vm.startPrank(feeManager);
+        yzilp.setRedeemOrderFee(10_000); // 1%
+        yzilp.setPendingManagementFee(100_000); // 10%/yr
+        vm.stopPrank();
+        _promote(0);
+
+        vm.prank(user);
+        uint256 orderId = yzilp.createRedeemOrder(100e18, user, user);
+
+        vm.warp(block.timestamp + 100 days); // management fee accrual live at fill time
+
+        uint256 quote = yzilp.previewRedeemOrder(100e18);
+
+        address orderFiller = makeAddr("parityFiller");
+        vm.prank(admin);
+        yzilp.grantRole(ORDER_FILLER_ROLE, orderFiller);
+        asset.mint(orderFiller, 1_000e6);
+        _approve(orderFiller, address(yzilp));
+        vm.prank(orderFiller);
+        yzilp.fillRedeemOrder(orderId);
+
+        assertEq(yzilp.getRedeemOrder(orderId).assets, quote, "fill settled away from the previewRedeemOrder quote");
+    }
+
     function testFuzz_OrderFill_NoPoolUnderflow(uint256 warpDays, uint256 redeemShares) public {
         _setupPool();
         vm.prank(feeManager);
