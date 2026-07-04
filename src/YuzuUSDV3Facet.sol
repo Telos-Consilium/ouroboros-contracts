@@ -30,7 +30,7 @@ contract YuzuUSDV3Facet is
     IYuzuThrottleDefinitions,
     IYuzuNavMarkdownDefinitions
 {
-    // External
+    // User actions
     function fillRedeemOrder(uint256 orderId) external {
         _checkRole(ORDER_FILLER_ROLE);
         IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
@@ -53,6 +53,7 @@ contract YuzuUSDV3Facet is
         emit FilledRedeemOrder(msg.sender, order.receiver, order.owner, orderId, assets, order.tokens, fee);
     }
 
+    // Config setters
     // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);

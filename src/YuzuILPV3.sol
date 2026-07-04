@@ -20,21 +20,9 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
  * and performance fee changes take effect at the next pool update.
  */
 contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
-    // Construction
+    // Construction and initialization
     constructor(address facet_) YuzuV3FacetRouting(facet_) {}
 
-    /// @dev V3 proxies initialize via initializeV3 (fresh) or reinitialize (migration); the inherited
-    /// V1 initializer is unreachable on V3, so it is disabled to save runtime bytecode.
-    // slither-disable-next-line pess-unprotected-initialize
-    function initialize(address, string memory, string memory, address, address, address, uint256, uint256, uint256)
-        external
-        pure
-        override
-    {
-        revert();
-    }
-
-    // V3 init
     /// @notice Initializes a fresh proxy directly at V3 with combined V1 and V3 setup
     /// @dev Guarded so it can only run before any prior init has set the asset
     // slither-disable-next-line pess-unprotected-initialize
@@ -95,7 +83,98 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         $._redeemThrottle.dailyLimit = type(uint256).max;
     }
 
-    // Routed V2
+    // Disabled entrypoints
+    /// @dev V3 proxies initialize via initializeV3 (fresh) or reinitialize (migration); the inherited
+    /// V1 initializer is unreachable on V3, so it is disabled to save runtime bytecode.
+    // slither-disable-next-line pess-unprotected-initialize
+    function initialize(address, string memory, string memory, address, address, address, uint256, uint256, uint256)
+        external
+        pure
+        override
+    {
+        revert();
+    }
+
+    /// @dev yzILP has no instant redeem path; the inherited entrypoints always revert, so they are
+    /// disabled to save runtime bytecode.
+    function withdraw(uint256, address, address) public pure virtual override returns (uint256) {
+        revert();
+    }
+
+    function redeem(uint256, address, address) public pure virtual override returns (uint256) {
+        revert();
+    }
+
+    function withdrawWithSlippage(uint256, address, address, uint256)
+        external
+        pure
+        virtual
+        override
+        returns (uint256)
+    {
+        revert();
+    }
+
+    function redeemWithSlippage(uint256, address, address, uint256) external pure virtual override returns (uint256) {
+        revert();
+    }
+
+    // Facet routes: user actions
+    function deposit(uint256, address) public virtual override returns (uint256) {
+        _delegateToFacet();
+    }
+
+    function mint(uint256, address) public virtual override returns (uint256) {
+        _delegateToFacet();
+    }
+
+    function burn(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    /// @dev Routes to V3 fee and pool-split logic.
+    function fillRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function maxDeposit(address) public view virtual override returns (uint256) {
+        _staticcallFacet();
+    }
+
+    /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
+    /// keeps convertToShares from overflowing (ILP share price is admin-set and unbounded).
+    function maxMint(address) public view virtual override returns (uint256) {
+        _staticcallFacet();
+    }
+
+    // Facet routes: order lifecycle
+    /// @dev Routed so the quote and the fill settlement derive from the facet's single valuation.
+    function previewRedeemOrder(uint256) public view virtual override returns (uint256) {
+        _staticcallFacet();
+    }
+
+    function createRedeemOrder(uint256, address, address) public virtual override returns (uint256) {
+        _delegateToFacet();
+    }
+
+    function createRedeemOrderWithMaxFee(uint256, address, address, uint256)
+        external
+        virtual
+        override
+        returns (uint256)
+    {
+        _delegateToFacet();
+    }
+
+    function finalizeRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function cancelRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    // Facet routes: pool operations
     /// @dev Routes to V3 fee and pool-update logic.
     function updatePool(uint256, uint256, uint256) public virtual override {
         _delegateToFacet();
@@ -129,39 +208,55 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    // Facet routes: admin and config
+    function rescueTokens(address, address, uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    function withdrawCollateral(uint256, address) public virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
     function setTreasury(address) external virtual override {
         _delegateToFacet();
     }
 
+    // slither-disable-next-line pess-event-setter
     function setFeeReceiver(address) external virtual override {
         _delegateToFacet();
     }
 
+    // slither-disable-next-line pess-event-setter
     function setSupplyCap(uint256) external virtual override {
         _delegateToFacet();
     }
 
+    // slither-disable-next-line pess-event-setter
     function setLiquidityBufferTargetSize(uint256) external virtual override {
         _delegateToFacet();
     }
 
+    // slither-disable-next-line pess-event-setter
     function setFillWindow(uint256) external virtual override {
         _delegateToFacet();
     }
 
+    // slither-disable-next-line pess-event-setter
     function setMinRedeemOrder(uint256) external virtual override {
         _delegateToFacet();
     }
 
+    // slither-disable-next-line pess-event-setter
     function setIsMintRestricted(bool) external virtual override {
         _delegateToFacet();
     }
 
+    // slither-disable-next-line pess-event-setter
     function setIsRedeemRestricted(bool) external virtual override {
         _delegateToFacet();
     }
 
-    // Routed V3
     // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
@@ -200,7 +295,7 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
-    // V3 views
+    // Native views
     function minDeposit() public view returns (uint256) {
         return YuzuMinAmountsV3Storage.layout()._minDeposit;
     }
@@ -249,7 +344,6 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         return YuzuILPFeesV3Storage.layout()._cumulativePerformanceFees;
     }
 
-    // User routes
     /// @notice Preview tokens minted for {assets}, net of the mint fee
     function previewDeposit(uint256 assets) public view virtual override returns (uint256) {
         uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
@@ -262,93 +356,7 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         return netAssets + YuzuV3Fees.feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
     }
 
-    function maxDeposit(address) public view virtual override returns (uint256) {
-        _staticcallFacet();
-    }
-
-    /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
-    /// keeps convertToShares from overflowing (ILP share price is admin-set and unbounded).
-    function maxMint(address) public view virtual override returns (uint256) {
-        _staticcallFacet();
-    }
-
-    function deposit(uint256, address) public virtual override returns (uint256) {
-        _delegateToFacet();
-    }
-
-    function mint(uint256, address) public virtual override returns (uint256) {
-        _delegateToFacet();
-    }
-
-    function withdrawCollateral(uint256, address) public virtual override {
-        _delegateToFacet();
-    }
-
-    function burn(uint256) public virtual override {
-        _delegateToFacet();
-    }
-
-    /// @dev Routes to V3 fee and pool-split logic.
-    function fillRedeemOrder(uint256) public virtual override {
-        _delegateToFacet();
-    }
-
-    /// @dev Routed so the quote and the fill settlement derive from the facet's single valuation.
-    function previewRedeemOrder(uint256) public view virtual override returns (uint256) {
-        _staticcallFacet();
-    }
-
-    function createRedeemOrder(uint256, address, address) public virtual override returns (uint256) {
-        _delegateToFacet();
-    }
-
-    function createRedeemOrderWithMaxFee(uint256, address, address, uint256)
-        external
-        virtual
-        override
-        returns (uint256)
-    {
-        _delegateToFacet();
-    }
-
-    function finalizeRedeemOrder(uint256) public virtual override {
-        _delegateToFacet();
-    }
-
-    function cancelRedeemOrder(uint256) public virtual override {
-        _delegateToFacet();
-    }
-
-    function rescueTokens(address, address, uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    // Disabled instant redemptions
-    /// @dev yzILP has no instant redeem path; the inherited entrypoints always revert, so they are
-    /// disabled to save runtime bytecode.
-    function withdraw(uint256, address, address) public pure virtual override returns (uint256) {
-        revert();
-    }
-
-    function redeem(uint256, address, address) public pure virtual override returns (uint256) {
-        revert();
-    }
-
-    function withdrawWithSlippage(uint256, address, address, uint256)
-        external
-        pure
-        virtual
-        override
-        returns (uint256)
-    {
-        revert();
-    }
-
-    function redeemWithSlippage(uint256, address, address, uint256) external pure virtual override returns (uint256) {
-        revert();
-    }
-
-    // Native hooks
+    // Internal overrides
     /// @dev The facet credits poolSize with the deposit's fee-adjusted value before routing here, so
     /// only the base transfer-and-mint runs.
     function _deposit(address caller, address receiver, uint256 assets, uint256 tokens)
@@ -383,8 +391,6 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _requireRouterSelfCall();
         _spendAllowance(_owner, spender, value);
     }
-
-    // Router helpers
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

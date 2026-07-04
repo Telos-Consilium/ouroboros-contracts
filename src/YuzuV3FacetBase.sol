@@ -21,6 +21,7 @@ import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
  * written through the pinned slots and struct replicas below.
  */
 abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefinitions, IYuzuProtoDefinitions {
+    // Storage replicas
     uint256 private constant YUZU_PROTO_TREASURY_SLOT = 1;
     uint256 private constant YUZU_PROTO_REDEEM_FEE_SLOT = 2;
     uint256 private constant YUZU_PROTO_REDEEM_ORDER_FEE_SLOT = 3;
@@ -157,6 +158,7 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         emit CancelledRedeemOrder(msg.sender, orderId);
     }
 
+    // Views
     /// @notice Preview the assets paid out for redeeming {tokens} with an order at the current fee
     function previewRedeemOrder(uint256 tokens) external view returns (uint256) {
         IYuzuV3RouterBase router = IYuzuV3RouterBase(msg.sender);
@@ -164,7 +166,7 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         return assets;
     }
 
-    // Admin token movements
+    // Admin actions
     function rescueTokens(address token, address to, uint256 amount) external {
         _checkRole(ADMIN_ROLE);
         IYuzuV3RouterBase router = IYuzuV3RouterBase(address(this));
@@ -193,7 +195,7 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         emit WithdrawnCollateral(receiver, assets);
     }
 
-    // Proto setters
+    // Config setters
     function setTreasury(address newTreasury) external {
         _checkRole(ADMIN_ROLE);
         if (newTreasury == address(0)) {
@@ -265,7 +267,6 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
 
     // Internal
     /// @dev Hook for vault-specific floors on a new order's asset value; the default accepts any value.
-    // slither-disable-next-line dead-code
     function _validateOrderValue(IYuzuV3RouterBase router, uint256 tokens, uint256 feePpm) internal view virtual {}
 
     function _checkRole(bytes32 role) internal view {
@@ -285,7 +286,7 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         assets = grossAssets - fee;
     }
 
-    // Storage
+    // Storage accessors
     function _setPackedAddress(uint256 slot, address value) internal {
         uint256 mask = type(uint160).max;
         assembly {

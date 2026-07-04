@@ -44,6 +44,7 @@ contract YuzuILPV3Facet is
     /// @notice Maximum daily linear yield rate, in ppm (1% per day)
     uint256 internal constant MAX_DAILY_YIELD_PPM = 10_000;
 
+    // Storage replicas
     uint256 private constant YUZU_ILP_POOL_SIZE_SLOT = 55;
     uint256 private constant YUZU_ILP_DAILY_LINEAR_YIELD_RATE_PPM_SLOT = 56;
     uint256 private constant YUZU_ILP_LAST_POOL_UPDATE_TIMESTAMP_SLOT = 57;
@@ -54,7 +55,7 @@ contract YuzuILPV3Facet is
     uint256 private constant YUZU_ILPV2_FULLY_DISTRIBUTED_SINCE_UPDATE_SLOT = 104;
     uint256 private constant YUZU_ILPV2_REDEEMED_DISTRIBUTIONS_SINCE_UPDATE_SLOT = 105;
 
-    // External
+    // User actions
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         _checkMinDeposit(router, assets);
@@ -143,6 +144,7 @@ contract YuzuILPV3Facet is
         emit FilledRedeemOrder(msg.sender, order.receiver, order.owner, orderId, assets, order.tokens, fee);
     }
 
+    // Views
     function maxDeposit(address receiver) public view returns (uint256) {
         return _maxDeposit(msg.sender, receiver);
     }
@@ -155,6 +157,7 @@ contract YuzuILPV3Facet is
         return _proxyTotalAssets(IYuzuILPV3Router(msg.sender), Math.Rounding(rounding));
     }
 
+    // Pool operations
     /// @dev Applies V3 fees, then runs the V2 pool-update state transition on the net pool.
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) public {
         _checkRole(POOL_MANAGER_ROLE);
@@ -264,6 +267,7 @@ contract YuzuILPV3Facet is
         }
     }
 
+    // Config setters
     // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
@@ -343,7 +347,7 @@ contract YuzuILPV3Facet is
         emit UpdatedPendingPerformanceFee(oldRatePpm, newRatePpm);
     }
 
-    // Internal
+    // State-machine internals
     function _applyPoolUpdate(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm)
         private
     {
@@ -394,6 +398,7 @@ contract YuzuILPV3Facet is
         }
     }
 
+    // Pricing internals
     /// @dev Credits poolSize with an increment whose fee-net value equals {assets}. Tokens are priced
     /// against fee-net total assets, while poolSize bears fee accrual for the full period since the
     /// last update; the credit keeps the share price unchanged and spares the deposit from fees
@@ -520,6 +525,7 @@ contract YuzuILPV3Facet is
         return block.timestamp - router.lastPoolUpdateTimestamp();
     }
 
+    // Distribution internals
     function _isDistributionInProgress() private view returns (bool) {
         return block.timestamp < _lastDistributionTimestamp() + _lastDistributionPeriod();
     }
@@ -535,6 +541,7 @@ contract YuzuILPV3Facet is
         );
     }
 
+    // Limit and guard helpers
     function _isThrottleExempt(address account) private view returns (bool) {
         return IAccessControl(address(this)).hasRole(THROTTLE_EXEMPT_ROLE, account);
     }
@@ -631,7 +638,7 @@ contract YuzuILPV3Facet is
         if (assets < min) revert UnderMinDeposit(assets, min);
     }
 
-    // Storage
+    // Storage accessors
     function _poolSize() private view returns (uint256 value) {
         assembly {
             value := sload(YUZU_ILP_POOL_SIZE_SLOT)

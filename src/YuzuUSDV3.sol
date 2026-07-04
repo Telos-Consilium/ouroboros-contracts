@@ -43,10 +43,9 @@ contract YuzuUSDV3 is
     uint256 internal constant DEFAULT_NAV_STEP_CAP_PPM = 100_000;
     uint256 internal constant DEFAULT_NAV_COOLDOWN = 1 days;
 
-    // Construction
+    // Construction and initialization
     constructor(address facet_) YuzuV3FacetRouting(facet_) {}
 
-    // V3 init
     /// @notice Reinitializes the contract for the V3 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize() external override reinitializer(3) {
@@ -69,7 +68,96 @@ contract YuzuUSDV3 is
         navStorage._cooldown = DEFAULT_NAV_COOLDOWN;
     }
 
-    // V3 config routes
+    // Facet routes: order lifecycle
+    /// @dev Routed so the quote and the fill settlement derive from the facet's single valuation.
+    function previewRedeemOrder(uint256) public view virtual override returns (uint256) {
+        _staticcallFacet();
+    }
+
+    function createRedeemOrder(uint256, address, address) public virtual override returns (uint256) {
+        _delegateToFacet();
+    }
+
+    function createRedeemOrderWithMaxFee(uint256, address, address, uint256)
+        external
+        virtual
+        override
+        returns (uint256)
+    {
+        _delegateToFacet();
+    }
+
+    function fillRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function finalizeRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    function cancelRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
+    // Facet routes: admin and config
+    function rescueTokens(address, address, uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    function withdrawCollateral(uint256, address) public virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setTreasury(address) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setFeeReceiver(address) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setSupplyCap(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setLiquidityBufferTargetSize(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setFillWindow(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setMinRedeemOrder(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setRedeemFee(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setRedeemOrderFee(uint256) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setIsMintRestricted(bool) external virtual override {
+        _delegateToFacet();
+    }
+
+    // slither-disable-next-line pess-event-setter
+    function setIsRedeemRestricted(bool) external virtual override {
+        _delegateToFacet();
+    }
+
     // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
@@ -105,50 +193,7 @@ contract YuzuUSDV3 is
         _delegateToFacet();
     }
 
-    // Routed proto setters
-    function setTreasury(address) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setFeeReceiver(address) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setSupplyCap(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setLiquidityBufferTargetSize(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setFillWindow(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setMinRedeemOrder(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    // slither-disable-next-line pess-event-setter
-    function setRedeemFee(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    // slither-disable-next-line pess-event-setter
-    function setRedeemOrderFee(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setIsMintRestricted(bool) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setIsRedeemRestricted(bool) external virtual override {
-        _delegateToFacet();
-    }
-
-    // V3 views
+    // Native views
     /// @notice Returns the mint throttle limits and usage
     function getMintThrottle() external view returns (Throttle memory) {
         return YuzuThrottleV3Storage.layout()._mintThrottle;
@@ -196,7 +241,6 @@ contract YuzuUSDV3 is
         return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
     }
 
-    // ERC4626 views
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         if (!canMint(receiver)) {
             return 0;
@@ -248,7 +292,7 @@ contract YuzuUSDV3 is
         return previewed < minWithdraw() ? 0 : shares;
     }
 
-    // ERC4626 flows
+    // Native flows
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         _checkMinDeposit(assets);
         uint256 maxAssets = maxDeposit(receiver);
@@ -301,47 +345,7 @@ contract YuzuUSDV3 is
         return assets;
     }
 
-    // Order path routes
-    function createRedeemOrder(uint256, address, address) public virtual override returns (uint256) {
-        _delegateToFacet();
-    }
-
-    function createRedeemOrderWithMaxFee(uint256, address, address, uint256)
-        external
-        virtual
-        override
-        returns (uint256)
-    {
-        _delegateToFacet();
-    }
-
-    function fillRedeemOrder(uint256) public virtual override {
-        _delegateToFacet();
-    }
-
-    function finalizeRedeemOrder(uint256) public virtual override {
-        _delegateToFacet();
-    }
-
-    function cancelRedeemOrder(uint256) public virtual override {
-        _delegateToFacet();
-    }
-
-    /// @dev Routed so the quote and the fill settlement derive from the facet's single valuation.
-    function previewRedeemOrder(uint256) public view virtual override returns (uint256) {
-        _staticcallFacet();
-    }
-
-    // Admin routes
-    function rescueTokens(address, address, uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function withdrawCollateral(uint256, address) public virtual override {
-        _delegateToFacet();
-    }
-
-    // Conversion hooks
+    // Internal overrides
     /// @dev Folds the backing value (capped at par) into the par decimal scaling. At par this is the
     /// inherited 1:1 conversion; below par a share converts to fewer assets and an asset to more shares.
     function _convertToShares(uint256 assets, Math.Rounding rounding)
@@ -360,6 +364,26 @@ contract YuzuUSDV3 is
         returns (uint256)
     {
         return Math.mulDiv(shares, _effectiveNav(), NAV_SHARE_SCALE, rounding);
+    }
+
+    function _effectiveNav() private view returns (uint256) {
+        return Math.min(YuzuNavMarkdownV3Storage.layout()._nav, NAV_PRECISION);
+    }
+
+    // Router callbacks
+    function __routerBurn(address _owner, uint256 tokens) external {
+        _requireRouterSelfCall();
+        _burn(_owner, tokens);
+    }
+
+    function __routerTransfer(address from, address to, uint256 value) external {
+        _requireRouterSelfCall();
+        _transfer(from, to, value);
+    }
+
+    function __routerSpendAllowance(address _owner, address spender, uint256 value) external {
+        _requireRouterSelfCall();
+        _spendAllowance(_owner, spender, value);
     }
 
     // Limit and guard helpers
@@ -429,26 +453,6 @@ contract YuzuUSDV3 is
     function _checkMinWithdraw(uint256 assets) private view {
         uint256 min = YuzuMinAmountsV3Storage.layout()._minWithdraw;
         if (assets < min) revert UnderMinWithdraw(assets, min);
-    }
-
-    // Router callbacks
-    function __routerBurn(address _owner, uint256 tokens) external {
-        _requireRouterSelfCall();
-        _burn(_owner, tokens);
-    }
-
-    function __routerTransfer(address from, address to, uint256 value) external {
-        _requireRouterSelfCall();
-        _transfer(from, to, value);
-    }
-
-    function __routerSpendAllowance(address _owner, address spender, uint256 value) external {
-        _requireRouterSelfCall();
-        _spendAllowance(_owner, spender, value);
-    }
-
-    function _effectiveNav() private view returns (uint256) {
-        return Math.min(YuzuNavMarkdownV3Storage.layout()._nav, NAV_PRECISION);
     }
 
     /**
