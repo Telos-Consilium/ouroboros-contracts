@@ -95,10 +95,12 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
     function setUp() public {
         asset = _newAsset();
         yzilp = _deployYuzuILPV3(address(asset), "Token", "TKN", false);
+        yzusd = _deployYuzuUSDV3(address(asset));
 
         vm.startPrank(admin);
         yzilp.grantRole(LIMIT_MANAGER_ROLE, limitManager);
         yzilp.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
+        yzusd.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
         vm.stopPrank();
     }
 
@@ -155,5 +157,40 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         // Order.assets is the first field of the struct, so it sits at the element base slot.
         vm.store(address(yzilp), elementSlot, bytes32(uint256(4242)));
         assertEq(yzilp.getRedeemOrder(orderId).assets, 4242, "order.assets at orders mapping base + 5");
+    }
+
+    // yzUSD twins: the shared facet base replicates the same orderbook layout for both vaults, so the
+    // pins must hold against the yzUSD proxy as well.
+
+    function test_OrderBookLocation_BaseMatchesFormula_YzUSD() public {
+        bytes32 base = _erc7201("yuzu.storage.orderbook");
+        vm.store(address(yzusd), base, bytes32(uint256(123)));
+        vm.store(address(yzusd), bytes32(uint256(base) + 1), bytes32(uint256(456)));
+        vm.store(address(yzusd), bytes32(uint256(base) + 2), bytes32(uint256(789)));
+        vm.store(address(yzusd), bytes32(uint256(base) + 3), bytes32(uint256(9)));
+        vm.store(address(yzusd), bytes32(uint256(base) + 4), bytes32(uint256(55)));
+        assertEq(yzusd.fillWindow(), 123, "fillWindow at orderbook base slot");
+        assertEq(yzusd.totalPendingOrderSize(), 456, "totalPendingOrderSize at base + 1");
+        assertEq(yzusd.totalUnfinalizedOrderValue(), 789, "totalUnfinalizedOrderValue at base + 2");
+        assertEq(yzusd.orderCount(), 9, "orderCount at base + 3");
+        assertEq(yzusd.minRedeemOrder(), 55, "minRedeemOrder at base + 4");
+    }
+
+    function test_OrderBookLocation_FacetMatchesBase_YzUSD() public {
+        vm.prank(redeemManager);
+        yzusd.setFillWindow(3600);
+        assertEq(yzusd.fillWindow(), 3600, "facet setFillWindow visible through base getter");
+
+        vm.prank(redeemManager);
+        yzusd.setMinRedeemOrder(42);
+        assertEq(yzusd.minRedeemOrder(), 42, "facet setMinRedeemOrder visible through base getter");
+    }
+
+    function test_OrderBookLocation_OrdersMappingBaseSlot_YzUSD() public {
+        bytes32 base = _erc7201("yuzu.storage.orderbook");
+        uint256 orderId = 7;
+        bytes32 elementSlot = keccak256(abi.encode(orderId, uint256(base) + 5));
+        vm.store(address(yzusd), elementSlot, bytes32(uint256(4242)));
+        assertEq(yzusd.getRedeemOrder(orderId).assets, 4242, "order.assets at orders mapping base + 5");
     }
 }
