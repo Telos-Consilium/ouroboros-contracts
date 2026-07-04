@@ -13,6 +13,11 @@ import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
+/// @dev Vault-to-facet pricing call: fee-adjusted total assets under the requested rounding.
+interface IYuzuILPV3FacetPricing {
+    function totalAssetsWithRounding(uint256 rounding) external view returns (uint256);
+}
+
 /**
  * @title YuzuILPV3
  * @notice YuzuILP with V3 limits, throttles, pool guards, and fees
@@ -344,7 +349,7 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     }
 
     function _totalAssets(Math.Rounding rounding) internal view override(YuzuILPV2) returns (uint256) {
-        return IYuzuILPV3Router(_facet).totalAssetsWithRounding(uint256(rounding));
+        return IYuzuILPV3FacetPricing(_facet).totalAssetsWithRounding(uint256(rounding));
     }
 
     // Router callbacks

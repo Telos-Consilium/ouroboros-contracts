@@ -20,8 +20,6 @@ interface IYuzuV3RouterBase {
     function __routerSpendAllowance(address owner, address spender, uint256 value) external;
 }
 
-interface IYuzuUSDV3Router is IYuzuV3RouterBase {}
-
 interface IYuzuILPV3Router is IYuzuV3RouterBase {
     function previewDeposit(uint256 assets) external view returns (uint256);
     function previewMint(uint256 tokens) external view returns (uint256);
@@ -29,7 +27,6 @@ interface IYuzuILPV3Router is IYuzuV3RouterBase {
     function cap() external view returns (uint256);
     function totalSupply() external view returns (uint256);
     function totalAssets() external view returns (uint256);
-    function totalAssetsWithRounding(uint256 rounding) external view returns (uint256);
     function decimals() external view returns (uint8);
     function poolSize() external view returns (uint256);
     function dailyLinearYieldRatePpm() external view returns (uint256);

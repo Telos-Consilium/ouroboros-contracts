@@ -15,7 +15,7 @@ import {
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
-import {IYuzuUSDV3Router, IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
+import {IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuMinAmountsV3Storage, YuzuNavMarkdownV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
@@ -33,7 +33,7 @@ contract YuzuUSDV3Facet is
     // User actions
     function fillRedeemOrder(uint256 orderId) external {
         _checkRole(ORDER_FILLER_ROLE);
-        IYuzuUSDV3Router router = IYuzuUSDV3Router(address(this));
+        IYuzuV3RouterBase router = IYuzuV3RouterBase(address(this));
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         Order storage order = $._orders[orderId];
         if (order.status != OrderStatus.Pending) {
