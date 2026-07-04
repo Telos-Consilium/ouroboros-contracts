@@ -49,6 +49,7 @@ interface IYuzuILPV3Definitions {
     error AlreadyInitialized();
     error NotMigrating();
     error PoolFeeEroded();
+    error InitializationDisabled();
 
     event UpdatedMintFee(uint256 oldFeePpm, uint256 newFeePpm);
     event UpdatedPendingManagementFee(uint256 oldRatePpm, uint256 newRatePpm);

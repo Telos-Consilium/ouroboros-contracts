@@ -85,38 +85,14 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
 
     // Disabled entrypoints
     /// @dev V3 proxies initialize via initializeV3 (fresh) or reinitialize (migration); the inherited
-    /// V1 initializer is unreachable on V3, so it is disabled to save runtime bytecode.
+    /// V1 initializer is disabled so a stray proxy cannot be set up with V1 semantics.
     // slither-disable-next-line pess-unprotected-initialize
     function initialize(address, string memory, string memory, address, address, address, uint256, uint256, uint256)
         external
         pure
         override
     {
-        revert();
-    }
-
-    /// @dev yzILP has no instant redeem path; the inherited entrypoints always revert, so they are
-    /// disabled to save runtime bytecode.
-    function withdraw(uint256, address, address) public pure virtual override returns (uint256) {
-        revert();
-    }
-
-    function redeem(uint256, address, address) public pure virtual override returns (uint256) {
-        revert();
-    }
-
-    function withdrawWithSlippage(uint256, address, address, uint256)
-        external
-        pure
-        virtual
-        override
-        returns (uint256)
-    {
-        revert();
-    }
-
-    function redeemWithSlippage(uint256, address, address, uint256) external pure virtual override returns (uint256) {
-        revert();
+        revert InitializationDisabled();
     }
 
     // Facet routes: user actions

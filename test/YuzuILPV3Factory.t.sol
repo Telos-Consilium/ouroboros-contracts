@@ -179,8 +179,8 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         vault.reinitialize();
 
-        // V1 initialize is disabled on V3 and reverts unconditionally
-        vm.expectRevert();
+        // V1 initialize is disabled on V3
+        vm.expectRevert(IYuzuILPV3Definitions.InitializationDisabled.selector);
         YuzuILP(address(vault)).initialize(address(asset), "x", "x", other, other, other, 0, 0, 0);
     }
 
