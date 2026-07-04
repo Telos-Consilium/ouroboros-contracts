@@ -6,11 +6,9 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {YuzuILPV2} from "./YuzuILPV2.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
-import {Order} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
-import {YuzuOrderBook} from "./proto/YuzuOrderBook.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
 /**
@@ -36,6 +34,17 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _facet = facet_;
     }
 
+    /// @dev V3 proxies initialize via initializeV3 (fresh) or reinitialize (migration); the inherited
+    /// V1 initializer is unreachable on V3, so it is disabled to save runtime bytecode.
+    // slither-disable-next-line pess-unprotected-initialize
+    function initialize(address, string memory, string memory, address, address, address, uint256, uint256, uint256)
+        external
+        pure
+        override
+    {
+        revert();
+    }
+
     // V3 init
     /// @notice Initializes a fresh proxy directly at V3 with combined V1 and V3 setup
     /// @dev Guarded so it can only run before any prior init has set the asset
@@ -48,27 +57,6 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         __YuzuILPV3_init_unchained();
         _applyConfig(c);
-    }
-
-    /// @notice Reinitializes an existing V1/V2 proxy for the V3 upgrade
-    /// @dev Guarded so it can only run on a proxy that already went through prior init
-    // slither-disable-next-line pess-unprotected-initialize
-    function reinitialize() external override reinitializer(3) {
-        if (_asset == address(0)) revert NotMigrating();
-        __YuzuILPV3_init_unchained();
-    }
-
-    // slither-disable-next-line pess-unprotected-initialize
-    function __YuzuILPV3_init_unchained() internal onlyInitializing {
-        __YuzuProtoV2_init_unchained();
-        __EIP712_init(name(), "2");
-        _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
-        YuzuThrottleV3Storage.Layout storage $ = YuzuThrottleV3Storage.layout();
-        $._mintThrottle.blockLimit = type(uint256).max;
-        $._mintThrottle.dailyLimit = type(uint256).max;
-        $._redeemThrottle.blockLimit = type(uint256).max;
-        $._redeemThrottle.dailyLimit = type(uint256).max;
     }
 
     function _applyConfig(ConfigParams calldata c) internal {
@@ -95,6 +83,27 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         emit UpdatedMintFee(0, c.mintFeePpm);
         emit UpdatedPendingManagementFee(0, c.pendingManagementFeeRatePpm);
         emit UpdatedPendingPerformanceFee(0, c.pendingPerformanceFeeRatePpm);
+    }
+
+    /// @notice Reinitializes an existing V1/V2 proxy for the V3 upgrade
+    /// @dev Guarded so it can only run on a proxy that already went through prior init
+    // slither-disable-next-line pess-unprotected-initialize
+    function reinitialize() external override reinitializer(3) {
+        if (_asset == address(0)) revert NotMigrating();
+        __YuzuILPV3_init_unchained();
+    }
+
+    // slither-disable-next-line pess-unprotected-initialize
+    function __YuzuILPV3_init_unchained() internal onlyInitializing {
+        __YuzuProtoV2_init_unchained();
+        __EIP712_init(name(), "2");
+        _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
+        YuzuThrottleV3Storage.Layout storage $ = YuzuThrottleV3Storage.layout();
+        $._mintThrottle.blockLimit = type(uint256).max;
+        $._mintThrottle.dailyLimit = type(uint256).max;
+        $._redeemThrottle.blockLimit = type(uint256).max;
+        $._redeemThrottle.dailyLimit = type(uint256).max;
     }
 
     // Routed V2
@@ -290,83 +299,20 @@ contract YuzuILPV3 is YuzuILPV2, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    /// @dev Routes to V3 fee and pool-split logic.
+    function fillRedeemOrder(uint256) public virtual override {
+        _delegateToFacet();
+    }
+
     // Native hooks
-    /// @dev Tokens are priced against fee-net total assets, while poolSize bears fee accrual for the
-    /// full period since the last update. Crediting poolSize with an increment whose fee-net value
-    /// equals the deposited assets keeps the share price unchanged and spares the deposit from fees
-    /// accrued before it entered.
+    /// @dev The facet credits poolSize with the deposit's fee-adjusted value before routing here, so
+    /// only the base transfer-and-mint runs.
     function _deposit(address caller, address receiver, uint256 assets, uint256 tokens)
         internal
         virtual
         override(YuzuILPV2)
     {
-        poolSize += _poolSizeCredit(assets);
         YuzuIssuer._deposit(caller, receiver, assets, tokens);
-    }
-
-    /// @dev Returns the poolSize increment whose fee-net value equals {assets} now. Management fee
-    /// accrues on poolSize but not on distributed assets, so the deposit is first restated gross of
-    /// the performance fee, then converted into last-update pool units through the pool bucket's own
-    /// net-of-management value. Falls back to the yield discount when the pool is empty. Reverts when
-    /// accrued fees have consumed the pool's net value: pool units then add nothing, so no credit can
-    /// match the deposit and deposits stay closed until the next pool update.
-    function _poolSizeCredit(uint256 assets) private view returns (uint256) {
-        uint256 pool = poolSize;
-        // slither-disable-next-line incorrect-equality
-        if (pool == 0) {
-            return _discountYield(assets, Math.Rounding.Floor);
-        }
-        uint256 managementFee = Math.mulDiv(
-            pool * YuzuILPFeesV3Storage.layout()._managementFeeRatePpm,
-            _timeSinceUpdate(),
-            1e6 * 365 days,
-            Math.Rounding.Ceil
-        );
-        uint256 grossTotalAssets = super._totalAssets(Math.Rounding.Floor);
-        if (grossTotalAssets <= managementFee) {
-            revert PoolFeeEroded();
-        }
-        uint256 netOfManagementFee = grossTotalAssets - managementFee;
-        uint256 totalAssetsFromDistributions = netDistributedSinceUpdate();
-        if (netOfManagementFee <= totalAssetsFromDistributions) {
-            revert PoolFeeEroded();
-        }
-        uint256 netTotalAssets = _totalAssets(Math.Rounding.Floor);
-        // slither-disable-next-line incorrect-equality
-        if (netTotalAssets == 0) {
-            revert PoolFeeEroded();
-        }
-        uint256 poolNetOfManagementFee = netOfManagementFee - totalAssetsFromDistributions;
-        return Math.mulDiv(
-            Math.mulDiv(assets, netOfManagementFee, netTotalAssets, Math.Rounding.Floor),
-            pool,
-            poolNetOfManagementFee,
-            Math.Rounding.Floor
-        );
-    }
-
-    function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
-        internal
-        virtual
-        override(YuzuILPV2)
-    {
-        uint256 netRedeemed = assets + fee;
-        uint256 grossTotalAssets = super._totalAssets(Math.Rounding.Floor);
-        uint256 grossRedeemed = netRedeemed;
-        uint256 netTotalAssets = _totalAssets(Math.Rounding.Floor);
-        if (netTotalAssets > 0) {
-            grossRedeemed = Math.mulDiv(netRedeemed, grossTotalAssets, netTotalAssets, Math.Rounding.Ceil);
-        }
-
-        uint256 totalAssetsFromDistributions = netDistributedSinceUpdate();
-        uint256 redeemFromDistributions =
-            grossTotalAssets > 0 ? Math.mulDiv(grossRedeemed, totalAssetsFromDistributions, grossTotalAssets) : 0;
-        uint256 redeemedFromPool = grossRedeemed - redeemFromDistributions;
-
-        YuzuOrderBook._fillRedeemOrder(caller, order, assets, fee);
-
-        _redeemedDistributionsSinceUpdate += redeemFromDistributions;
-        poolSize -= _discountYield(redeemedFromPool, Math.Rounding.Ceil);
     }
 
     function _totalAssets(Math.Rounding rounding) internal view override(YuzuILPV2) returns (uint256) {

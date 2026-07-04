@@ -401,6 +401,9 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         vm.prank(user);
         uint256 orderId = yzilp.createRedeemOrder(100e18, user, user); // 10% of supply
 
+        uint256 pendingBefore = yzilp.totalPendingOrderSize();
+        uint256 unfinalizedBefore = yzilp.totalUnfinalizedOrderValue();
+
         address filler = makeAddr("filler");
         vm.prank(admin);
         yzilp.grantRole(ORDER_FILLER_ROLE, filler);
@@ -409,6 +412,14 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         asset.approve(address(yzilp), type(uint256).max);
         vm.prank(filler);
         yzilp.fillRedeemOrder(orderId);
+
+        // The fill reaches the two orderbook counters through the facet's private copy of the storage
+        // struct. Reading them back through the base getter proves that copy stays field-aligned: if the two
+        // adjacent slots were swapped, pending would rise instead of fall and unfinalized would fall.
+        assertEq(
+            yzilp.totalPendingOrderSize(), pendingBefore - 100e18, "pending order size not reduced by filled tokens"
+        );
+        assertGt(yzilp.totalUnfinalizedOrderValue(), unfinalizedBefore, "unfinalized order value not raised by fill");
 
         uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
         assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "order fill moved the share price while a fee was live");

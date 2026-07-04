@@ -118,14 +118,20 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         assertEq(yzilp.cap(), 777, "facet setSupplyCap visible through base getter");
     }
 
-    // orderbook: _fillWindow (field 0), _orderCount (field 3), _minRedeemOrder (field 4)
+    // orderbook: _fillWindow (field 0), _totalPendingOrderSize (field 1),
+    // _totalUnfinalizedOrderValue (field 2), _orderCount (field 3), _minRedeemOrder (field 4),
+    // _orders mapping (field 5)
 
     function test_OrderBookLocation_BaseMatchesFormula() public {
         bytes32 base = _erc7201("yuzu.storage.orderbook");
         vm.store(address(yzilp), base, bytes32(uint256(123)));
+        vm.store(address(yzilp), bytes32(uint256(base) + 1), bytes32(uint256(456)));
+        vm.store(address(yzilp), bytes32(uint256(base) + 2), bytes32(uint256(789)));
         vm.store(address(yzilp), bytes32(uint256(base) + 3), bytes32(uint256(9)));
         vm.store(address(yzilp), bytes32(uint256(base) + 4), bytes32(uint256(55)));
         assertEq(yzilp.fillWindow(), 123, "fillWindow at orderbook base slot");
+        assertEq(yzilp.totalPendingOrderSize(), 456, "totalPendingOrderSize at base + 1");
+        assertEq(yzilp.totalUnfinalizedOrderValue(), 789, "totalUnfinalizedOrderValue at base + 2");
         assertEq(yzilp.orderCount(), 9, "orderCount at base + 3");
         assertEq(yzilp.minRedeemOrder(), 55, "minRedeemOrder at base + 4");
     }
@@ -138,5 +144,16 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         vm.prank(redeemManager);
         yzilp.setMinRedeemOrder(42);
         assertEq(yzilp.minRedeemOrder(), 42, "facet setMinRedeemOrder visible through base getter");
+    }
+
+    // The facet's fillRedeemOrder reads orders from its private copy of the _orders mapping at field 5.
+    // Pin that slot to the formula so a shift is caught here rather than by an OrderNotPending revert.
+    function test_OrderBookLocation_OrdersMappingBaseSlot() public {
+        bytes32 base = _erc7201("yuzu.storage.orderbook");
+        uint256 orderId = 7;
+        bytes32 elementSlot = keccak256(abi.encode(orderId, uint256(base) + 5));
+        // Order.assets is the first field of the struct, so it sits at the element base slot.
+        vm.store(address(yzilp), elementSlot, bytes32(uint256(4242)));
+        assertEq(yzilp.getRedeemOrder(orderId).assets, 4242, "order.assets at orders mapping base + 5");
     }
 }

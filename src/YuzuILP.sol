@@ -44,7 +44,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         uint256 _supplyCap,
         uint256 _fillWindow,
         uint256 _minRedeemOrder
-    ) external initializer {
+    ) external virtual initializer {
         __YuzuProto_init(
             __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
         );

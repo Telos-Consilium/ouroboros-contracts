@@ -179,7 +179,8 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         vault.reinitialize();
 
-        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        // V1 initialize is disabled on V3 and reverts unconditionally
+        vm.expectRevert();
         YuzuILP(address(vault)).initialize(address(asset), "x", "x", other, other, other, 0, 0, 0);
     }
 
@@ -270,7 +271,9 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         bytes memory data = abi.encodeCall(
             YuzuILP.initialize, (address(asset), "x", "x", admin, treasury, feeReceiver, type(uint256).max, 1 days, 0)
         );
-        address proxy = address(new TransparentUpgradeableProxy(impl, proxyAdminOwner, data));
+        address proxy = address(new TransparentUpgradeableProxy(address(new YuzuILP()), proxyAdminOwner, data));
+        vm.prank(proxyAdminOwner);
+        _proxyAdminOf(proxy).upgradeAndCall(ITransparentUpgradeableProxy(proxy), impl, "");
         vm.expectRevert(IYuzuILPV3Definitions.AlreadyInitialized.selector);
         YuzuILPV3(proxy).initializeV3(_params(), _config());
     }
