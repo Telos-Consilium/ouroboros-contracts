@@ -70,10 +70,10 @@ contract YuzuILPV3Facet is
         uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         uint256 netAssets = assets - fee;
         _consumeMintThrottle(receiver, netAssets);
+        _applyPoolSizeCredit(router, netAssets);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
-        _applyPoolSizeCredit(router, netAssets);
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
         return tokens;
     }
@@ -92,10 +92,10 @@ contract YuzuILPV3Facet is
         uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
         uint256 netAssets = assets - fee;
         _consumeMintThrottle(receiver, netAssets);
+        _applyPoolSizeCredit(router, netAssets);
         if (fee > 0) {
             SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, router.feeReceiver(), fee);
         }
-        _applyPoolSizeCredit(router, netAssets);
         router.__routerDeposit(msg.sender, receiver, netAssets, tokens);
         return assets;
     }
