@@ -14,7 +14,7 @@ import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
  * @dev The proxy address depends only on this factory address and the salt.
  */
 contract YuzuILPV3Factory is AccessControl {
-    bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
+    bytes32 internal constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
 
     event DeployedYuzuILPV3(
         address indexed proxy, bytes32 indexed salt, address indexed implementation, address proxyAdminOwner
