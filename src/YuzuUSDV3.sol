@@ -101,34 +101,6 @@ contract YuzuUSDV3 is
     }
 
     // Facet routes: admin and config
-    function rescueTokens(address, address, uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function withdrawCollateral(uint256, address) public virtual override {
-        _delegateToFacet();
-    }
-
-    function setTreasury(address) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setFeeReceiver(address) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setSupplyCap(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setLiquidityBufferTargetSize(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
-    function setFillWindow(uint256) external virtual override {
-        _delegateToFacet();
-    }
-
     function setMinRedeemOrder(uint256) external virtual override {
         _delegateToFacet();
     }
