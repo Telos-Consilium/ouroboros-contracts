@@ -75,6 +75,7 @@ interface IStakedYuzuUSDV3Definitions {
     error UnauthorizedReinitializer(address caller);
     error RedeemDelayTooLow(uint256 provided, uint256 min);
     error DistributionAmountTooHigh(uint256 provided, uint256 max);
+    error InitializationDisabled();
 
     event Recovered(address indexed from, address indexed to, uint256 amount);
     event UpdatedInstantRedeemFee(uint256 oldFee, uint256 newFee);

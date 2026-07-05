@@ -67,7 +67,7 @@ contract StakedYuzuUSD is
         address _owner,
         address _feeReceiver,
         uint256 _redeemDelay
-    ) external initializer {
+    ) external virtual initializer {
         __ERC4626_init(_asset);
         __ERC20_init(__name, __symbol);
         __Ownable_init(_owner);

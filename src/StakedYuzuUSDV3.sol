@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {AccessControlDefaultAdminRulesUpgradeable} from
     "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
@@ -74,6 +75,14 @@ contract StakedYuzuUSDV3 is
             return false;
         }
         return isInstantRedeemEnabled || integrations[_owner].canSkipRedeemDelay;
+    }
+
+    /// @dev V3 is reached only by upgrading a live vault through the migration chain; a fresh proxy
+    /// initialized at V1 against this implementation can never satisfy {reinitialize}'s guards, so
+    /// the inherited initializer is disabled.
+    // slither-disable-next-line pess-unprotected-initialize
+    function initialize(IERC20, string memory, string memory, address, address, uint256) external pure override {
+        revert InitializationDisabled();
     }
 
     function transferOwnership(address) public pure override(Ownable2StepUpgradeable) {
