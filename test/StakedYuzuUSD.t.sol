@@ -730,7 +730,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_TerminateDistribution() public {
-        // uint256 initialTime = block.timestamp;
         // uint32 cast prevents unexpected compiler behavior
         uint256 initialTime = uint256(uint32(block.timestamp));
 

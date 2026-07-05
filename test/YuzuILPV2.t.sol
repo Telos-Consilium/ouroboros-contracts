@@ -142,7 +142,6 @@ contract YuzuILPV2Test_Common is YuzuILPTest_Common, YuzuProtoV2Test_Common, IYu
     }
 
     function test_TerminateDistribution() public {
-        // uint256 initialTime = block.timestamp;
         // uint32 cast prevents unexpected compiler behavior
         uint256 initialTime = uint256(uint32(block.timestamp));
 

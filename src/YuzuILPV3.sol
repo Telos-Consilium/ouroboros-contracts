@@ -26,40 +26,48 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     /// @notice Initializes a fresh proxy directly at V3 with combined V1 and V3 setup
     /// @dev Guarded so it can only run before any prior init has set the asset
     // slither-disable-next-line pess-unprotected-initialize
-    function initializeV3(InitParams calldata p, ConfigParams calldata c) external reinitializer(3) {
+    function initializeV3(InitParams calldata params, ConfigParams calldata config) external reinitializer(3) {
         if (_asset != address(0)) revert AlreadyInitialized();
         __YuzuProto_init(
-            p.asset, p.name, p.symbol, p.admin, p.treasury, p.feeReceiver, p.supplyCap, p.fillWindow, p.minRedeemOrder
+            params.asset,
+            params.name,
+            params.symbol,
+            params.admin,
+            params.treasury,
+            params.feeReceiver,
+            params.supplyCap,
+            params.fillWindow,
+            params.minRedeemOrder
         );
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         __YuzuILPV3_init_unchained();
-        _applyConfig(c);
+        _applyConfig(config);
     }
 
-    function _applyConfig(ConfigParams calldata c) internal {
-        if (c.mintFeePpm > 1e6) revert FeeTooHigh(c.mintFeePpm, 1e6);
-        if (c.redeemOrderFeePpm > 1e6) revert FeeTooHigh(c.redeemOrderFeePpm, 1e6);
-        if (c.pendingManagementFeeRatePpm > MAX_MANAGEMENT_FEE_PPM) {
-            revert FeeTooHigh(c.pendingManagementFeeRatePpm, MAX_MANAGEMENT_FEE_PPM);
+    function _applyConfig(ConfigParams calldata config) internal {
+        if (config.mintFeePpm > 1e6) revert FeeTooHigh(config.mintFeePpm, 1e6);
+        if (config.redeemOrderFeePpm > 1e6) revert FeeTooHigh(config.redeemOrderFeePpm, 1e6);
+        if (config.pendingManagementFeeRatePpm > MAX_MANAGEMENT_FEE_PPM) {
+            revert FeeTooHigh(config.pendingManagementFeeRatePpm, MAX_MANAGEMENT_FEE_PPM);
         }
-        if (c.pendingPerformanceFeeRatePpm > 1e6) revert FeeTooHigh(c.pendingPerformanceFeeRatePpm, 1e6);
+        if (config.pendingPerformanceFeeRatePpm > 1e6) revert FeeTooHigh(config.pendingPerformanceFeeRatePpm, 1e6);
 
-        isMintRestricted = c.isMintRestricted;
-        isRedeemRestricted = c.isRedeemRestricted;
-        redeemOrderFeePpm = c.redeemOrderFeePpm;
+        isMintRestricted = config.isMintRestricted;
+        isRedeemRestricted = config.isRedeemRestricted;
+        redeemOrderFeePpm = config.redeemOrderFeePpm;
 
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
-        $._mintFeePpm = c.mintFeePpm;
-        $._pendingManagementFeeRatePpm = c.pendingManagementFeeRatePpm;
-        $._pendingPerformanceFeeRatePpm = c.pendingPerformanceFeeRatePpm;
+        $._mintFeePpm = config.mintFeePpm;
+        $._pendingManagementFeeRatePpm = config.pendingManagementFeeRatePpm;
+        $._pendingPerformanceFeeRatePpm = config.pendingPerformanceFeeRatePpm;
 
         // Mirror the setter events
-        emit UpdatedIsMintRestricted(true, c.isMintRestricted);
-        emit UpdatedIsRedeemRestricted(true, c.isRedeemRestricted);
-        emit UpdatedRedeemOrderFee(0, c.redeemOrderFeePpm);
-        emit UpdatedMintFee(0, c.mintFeePpm);
-        emit UpdatedPendingManagementFee(0, c.pendingManagementFeeRatePpm);
-        emit UpdatedPendingPerformanceFee(0, c.pendingPerformanceFeeRatePpm);
+        emit UpdatedIsMintRestricted(true, config.isMintRestricted);
+        emit UpdatedIsRedeemRestricted(true, config.isRedeemRestricted);
+        emit UpdatedRedeemOrderFee(0, config.redeemOrderFeePpm);
+        emit UpdatedMintFee(0, config.mintFeePpm);
+        emit UpdatedPendingManagementFee(0, config.pendingManagementFeeRatePpm);
+        emit UpdatedPendingPerformanceFee(0, config.pendingPerformanceFeeRatePpm);
     }
 
     /// @notice Reinitializes an existing V1/V2 proxy for the V3 upgrade
