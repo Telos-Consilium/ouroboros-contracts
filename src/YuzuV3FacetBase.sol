@@ -10,7 +10,13 @@ import {IYuzuIssuerDefinitions} from "./interfaces/proto/IYuzuIssuerDefinitions.
 import {IYuzuOrderBookDefinitions, Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {IYuzuProtoDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
-import {ADMIN_ROLE, LIMIT_MANAGER_ROLE, ORDER_FILLER_ROLE, REDEEM_MANAGER_ROLE} from "./libraries/YuzuV3Constants.sol";
+import {
+    ADMIN_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    ORDER_FILLER_ROLE,
+    REDEEM_MANAGER_ROLE
+} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 
 /**
@@ -249,6 +255,26 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         uint256 oldMin = $._minRedeemOrder;
         $._minRedeemOrder = newMin;
         emit UpdatedMinRedeemOrder(oldMin, newMin);
+    }
+
+    function setRedeemFee(uint256 newFeePpm) external {
+        _checkRole(FEE_MANAGER_ROLE);
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(newFeePpm, 1e6);
+        }
+        uint256 oldFee = _redeemFeePpm();
+        _setRedeemFeePpm(newFeePpm);
+        emit UpdatedRedeemFee(oldFee, newFeePpm);
+    }
+
+    function setRedeemOrderFee(uint256 newFeePpm) external {
+        _checkRole(FEE_MANAGER_ROLE);
+        if (newFeePpm > 1e6) {
+            revert FeeTooHigh(newFeePpm, 1e6);
+        }
+        uint256 oldFee = _redeemOrderFeePpm();
+        _setRedeemOrderFeePpm(newFeePpm);
+        emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
     function setIsMintRestricted(bool restricted) external {

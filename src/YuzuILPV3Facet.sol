@@ -301,26 +301,6 @@ contract YuzuILPV3Facet is
         emit UpdatedMintFee(oldFee, newFeePpm);
     }
 
-    function setRedeemFee(uint256 newFeePpm) external {
-        _checkRole(FEE_MANAGER_ROLE);
-        if (newFeePpm > 1e6) {
-            revert FeeTooHigh(newFeePpm, 1e6);
-        }
-        uint256 oldFee = _redeemFeePpm();
-        _setRedeemFeePpm(newFeePpm);
-        emit UpdatedRedeemFee(oldFee, newFeePpm);
-    }
-
-    function setRedeemOrderFee(uint256 newFeePpm) external {
-        _checkRole(FEE_MANAGER_ROLE);
-        if (newFeePpm > 1e6) {
-            revert FeeTooHigh(newFeePpm, 1e6);
-        }
-        uint256 oldFee = _redeemOrderFeePpm();
-        _setRedeemOrderFeePpm(newFeePpm);
-        emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
-    }
-
     function setPendingManagementFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {

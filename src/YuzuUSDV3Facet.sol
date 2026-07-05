@@ -6,13 +6,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {YuzuV3FacetBase} from "./YuzuV3FacetBase.sol";
-import {
-    ADMIN_ROLE,
-    FEE_MANAGER_ROLE,
-    LIMIT_MANAGER_ROLE,
-    NAV_MANAGER_ROLE,
-    ORDER_FILLER_ROLE
-} from "./libraries/YuzuV3Constants.sol";
+import {ADMIN_ROLE, LIMIT_MANAGER_ROLE, NAV_MANAGER_ROLE, ORDER_FILLER_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
@@ -136,25 +130,5 @@ contract YuzuUSDV3Facet is
         uint256 oldCooldown = $._cooldown;
         $._cooldown = newCooldown;
         emit UpdatedNavCooldown(oldCooldown, newCooldown);
-    }
-
-    function setRedeemFee(uint256 newFeePpm) external {
-        _checkRole(FEE_MANAGER_ROLE);
-        if (newFeePpm > 1e6) {
-            revert FeeTooHigh(newFeePpm, 1e6);
-        }
-        uint256 oldFee = _redeemFeePpm();
-        _setRedeemFeePpm(newFeePpm);
-        emit UpdatedRedeemFee(oldFee, newFeePpm);
-    }
-
-    function setRedeemOrderFee(uint256 newFeePpm) external {
-        _checkRole(FEE_MANAGER_ROLE);
-        if (newFeePpm > 1e6) {
-            revert FeeTooHigh(newFeePpm, 1e6);
-        }
-        uint256 oldFee = _redeemOrderFeePpm();
-        _setRedeemOrderFeePpm(newFeePpm);
-        emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 }
