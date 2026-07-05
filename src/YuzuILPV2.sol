@@ -15,12 +15,18 @@ import {IYuzuILPV2Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
  * @notice YuzuILP with progressive distributions and forced cancellations
  */
 contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
+    // The V3 facet writes these fields through raw storage slots, which slither cannot see
+    // slither-disable-next-line uninitialized-state
     bool public isUpdatingPool;
 
+    // slither-disable-next-line uninitialized-state
     uint256 public lastDistributedAmount;
+    // slither-disable-next-line uninitialized-state
     uint256 public lastDistributionPeriod;
+    // slither-disable-next-line uninitialized-state
     uint256 public lastDistributionTimestamp;
 
+    // slither-disable-next-line uninitialized-state
     uint256 internal _fullyDistributedSinceUpdate;
     uint256 internal _redeemedDistributionsSinceUpdate;
 

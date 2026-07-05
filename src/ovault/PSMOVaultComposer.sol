@@ -43,6 +43,8 @@ contract PSMOVaultComposer is ProtoOVaultComposer {
      * @dev requirement Share token must match VAULT.vault1()
      * @dev requirement Share OFT must be an adapter (approvalRequired() returns true)
      */
+    // Internal constructor-time hook, not an initializer; the detector matches by name
+    // slither-disable-next-line pess-unprotected-initialize
     function _initializeShareToken() internal virtual override returns (address shareERC20) {
         shareERC20 = IOFT(SHARE_OFT).token();
 

@@ -32,6 +32,8 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
  * @dev Fee and pricing math reads state through the vault's external interface so every path prices
  * from one implementation; storage writes and the pool state machine use the pinned slots below.
  */
+// The facet exposes a burn entrypoint but is not the token; the interface belongs to the proxy
+// slither-disable-next-line missing-inheritance
 contract YuzuILPV3Facet is
     YuzuV3FacetBase,
     IYuzuILPV3FacetPricing,
@@ -555,6 +557,8 @@ contract YuzuILPV3Facet is
             baseMax = Math.ceilDiv(headroom, 1e12);
         } else {
             uint256 totalAssets_ = router.totalAssets();
+            // Only the high word matters here: it signals that the product overflows 256 bits
+            // slither-disable-next-line unused-return
             (uint256 high,) = Math.mul512(totalAssets_, headroom);
             baseMax = high >= supply ? type(uint256).max : Math.mulDiv(totalAssets_, headroom, supply);
         }

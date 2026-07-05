@@ -413,6 +413,7 @@ contract YuzuUSDV3 is
     }
 
     function _recordMintBlock(address receiver, uint256 amount) private {
+        // slither-disable-next-line incorrect-equality
         if (amount == 0 || _isThrottleExempt(receiver)) {
             return;
         }
@@ -423,6 +424,8 @@ contract YuzuUSDV3 is
         if (_isThrottleExempt(_owner)) {
             return;
         }
+        // The same-block equality check is the guard design, not a manipulable condition
+        // slither-disable-next-line incorrect-equality
         if (YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[_owner] == block.number) {
             revert SameBlockMintRedeem(_owner);
         }

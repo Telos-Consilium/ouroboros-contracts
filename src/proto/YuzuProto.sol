@@ -40,7 +40,10 @@ abstract contract YuzuProto is
 
     uint8 private _underlyingDecimals;
 
+    // The V3 facet writes these fields through raw storage slots, which slither cannot see
+    // slither-disable-next-line uninitialized-state
     uint256 public redeemFeePpm;
+    // slither-disable-next-line uninitialized-state
     uint256 public redeemOrderFeePpm;
     address public feeReceiver;
     bool public isMintRestricted;

@@ -17,7 +17,10 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     uint256 public poolSize;
+    // The V3 facet writes these fields through raw storage slots, which slither cannot see
+    // slither-disable-next-line uninitialized-state
     uint256 public dailyLinearYieldRatePpm;
+    // slither-disable-next-line uninitialized-state
     uint256 public lastPoolUpdateTimestamp;
 
     constructor() {
