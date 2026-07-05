@@ -191,9 +191,9 @@ contract YuzuILPV3Facet is
 
         uint256 supply = router.totalSupply();
         if (supply > 0) {
-            uint256 newHwm = Math.mulDiv(netOfManagementFee, 10 ** router.decimals(), supply);
-            if (newHwm > $._highWaterMark) {
-                $._highWaterMark = newHwm;
+            uint256 newHighWaterMark = Math.mulDiv(netOfManagementFee, 10 ** router.decimals(), supply);
+            if (newHighWaterMark > $._highWaterMark) {
+                $._highWaterMark = newHighWaterMark;
             }
             $._performanceFeeRatePpm = $._pendingPerformanceFeeRatePpm;
         }
@@ -489,12 +489,12 @@ contract YuzuILPV3Facet is
         if (rate == 0 || supply == 0) {
             return 0;
         }
-        uint256 hwmAssets =
+        uint256 highWaterMarkAssets =
             Math.mulDiv(router.highWaterMark(), supply, 10 ** router.decimals(), Math.Rounding(1 - uint256(rounding)));
-        if (netOfManagementFee <= hwmAssets) {
+        if (netOfManagementFee <= highWaterMarkAssets) {
             return 0;
         }
-        return Math.mulDiv(rate, netOfManagementFee - hwmAssets, 1e6, rounding);
+        return Math.mulDiv(rate, netOfManagementFee - highWaterMarkAssets, 1e6, rounding);
     }
 
     function _proxyTimeSinceUpdate(IYuzuILPV3Router router) private view returns (uint256) {

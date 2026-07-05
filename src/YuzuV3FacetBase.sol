@@ -21,10 +21,9 @@ import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 
 /**
  * @title YuzuV3FacetBase
- * @dev Shared facet surface for the V3 vaults: the proto setters, the redeem-order lifecycle, and
- * admin token movements, together with the single replica of the frozen proto storage layout. Runs
- * under delegatecall from the vault proxy; state is read through the vault's external interface and
- * written through the pinned slots and struct replicas below.
+ * @dev Shared facet surface for the V3 vaults, holding the single replica of the frozen proto storage
+ * layout. Runs under delegatecall from the vault proxy; state is read through the vault's external
+ * interface and written through the pinned slots and struct replicas below.
  */
 abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefinitions, IYuzuProtoDefinitions {
     // Storage replicas
@@ -172,7 +171,6 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         return assets;
     }
 
-    // Admin actions
     // Config setters
     function setMinRedeemOrder(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);

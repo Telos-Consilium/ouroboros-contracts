@@ -25,8 +25,7 @@ import {
 /**
  * @title YuzuUSDV3
  * @notice YuzuUSD with V3 limits, throttles, same-block guard, and NAV markdowns
- * @dev Throttles and same-block checks apply only to instant paths. Order redemptions use minRedeemOrder
- * at creation and settle at the backing value capped at par.
+ * @dev Throttles and the same-block guard apply only to the instant paths, not the order path.
  */
 contract YuzuUSDV3 is
     YuzuUSDV2,

@@ -21,8 +21,6 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
 /**
  * @title YuzuILPV3
  * @notice YuzuILP with V3 limits, throttles, pool guards, and fees
- * @dev yzILP has no instant redeem path. Fee rates are managed by FEE_MANAGER_ROLE; management
- * and performance fee changes take effect at the next pool update.
  */
 contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     // Construction and initialization

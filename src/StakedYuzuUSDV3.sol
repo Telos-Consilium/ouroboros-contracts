@@ -42,6 +42,7 @@ contract StakedYuzuUSDV3 is
     uint256 public minDistributionPeriod;
     uint256 public minRedeemOrder;
 
+    // Initialization
     /// @notice Initializes V3 over a V1-initialized vault: migrates ownership to AccessControl
     /// and applies the V3 configuration.
     /// @param _admin The admin of the contract
@@ -72,6 +73,14 @@ contract StakedYuzuUSDV3 is
         maxDistributionPpm = type(uint256).max;
     }
 
+    /// @dev Fresh deploys initialize at V1 and then run reinitialize; disabled pending size
+    /// headroom for the inherited initializer.
+    // slither-disable-next-line pess-unprotected-initialize
+    function initialize(IERC20, string memory, string memory, address, address, uint256) external pure override {
+        revert InitializationDisabled();
+    }
+
+    // Ownership migration to AccessControl
     /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
     function owner()
         public
@@ -98,13 +107,7 @@ contract StakedYuzuUSDV3 is
     /// @dev Ownable checks are disabled after AccessControl migration.
     function _checkOwner() internal view override {}
 
-    /// @dev Fresh deploys initialize at V1 and then run reinitialize; disabled pending size
-    /// headroom for the inherited initializer.
-    // slither-disable-next-line pess-unprotected-initialize
-    function initialize(IERC20, string memory, string memory, address, address, uint256) external pure override {
-        revert InitializationDisabled();
-    }
-
+    // Views
     /// @inheritdoc StakedYuzuUSDV2
     /// @dev Public instant redeem is gated by isInstantRedeemEnabled; owners holding
     /// DELAY_EXEMPT_ROLE bypass it.
@@ -113,85 +116,6 @@ contract StakedYuzuUSDV3 is
             return false;
         }
         return isInstantRedeemEnabled || hasRole(DELAY_EXEMPT_ROLE, _owner);
-    }
-
-    function distribute(uint256 assets, uint256 period) public virtual override onlyRole(POOL_MANAGER_ROLE) {
-        if (period < minDistributionPeriod) {
-            revert DistributionPeriodTooLow(period, minDistributionPeriod);
-        }
-        if (maxDistributionPpm != type(uint256).max) {
-            uint256 maxAssets = Math.mulDiv(totalAssets(), maxDistributionPpm, 1e6);
-            if (assets > maxAssets) {
-                revert DistributionAmountTooHigh(assets, maxAssets);
-            }
-        }
-        super.distribute(assets, period);
-    }
-
-    function terminateDistribution(address receiver) public virtual override onlyRole(POOL_MANAGER_ROLE) {
-        super.terminateDistribution(receiver);
-    }
-
-    function rescueTokens(address token, address receiver, uint256 amount)
-        public
-        virtual
-        override
-        onlyRole(ADMIN_ROLE)
-    {
-        super.rescueTokens(token, receiver, amount);
-    }
-
-    function setRedeemDelay(uint256 newDelay) public virtual override onlyRole(REDEEM_MANAGER_ROLE) {
-        if (newDelay == 0) {
-            revert RedeemDelayTooLow(newDelay, 1);
-        }
-        super.setRedeemDelay(newDelay);
-    }
-
-    function setRedeemFee(uint256 newFeePpm) public virtual override onlyRole(FEE_MANAGER_ROLE) {
-        super.setRedeemFee(newFeePpm);
-    }
-
-    function setIsInstantRedeemEnabled(bool enabled) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
-        bool oldValue = isInstantRedeemEnabled;
-        isInstantRedeemEnabled = enabled;
-        emit UpdatedIsInstantRedeemEnabled(oldValue, enabled);
-    }
-
-    function setInstantRedeemFee(uint256 newFeePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
-        if (newFeePpm > 1e6) revert FeeTooHigh(newFeePpm, 1e6);
-        uint256 oldFee = instantRedeemFeePpm;
-        instantRedeemFeePpm = newFeePpm;
-        emit UpdatedInstantRedeemFee(oldFee, newFeePpm);
-    }
-
-    function setFeeReceiver(address newFeeReceiver) public virtual override onlyRole(ADMIN_ROLE) {
-        super.setFeeReceiver(newFeeReceiver);
-    }
-
-    function pause() public virtual override onlyRole(PAUSE_MANAGER_ROLE) {
-        super.pause();
-    }
-
-    function unpause() public virtual override onlyRole(PAUSE_MANAGER_ROLE) {
-        super.unpause();
-    }
-
-    /// @dev The exemption roles replace the integration mapping; stale entries persist in storage
-    /// but nothing reads them, and this setter is kept to zero them out. The override is also
-    /// required because _checkOwner is disabled, which would leave the inherited onlyOwner gate open.
-    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
-        public
-        virtual
-        override
-        onlyRole(ADMIN_ROLE)
-    {
-        super.setIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
-    }
-
-    /// @inheritdoc YuzuThrottle
-    function _isThrottleExempt(address account) internal view virtual override returns (bool) {
-        return hasRole(THROTTLE_EXEMPT_ROLE, account);
     }
 
     /// @inheritdoc StakedYuzuUSDV2
@@ -235,13 +159,7 @@ contract StakedYuzuUSDV3 is
         return _maxRedeemOrderFor(_owner);
     }
 
-    function _maxRedeemOrderFor(address _owner) internal view returns (uint256) {
-        uint256 maxShares = super.maxRedeemOrder(_owner);
-        uint256 remaining = _redeemThrottleRemaining(_owner);
-        uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
-        return shares < minRedeemOrder ? 0 : shares;
-    }
-
+    // User flows
     /// @dev The mint throttle keys on the receiver, matching {maxDeposit}, so the view and the
     /// execution agree on the same principal. Integrations that rate-limit their own inflow deposit
     /// as the receiver and forward the shares.
@@ -298,14 +216,6 @@ contract StakedYuzuUSDV3 is
         return assets;
     }
 
-    function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
-        return _previewWithdrawWithFee(assets, instantRedeemFeePpm);
-    }
-
-    function _previewRedeem(uint256 shares) internal view virtual override returns (uint256, uint256) {
-        return _previewRedeemWithFee(shares, instantRedeemFeePpm);
-    }
-
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
@@ -328,11 +238,81 @@ contract StakedYuzuUSDV3 is
         return (orderId, assets);
     }
 
-    function _redeemFeePpmFor(address account) internal view virtual override returns (uint256) {
-        if (hasRole(REDEEM_FEE_EXEMPT_ROLE, account)) {
-            return 0;
+    // Pool operations
+    function distribute(uint256 assets, uint256 period) public virtual override onlyRole(POOL_MANAGER_ROLE) {
+        if (period < minDistributionPeriod) {
+            revert DistributionPeriodTooLow(period, minDistributionPeriod);
         }
-        return instantRedeemFeePpm;
+        if (maxDistributionPpm != type(uint256).max) {
+            uint256 maxAssets = Math.mulDiv(totalAssets(), maxDistributionPpm, 1e6);
+            if (assets > maxAssets) {
+                revert DistributionAmountTooHigh(assets, maxAssets);
+            }
+        }
+        super.distribute(assets, period);
+    }
+
+    function terminateDistribution(address receiver) public virtual override onlyRole(POOL_MANAGER_ROLE) {
+        super.terminateDistribution(receiver);
+    }
+
+    // Admin
+    function rescueTokens(address token, address receiver, uint256 amount)
+        public
+        virtual
+        override
+        onlyRole(ADMIN_ROLE)
+    {
+        super.rescueTokens(token, receiver, amount);
+    }
+
+    function setFeeReceiver(address newFeeReceiver) public virtual override onlyRole(ADMIN_ROLE) {
+        super.setFeeReceiver(newFeeReceiver);
+    }
+
+    function pause() public virtual override onlyRole(PAUSE_MANAGER_ROLE) {
+        super.pause();
+    }
+
+    function unpause() public virtual override onlyRole(PAUSE_MANAGER_ROLE) {
+        super.unpause();
+    }
+
+    /// @dev The exemption roles replace the integration mapping; stale entries persist in storage
+    /// but nothing reads them, and this setter is kept to zero them out. The override is also
+    /// required because _checkOwner is disabled, which would leave the inherited onlyOwner gate open.
+    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
+        public
+        virtual
+        override
+        onlyRole(ADMIN_ROLE)
+    {
+        super.setIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
+    }
+
+    // Config setters
+    function setRedeemDelay(uint256 newDelay) public virtual override onlyRole(REDEEM_MANAGER_ROLE) {
+        if (newDelay == 0) {
+            revert RedeemDelayTooLow(newDelay, 1);
+        }
+        super.setRedeemDelay(newDelay);
+    }
+
+    function setRedeemFee(uint256 newFeePpm) public virtual override onlyRole(FEE_MANAGER_ROLE) {
+        super.setRedeemFee(newFeePpm);
+    }
+
+    function setInstantRedeemFee(uint256 newFeePpm) external virtual onlyRole(FEE_MANAGER_ROLE) {
+        if (newFeePpm > 1e6) revert FeeTooHigh(newFeePpm, 1e6);
+        uint256 oldFee = instantRedeemFeePpm;
+        instantRedeemFeePpm = newFeePpm;
+        emit UpdatedInstantRedeemFee(oldFee, newFeePpm);
+    }
+
+    function setIsInstantRedeemEnabled(bool enabled) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
+        bool oldValue = isInstantRedeemEnabled;
+        isInstantRedeemEnabled = enabled;
+        emit UpdatedIsInstantRedeemEnabled(oldValue, enabled);
     }
 
     function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
@@ -379,6 +359,34 @@ contract StakedYuzuUSDV3 is
         onlyRole(LIMIT_MANAGER_ROLE)
     {
         _setRedeemThrottle(newBlockLimit, newDailyLimit);
+    }
+
+    // Internal
+    /// @inheritdoc YuzuThrottle
+    function _isThrottleExempt(address account) internal view virtual override returns (bool) {
+        return hasRole(THROTTLE_EXEMPT_ROLE, account);
+    }
+
+    function _maxRedeemOrderFor(address _owner) internal view returns (uint256) {
+        uint256 maxShares = super.maxRedeemOrder(_owner);
+        uint256 remaining = _redeemThrottleRemaining(_owner);
+        uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
+        return shares < minRedeemOrder ? 0 : shares;
+    }
+
+    function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
+        return _previewWithdrawWithFee(assets, instantRedeemFeePpm);
+    }
+
+    function _previewRedeem(uint256 shares) internal view virtual override returns (uint256, uint256) {
+        return _previewRedeemWithFee(shares, instantRedeemFeePpm);
+    }
+
+    function _redeemFeePpmFor(address account) internal view virtual override returns (uint256) {
+        if (hasRole(REDEEM_FEE_EXEMPT_ROLE, account)) {
+            return 0;
+        }
+        return instantRedeemFeePpm;
     }
 
     /**
