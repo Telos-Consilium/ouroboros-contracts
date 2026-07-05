@@ -20,6 +20,11 @@ interface IYuzuV3RouterBase {
     function __routerSpendAllowance(address owner, address spender, uint256 value) external;
 }
 
+/// @dev Vault-to-facet pricing view: fee-adjusted total assets under the requested rounding.
+interface IYuzuILPV3FacetPricing {
+    function totalAssetsWithRounding(uint256 rounding) external view returns (uint256);
+}
+
 interface IYuzuILPV3Router is IYuzuV3RouterBase {
     function previewDeposit(uint256 assets) external view returns (uint256);
     function previewMint(uint256 tokens) external view returns (uint256);

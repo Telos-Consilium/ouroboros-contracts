@@ -23,7 +23,7 @@ import {
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuProtoV2Definitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
-import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
+import {IYuzuILPV3FacetPricing, IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
@@ -34,6 +34,7 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
  */
 contract YuzuILPV3Facet is
     YuzuV3FacetBase,
+    IYuzuILPV3FacetPricing,
     IYuzuILPDefinitions,
     IYuzuILPV2Definitions,
     IYuzuILPV3Definitions,

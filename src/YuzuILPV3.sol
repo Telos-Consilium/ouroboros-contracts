@@ -6,17 +6,12 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {YuzuILPV2} from "./YuzuILPV2.sol";
 import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
-import {IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
+import {IYuzuILPV3FacetPricing, IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {FEE_MANAGER_ROLE, MAX_MANAGEMENT_FEE_PPM, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
-
-/// @dev Vault-to-facet pricing call: fee-adjusted total assets under the requested rounding.
-interface IYuzuILPV3FacetPricing {
-    function totalAssetsWithRounding(uint256 rounding) external view returns (uint256);
-}
 
 /**
  * @title YuzuILPV3

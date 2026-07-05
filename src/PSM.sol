@@ -301,6 +301,8 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     function _deposit(address caller, address receiver, uint256 assets) internal virtual returns (uint256) {
+        // caller is _msgSender() at the only call site; the depositor pulls their own asset.
+        // slither-disable-next-line arbitrary-send-erc20
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), assets);
         SafeERC20.safeIncreaseAllowance(IERC20(asset()), vault0(), assets);
         uint256 shares0 = _vault0.deposit(assets, address(this));
