@@ -25,7 +25,7 @@ import {
 /**
  * @title YuzuUSDV3
  * @notice YuzuUSD with V3 limits, throttles, same-block guard, and NAV markdowns
- * @dev Throttles and same-block checks apply only to instant paths. Order redemptions use minWithdraw
+ * @dev Throttles and same-block checks apply only to instant paths. Order redemptions use minRedeemOrder
  * at creation and settle at the backing value capped at par.
  */
 contract YuzuUSDV3 is
