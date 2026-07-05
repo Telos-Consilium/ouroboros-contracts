@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
-import {StakedYuzuUSDV3RecoveryMigration} from "../../src/StakedYuzuUSDV3RecoveryMigration.sol";
+import {StakedYuzuUSDV3Recovery} from "../../src/StakedYuzuUSDV3Recovery.sol";
 import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
 import {IStakedYuzuUSD, IStakedYuzuUSDV2} from "../../src/interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDV3Definitions} from "../../src/interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -63,50 +63,41 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         vm.prank(v2Owner);
         v2.pause();
 
-        // Upgrade V2 -> recovery migration atomically via ProxyAdmin.upgradeAndCall
-        address v3MigrationImpl = address(new StakedYuzuUSDV3RecoveryMigration());
+        // Upgrade V2 -> recovery atomically via ProxyAdmin.upgradeAndCall
+        address recoveryImpl = address(new StakedYuzuUSDV3Recovery());
         address admin = makeAddr("v3Admin");
-        bytes memory migrationData =
-            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.migrateToV3.selector, admin);
+        bytes memory recoveryData = abi.encodeWithSelector(StakedYuzuUSDV3Recovery.recover.selector);
         vm.prank(proxyAdminOwner);
-        ProxyAdmin(proxyAdmin).upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(proxy)), v3MigrationImpl, migrationData
-        );
+        ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), recoveryImpl, recoveryData);
 
         address implAfterRecovery = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
-        assertEq(implAfterRecovery, v3MigrationImpl, "v3Migration impl not active");
+        assertEq(implAfterRecovery, recoveryImpl, "recovery impl not active");
 
-        StakedYuzuUSDV3RecoveryMigration v3M = StakedYuzuUSDV3RecoveryMigration(proxy);
+        StakedYuzuUSDV3Recovery rec = StakedYuzuUSDV3Recovery(proxy);
 
         // V2 state preserved
-        assertEq(v3M.redeemDelay(), redeemDelayBefore, "redeemDelay drift");
-        assertEq(v3M.redeemFeePpm(), redeemFeePpmBefore, "redeemFeePpm drift");
-        assertEq(v3M.feeReceiver(), feeReceiverBefore, "feeReceiver drift");
-        assertEq(v3M.lastDistributedAmount(), lastDistributedAmountBefore, "lastDistributedAmount drift");
-        assertEq(v3M.lastDistributionPeriod(), lastDistributionPeriodBefore, "lastDistributionPeriod drift");
-        assertEq(v3M.lastDistributionTime(), lastDistributionTimeBefore, "lastDistributionTime drift");
-        assertEq(v3M.totalPendingOrderValue(), totalPendingOrderValueBefore, "totalPendingOrderValue drift");
-        assertEq(v3M.orderCount(), orderCountBefore, "orderCount drift");
-        assertEq(v3M.name(), nameBefore, "name drift");
-        assertEq(v3M.symbol(), symbolBefore, "symbol drift");
+        assertEq(rec.redeemDelay(), redeemDelayBefore, "redeemDelay drift");
+        assertEq(rec.redeemFeePpm(), redeemFeePpmBefore, "redeemFeePpm drift");
+        assertEq(rec.feeReceiver(), feeReceiverBefore, "feeReceiver drift");
+        assertEq(rec.lastDistributedAmount(), lastDistributedAmountBefore, "lastDistributedAmount drift");
+        assertEq(rec.lastDistributionPeriod(), lastDistributionPeriodBefore, "lastDistributionPeriod drift");
+        assertEq(rec.lastDistributionTime(), lastDistributionTimeBefore, "lastDistributionTime drift");
+        assertEq(rec.totalPendingOrderValue(), totalPendingOrderValueBefore, "totalPendingOrderValue drift");
+        assertEq(rec.orderCount(), orderCountBefore, "orderCount drift");
+        assertEq(rec.name(), nameBefore, "name drift");
+        assertEq(rec.symbol(), symbolBefore, "symbol drift");
 
-        // Recovery executed
-        assertEq(v3M.balanceOf(LOST_ADDRESS), 0, "lost balance not burned");
-        assertEq(v3M.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT, "recovery receiver not credited");
+        // Recovery executed; ownership untouched at this stage
+        assertEq(rec.balanceOf(LOST_ADDRESS), 0, "lost balance not burned");
+        assertEq(rec.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT, "recovery receiver not credited");
+        assertEq(IOwnable(proxy).owner(), v2Owner, "owner drift at recovery stage");
 
-        // AccessControl migration
-        assertEq(v3M.owner(), admin, "owner not migrated to admin");
-        assertTrue(v3M.hasRole(v3M.DEFAULT_ADMIN_ROLE(), admin), "DEFAULT_ADMIN_ROLE not granted");
-        assertTrue(v3M.hasRole(ADMIN_ROLE, admin), "ADMIN_ROLE not granted");
-
-        // reinitialize is one-shot
+        // recover is one-shot
         vm.prank(proxyAdminOwner);
         vm.expectRevert();
-        ProxyAdmin(proxyAdmin).upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(proxy)), v3MigrationImpl, migrationData
-        );
+        ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), recoveryImpl, recoveryData);
 
-        // Upgrade V3Migration -> parked V3 runtime
+        // Upgrade recovery -> parked V3 runtime; reinitialize migrates ownership and configures
         address v3Impl = address(new StakedYuzuUSDV3());
         bytes memory parkedData = abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, admin);
         vm.prank(proxyAdminOwner);
@@ -123,8 +114,11 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         assertEq(v3.totalPendingOrderValue(), totalPendingOrderValueBefore, "totalPendingOrderValue drift after strip");
         assertEq(v3.orderCount(), orderCountBefore, "orderCount drift after strip");
         assertEq(v3.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT, "recovery receiver drift after strip");
-        assertEq(v3.owner(), admin, "owner drift after strip");
-        assertTrue(v3.hasRole(ADMIN_ROLE, admin), "ADMIN_ROLE drift after strip");
+
+        // AccessControl migration performed by reinitialize
+        assertEq(v3.owner(), admin, "owner not migrated to admin");
+        assertTrue(v3.hasRole(v3.DEFAULT_ADMIN_ROLE(), admin), "DEFAULT_ADMIN_ROLE not granted");
+        assertTrue(v3.hasRole(ADMIN_ROLE, admin), "ADMIN_ROLE not granted");
 
         // Public instant redeem starts disabled; integrations can still be enabled explicitly.
         assertFalse(v3.isInstantRedeemEnabled(), "isInstantRedeemEnabled set");

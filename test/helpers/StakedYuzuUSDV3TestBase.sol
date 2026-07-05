@@ -9,8 +9,7 @@ import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transpa
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
 import {StakedYuzuUSD} from "../../src/StakedYuzuUSD.sol";
-import {StakedYuzuUSDV3Migration} from "../../src/StakedYuzuUSDV3Migration.sol";
-import {StakedYuzuUSDV3RecoveryMigration} from "../../src/StakedYuzuUSDV3RecoveryMigration.sol";
+import {StakedYuzuUSDV3Recovery} from "../../src/StakedYuzuUSDV3Recovery.sol";
 import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
 
 abstract contract StakedYuzuUSDV3TestBase is Test {
@@ -48,12 +47,7 @@ abstract contract StakedYuzuUSDV3TestBase is Test {
         (TransparentUpgradeableProxy proxy, ProxyAdmin deployedProxyAdmin,) = _deploySeededV1Proxy(owner);
         proxyAdmin = deployedProxyAdmin;
 
-        _upgradeToRecoveryMigration(
-            proxyAdmin,
-            proxy,
-            owner,
-            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.migrateToV3.selector, admin)
-        );
+        _upgradeToRecovery(proxyAdmin, proxy, owner);
         _upgradeToParkedV3(proxyAdmin, proxy, owner, admin);
 
         styz3 = StakedYuzuUSDV3(address(proxy));
@@ -86,11 +80,11 @@ abstract contract StakedYuzuUSDV3TestBase is Test {
 
     function _deploySeededV1Proxy(address proxyOwner)
         internal
-        returns (TransparentUpgradeableProxy proxy, ProxyAdmin deployedProxyAdmin, StakedYuzuUSDV3Migration staked)
+        returns (TransparentUpgradeableProxy proxy, ProxyAdmin deployedProxyAdmin, StakedYuzuUSD staked)
     {
         proxy = _deployV1Proxy(proxyOwner);
         deployedProxyAdmin = _proxyAdmin(address(proxy));
-        staked = StakedYuzuUSDV3Migration(address(proxy));
+        staked = StakedYuzuUSD(address(proxy));
 
         _approveAssets(user1, address(staked), type(uint256).max);
         vm.prank(user1);
@@ -114,26 +108,16 @@ abstract contract StakedYuzuUSDV3TestBase is Test {
         return new TransparentUpgradeableProxy(v1Impl, proxyOwner, initData);
     }
 
-    function _upgradeToMigration(
-        ProxyAdmin targetProxyAdmin,
-        TransparentUpgradeableProxy proxy,
-        address proxyOwner,
-        bytes memory data
-    ) internal {
-        address migrationImpl = address(new StakedYuzuUSDV3Migration());
+    function _upgradeToRecovery(ProxyAdmin targetProxyAdmin, TransparentUpgradeableProxy proxy, address proxyOwner)
+        internal
+    {
+        address recoveryImpl = address(new StakedYuzuUSDV3Recovery());
         vm.prank(proxyOwner);
-        targetProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, data);
-    }
-
-    function _upgradeToRecoveryMigration(
-        ProxyAdmin targetProxyAdmin,
-        TransparentUpgradeableProxy proxy,
-        address proxyOwner,
-        bytes memory data
-    ) internal {
-        address migrationImpl = address(new StakedYuzuUSDV3RecoveryMigration());
-        vm.prank(proxyOwner);
-        targetProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), migrationImpl, data);
+        targetProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            recoveryImpl,
+            abi.encodeWithSelector(StakedYuzuUSDV3Recovery.recover.selector)
+        );
     }
 
     function _upgradeToParkedV3(

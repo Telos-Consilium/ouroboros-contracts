@@ -14,7 +14,6 @@ import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
 import {YuzuUSDV3Facet} from "../src/YuzuUSDV3Facet.sol";
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
-import {StakedYuzuUSDV3Migration} from "../src/StakedYuzuUSDV3Migration.sol";
 import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {PSM} from "../src/PSM.sol";
 import {PSMV2} from "../src/PSMV2.sol";
@@ -196,14 +195,6 @@ contract PSMV2V3IntegrationTest is Test {
 
         vm.prank(owner);
         StakedYuzuUSD(address(proxy)).pause();
-
-        address migrationImpl = address(new StakedYuzuUSDV3Migration());
-        vm.prank(owner);
-        proxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(address(proxy))),
-            migrationImpl,
-            abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, admin)
-        );
 
         address v3Impl = address(new StakedYuzuUSDV3());
         vm.prank(owner);

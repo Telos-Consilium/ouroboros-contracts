@@ -10,8 +10,7 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
-import {StakedYuzuUSDV3Migration} from "../src/StakedYuzuUSDV3Migration.sol";
-import {StakedYuzuUSDV3RecoveryMigration} from "../src/StakedYuzuUSDV3RecoveryMigration.sol";
+import {StakedYuzuUSDV3Recovery} from "../src/StakedYuzuUSDV3Recovery.sol";
 import {
     IntegrationConfig,
     IStakedYuzuUSDDefinitions,
@@ -53,41 +52,25 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT);
     }
 
-    function test_MigrationWithoutRecovery_DoesNotRequireLostBalance() public {
+    function test_Reinitialize_BumpsPermitDomainToV2() public {
         address freshOwner = makeAddr("freshOwner");
         address freshAdmin = makeAddr("freshAdmin");
 
         TransparentUpgradeableProxy proxy = _deployV1Proxy(freshOwner);
         ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
-        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
-
-        vm.prank(freshOwner);
-        freshStyz.pause();
-
-        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin);
-        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
-
-        assertEq(freshStyz.balanceOf(LOST_ADDRESS), 0);
-        assertEq(freshStyz.balanceOf(RECOVERY_RECEIVER), 0);
-        assertEq(freshStyz.owner(), freshAdmin);
-        assertTrue(freshStyz.hasRole(ADMIN_ROLE, freshAdmin));
-    }
-
-    function test_MigrationWithoutRecovery_BumpsPermitDomainToV2() public {
-        address freshOwner = makeAddr("freshOwner");
-        address freshAdmin = makeAddr("freshAdmin");
-
-        TransparentUpgradeableProxy proxy = _deployV1Proxy(freshOwner);
-        ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
-        StakedYuzuUSDV3Migration freshStyz = StakedYuzuUSDV3Migration(address(proxy));
+        StakedYuzuUSDV3 freshStyz = StakedYuzuUSDV3(address(proxy));
 
         bytes32 domainSeparatorBefore = freshStyz.DOMAIN_SEPARATOR();
 
         vm.prank(freshOwner);
         freshStyz.pause();
 
-        bytes memory migrationData = abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin);
-        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            address(new StakedYuzuUSDV3()),
+            abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, freshAdmin)
+        );
 
         bytes32 expectedDomainSeparator = keccak256(
             abi.encode(
@@ -104,7 +87,7 @@ contract StakedYuzuUSDV3Test is
     }
 
     // Fresh deploy on the V3 implementation
-    function test_FreshDeploy_V3ImplementationRunsMigrationAndReinit() public {
+    function test_FreshDeploy_SingleCallReinitialize_BootstrapsAccessControl() public {
         address freshOwner = makeAddr("freshOwner");
         address freshAdmin = makeAddr("freshAdmin");
 
@@ -115,13 +98,7 @@ contract StakedYuzuUSDV3Test is
         vm.prank(freshOwner);
         StakedYuzuUSDV3(address(proxy)).pause();
 
-        // Both initializer stages run against the same implementation
-        vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(address(proxy))),
-            v3Impl,
-            abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin)
-        );
+        // Reinitialize migrates ownership to AccessControl and applies the V3 config in one call
         vm.prank(freshOwner);
         freshProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(proxy))),
@@ -132,8 +109,8 @@ contract StakedYuzuUSDV3Test is
         StakedYuzuUSDV3 vault = StakedYuzuUSDV3(address(proxy));
         assertEq(vault.owner(), freshAdmin);
         assertTrue(vault.hasRole(ADMIN_ROLE, freshAdmin));
+        assertEq(vault.getRoleAdmin(PAUSE_MANAGER_ROLE), ADMIN_ROLE);
         assertEq(vault.getRoleAdmin(DELAY_EXEMPT_ROLE), ADMIN_ROLE);
-        assertEq(vault.getRoleAdmin(REDEEM_FEE_EXEMPT_ROLE), ADMIN_ROLE);
         assertFalse(vault.isInstantRedeemEnabled());
 
         vm.startPrank(freshAdmin);
@@ -143,49 +120,12 @@ contract StakedYuzuUSDV3Test is
 
         _approveAssets(user1, address(vault), type(uint256).max);
         vm.prank(user1);
-        uint256 shares = vault.deposit(100e18, user1);
-        assertEq(shares, 100e18);
+        assertEq(vault.deposit(100e18, user1), 100e18);
     }
 
-    function test_FreshDeploy_Reinitialize_Revert_BeforeMigration() public {
-        address freshOwner = makeAddr("freshOwner");
-        address freshAdmin = makeAddr("freshAdmin");
-
-        TransparentUpgradeableProxy proxy = _deployV1Proxy(freshOwner);
-        ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
-        address v3Impl = address(new StakedYuzuUSDV3());
-
-        vm.prank(freshOwner);
-        StakedYuzuUSDV3(address(proxy)).pause();
-
-        // Reinitialize demands the AccessControl state that only migrateToV3 produces
-        vm.prank(freshOwner);
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, freshAdmin));
-        freshProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(address(proxy))),
-            v3Impl,
-            abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, freshAdmin)
-        );
-
-        // The failed attempt does not burn the version ladder; the chain still completes
-        vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(address(proxy))),
-            v3Impl,
-            abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin)
-        );
-        vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(address(proxy))),
-            v3Impl,
-            abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, freshAdmin)
-        );
-        assertEq(StakedYuzuUSDV3(address(proxy)).owner(), freshAdmin);
-    }
-
-    function test_MigrateToV3_Revert_AlreadyReinitialized() public {
+    function test_Reinitialize_Revert_AlreadyReinitialized() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        styz3.migrateToV3(admin);
+        styz3.reinitialize(admin);
     }
 
     // Reinitialize gate
@@ -194,29 +134,29 @@ contract StakedYuzuUSDV3Test is
         address attacker = makeAddr("attacker");
         address freshAdmin = makeAddr("freshAdmin");
 
-        (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin, StakedYuzuUSDV3Migration freshStyz) =
-            _deploySeededV1Proxy(freshOwner);
-        _upgradeToMigration(freshProxyAdmin, proxy, freshOwner, bytes(""));
+        (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin,) = _deploySeededV1Proxy(freshOwner);
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))), address(new StakedYuzuUSDV3()), bytes("")
+        );
+        StakedYuzuUSDV3 freshStyz = StakedYuzuUSDV3(address(proxy));
 
         vm.prank(attacker);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, attacker));
-        freshStyz.migrateToV3(attacker);
+        freshStyz.reinitialize(attacker);
 
         vm.prank(freshAdmin);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, freshAdmin));
-        freshStyz.migrateToV3(freshAdmin);
+        freshStyz.reinitialize(freshAdmin);
     }
 
-    function test_MigrationInheritedOwnerMethods_Revert_NotAdmin() public {
+    function test_RecoveryOwnerMethods_Revert_NotOwner() public {
         address freshOwner = makeAddr("freshOwner");
         address attacker = makeAddr("attacker");
-        address freshAdmin = makeAddr("freshAdmin");
 
-        (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin, StakedYuzuUSDV3Migration freshStyz) =
-            _deploySeededV1Proxy(freshOwner);
-        bytes memory migrationData =
-            abi.encodeWithSelector(StakedYuzuUSDV3RecoveryMigration.migrateToV3.selector, freshAdmin);
-        _upgradeToRecoveryMigration(freshProxyAdmin, proxy, freshOwner, migrationData);
+        (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin,) = _deploySeededV1Proxy(freshOwner);
+        _upgradeToRecovery(freshProxyAdmin, proxy, freshOwner);
+        StakedYuzuUSDV3Recovery freshStyz = StakedYuzuUSDV3Recovery(address(proxy));
 
         vm.startPrank(attacker);
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, attacker));
@@ -226,7 +166,7 @@ contract StakedYuzuUSDV3Test is
         freshStyz.setIntegration(attacker, true, true);
         vm.stopPrank();
 
-        vm.prank(freshAdmin);
+        vm.prank(freshOwner);
         freshStyz.unpause();
         assertFalse(freshStyz.paused());
     }

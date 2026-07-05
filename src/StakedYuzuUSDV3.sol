@@ -3,12 +3,16 @@ pragma solidity ^0.8.30;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {AccessControlDefaultAdminRulesUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
-import {StakedYuzuUSDV3Migration} from "./StakedYuzuUSDV3Migration.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
+import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 import {
     ADMIN_ROLE,
     DELAY_EXEMPT_ROLE,
@@ -25,37 +29,77 @@ import {
  * @title StakedYuzuUSDV3
  * @notice Staked Yuzu USD V3 implementation.
  */
-contract StakedYuzuUSDV3 is StakedYuzuUSDV3Migration, YuzuThrottle, YuzuMinAmounts {
+contract StakedYuzuUSDV3 is
+    StakedYuzuUSDV2,
+    AccessControlDefaultAdminRulesUpgradeable,
+    YuzuThrottle,
+    YuzuMinAmounts,
+    IStakedYuzuUSDV3Definitions
+{
     uint256 public instantRedeemFeePpm;
     bool public isInstantRedeemEnabled;
     uint256 public maxDistributionPpm;
     uint256 public minDistributionPeriod;
     uint256 public minRedeemOrder;
 
-    /// @notice Reinitializes the contract after V3 migration.
+    /// @notice Initializes V3 over a V1-initialized vault: migrates ownership to AccessControl
+    /// and applies the V3 configuration.
     /// @param _admin The admin of the contract
-    /// @dev Gated to the proxy admin. The owner and role checks require the AccessControl state
-    /// that only migrateToV3 produces, so this cannot run before the migration step.
+    /// @dev Gated to the proxy admin.
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize(address _admin) external virtual reinitializer(4) whenPaused {
         if (msg.sender != ERC1967Utils.getAdmin()) revert UnauthorizedReinitializer(msg.sender);
         if (_admin == address(0)) revert InvalidZeroAddress();
-        if (owner() != _admin || !hasRole(ADMIN_ROLE, _admin)) revert UnauthorizedReinitializer(_admin);
 
-        isInstantRedeemEnabled = false;
+        __EIP712_init(name(), "2");
+        __AccessControlDefaultAdminRules_init(0, _admin);
+
+        _grantRole(ADMIN_ROLE, _admin);
+        _setRoleAdmin(PAUSE_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(DELAY_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_FEE_EXEMPT_ROLE, ADMIN_ROLE);
+        _transferOwnership(address(0));
+
+        isInstantRedeemEnabled = false;
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
         // max uint disables the distribution amount cap; 0 would block all distributions.
         maxDistributionPpm = type(uint256).max;
     }
 
+    /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
+    function owner()
+        public
+        view
+        virtual
+        override(OwnableUpgradeable, AccessControlDefaultAdminRulesUpgradeable)
+        returns (address)
+    {
+        return AccessControlDefaultAdminRulesUpgradeable.owner();
+    }
+
+    function transferOwnership(address) public pure override(Ownable2StepUpgradeable) {
+        revert OwnershipMigratedToAccessControl();
+    }
+
+    function acceptOwnership() public pure override(Ownable2StepUpgradeable) {
+        revert OwnershipMigratedToAccessControl();
+    }
+
+    function renounceOwnership() public pure override(OwnableUpgradeable) {
+        revert OwnershipMigratedToAccessControl();
+    }
+
     /// @dev Ownable checks are disabled after AccessControl migration.
     function _checkOwner() internal view override {}
 
-    /// @dev Fresh deploys initialize at V1 and then run migrateToV3 and reinitialize; disabled
-    /// pending size headroom for the inherited initializer.
+    /// @dev Fresh deploys initialize at V1 and then run reinitialize; disabled pending size
+    /// headroom for the inherited initializer.
     // slither-disable-next-line pess-unprotected-initialize
     function initialize(IERC20, string memory, string memory, address, address, uint256) external pure override {
         revert InitializationDisabled();
