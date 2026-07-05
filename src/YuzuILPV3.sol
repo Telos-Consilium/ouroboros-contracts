@@ -321,9 +321,9 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _deposit(caller, receiver, assets, tokens);
     }
 
-    function __routerBurn(address owner, uint256 tokens) external {
+    function __routerBurn(address _owner, uint256 tokens) external {
         _requireRouterSelfCall();
-        _burn(owner, tokens);
+        _burn(_owner, tokens);
     }
 
     function __routerTransfer(address from, address to, uint256 value) external {
@@ -331,9 +331,9 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _transfer(from, to, value);
     }
 
-    function __routerSpendAllowance(address owner, address spender, uint256 value) external {
+    function __routerSpendAllowance(address _owner, address spender, uint256 value) external {
         _requireRouterSelfCall();
-        _spendAllowance(owner, spender, value);
+        _spendAllowance(_owner, spender, value);
     }
 
     /**
