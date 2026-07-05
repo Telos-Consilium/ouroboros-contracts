@@ -8,13 +8,11 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 import {YuzuUSDV2} from "../../src/YuzuUSDV2.sol";
 import {IYuzuUSD, IYuzuUSDV2} from "../../src/interfaces/IYuzuUSD.sol";
+import {ADMIN_ROLE, BURNER_ROLE} from "../helpers/TestRoles.sol";
 
 contract YuzuUSDUpgradeForkTest is Test {
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 private constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     function test_ForkUpgrade() public {
         // Skip when RPC_URL is not provided

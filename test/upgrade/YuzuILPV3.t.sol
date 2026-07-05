@@ -10,15 +10,11 @@ import {YuzuILPV3} from "../../src/YuzuILPV3.sol";
 import {YuzuILPV3Facet} from "../../src/YuzuILPV3Facet.sol";
 import {IYuzuILPV2} from "../../src/interfaces/IYuzuILP.sol";
 import {Throttle} from "../../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {ADMIN_ROLE, FEE_MANAGER_ROLE, LIMIT_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "../helpers/TestRoles.sol";
 
 contract YuzuILPV3UpgradeForkTest is Test {
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 private constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-    bytes32 private constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 
     function test_ForkUpgrade() public {
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));

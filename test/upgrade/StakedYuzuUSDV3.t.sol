@@ -10,6 +10,7 @@ import {StakedYuzuUSDV3RecoveryMigration} from "../../src/StakedYuzuUSDV3Recover
 import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
 import {IStakedYuzuUSD, IStakedYuzuUSDV2} from "../../src/interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDV3Definitions} from "../../src/interfaces/IStakedYuzuUSDDefinitions.sol";
+import {ADMIN_ROLE, PAUSE_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "../helpers/TestRoles.sol";
 
 interface IOwnable {
     function owner() external view returns (address);
@@ -18,10 +19,6 @@ interface IOwnable {
 contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    bytes32 constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-    bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     address constant LOST_ADDRESS = 0xB3a9009c89a3Fc46314C2df642d920c244C61c06;
     address constant RECOVERY_RECEIVER = 0xAFFcbAb01F7C2B3D533198B741C9E32Df2d78616;

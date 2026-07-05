@@ -13,6 +13,18 @@ import {
     IYuzuSameBlockGuardDefinitions
 } from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
+import {
+    ADMIN_ROLE,
+    BURNER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    LIQUIDITY_MANAGER_ROLE,
+    MINTER_ROLE,
+    ORDER_FILLER_ROLE,
+    REDEEMER_ROLE,
+    RESTRICTION_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE,
+    USER_ROLE
+} from "./helpers/TestRoles.sol";
 import {PSMTest} from "./PSM.t.sol";
 
 contract PSMV2Test is PSMTest {
@@ -21,8 +33,6 @@ contract PSMV2Test is PSMTest {
     address public limitManager;
     address public throttleExempt;
 
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
     uint256 internal constant LIQUIDITY = 5_000_000e6;
 
     function setUp() public override {

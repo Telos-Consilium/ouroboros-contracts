@@ -4,15 +4,13 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {YuzuV3Fees} from "../src/libraries/YuzuV3Fees.sol";
+import {REDEEMER_ROLE, RESTRICTION_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 /// @dev Regression net for the facet's redemption pricing and gating: instant redemptions must settle
 /// exactly at the public quotes, and the redeem restriction must close the instant and order paths
 /// together.
 contract YuzuV3FacetParityTest is YuzuV3TestBase {
-    bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
-    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
-
     uint256 internal constant PAR = 1e18;
 
     function setUp() public {

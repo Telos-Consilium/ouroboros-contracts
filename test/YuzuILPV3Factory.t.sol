@@ -13,10 +13,10 @@ import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {YuzuILPV3Factory} from "../src/YuzuILPV3Factory.sol";
 import {IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {DEPLOYER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3FactoryTest is YuzuV3TestBase {
-    bytes32 internal constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
     bytes32 internal constant SALT = keccak256("yuzu.ilp.v3");
 
     bytes32 internal constant ERC1967_ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;

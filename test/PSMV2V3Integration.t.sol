@@ -19,6 +19,18 @@ import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {PSM} from "../src/PSM.sol";
 import {PSMV2} from "../src/PSMV2.sol";
 import {IYuzuSameBlockGuardDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {
+    BURNER_ROLE,
+    DELAY_EXEMPT_ROLE,
+    LIQUIDITY_MANAGER_ROLE,
+    MINTER_ROLE,
+    ORDER_FILLER_ROLE,
+    PAUSE_MANAGER_ROLE,
+    REDEEMER_ROLE,
+    REDEEM_FEE_EXEMPT_ROLE,
+    RESTRICTION_MANAGER_ROLE,
+    USER_ROLE
+} from "./helpers/TestRoles.sol";
 
 contract PSMV2V3USDT0Mock is ERC20Mock {
     function decimals() public pure virtual override returns (uint8) {
@@ -28,17 +40,6 @@ contract PSMV2V3USDT0Mock is ERC20Mock {
 
 contract PSMV2V3IntegrationTest is Test {
     bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
-    bytes32 internal constant BURNER_ROLE = keccak256("BURNER_ROLE");
-    bytes32 internal constant LIQUIDITY_MANAGER_ROLE = keccak256("LIQUIDITY_MANAGER_ROLE");
-    bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
-    bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
-    bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-    bytes32 internal constant DELAY_EXEMPT_ROLE = keccak256("DELAY_EXEMPT_ROLE");
-    bytes32 internal constant REDEEM_FEE_EXEMPT_ROLE = keccak256("REDEEM_FEE_EXEMPT_ROLE");
 
     PSMV2V3USDT0Mock internal asset;
     YuzuUSDV3 internal yzusd;

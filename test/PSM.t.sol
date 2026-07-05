@@ -31,6 +31,17 @@ import {StakedYuzuUSDV2} from "../src/StakedYuzuUSDV2.sol";
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV2} from "../src/YuzuUSDV2.sol";
 import {PSM} from "../src/PSM.sol";
+import {
+    ADMIN_ROLE,
+    BURNER_ROLE,
+    LIQUIDITY_MANAGER_ROLE,
+    MINTER_ROLE,
+    ORDER_FILLER_ROLE,
+    REDEEMER_ROLE,
+    REDEEM_MANAGER_ROLE,
+    RESTRICTION_MANAGER_ROLE,
+    USER_ROLE
+} from "./helpers/TestRoles.sol";
 
 contract USDCMock is ERC20Mock {
     function decimals() public view virtual override returns (uint8) {
@@ -55,19 +66,6 @@ contract PSMTest is IPSMDefinitions, Test {
     address public restrictionManager;
     address public user1;
     address public user2;
-
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-    bytes32 internal constant LIQUIDITY_MANAGER_ROLE = keccak256("LIQUIDITY_MANAGER_ROLE");
-    bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
-    bytes32 internal constant BURNER_ROLE = keccak256("BURNER_ROLE");
-
-    bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
-
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-
-    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
-    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     function setUp() public virtual {
         admin = makeAddr("admin");
