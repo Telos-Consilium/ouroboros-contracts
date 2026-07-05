@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+
 import {YuzuV3Fees} from "../src/libraries/YuzuV3Fees.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
@@ -21,6 +23,7 @@ contract YuzuV3FacetParityTest is YuzuV3TestBase {
 
         vm.startPrank(admin);
         yzusd.grantRole(NAV_MANAGER_ROLE, navManager);
+        yzusd.grantRole(FEE_MANAGER_ROLE, admin);
         yzusd.grantRole(REDEEM_MANAGER_ROLE, admin);
         yzusd.grantRole(RESTRICTION_MANAGER_ROLE, admin);
         yzusd.setIsMintRestricted(false);
@@ -101,5 +104,43 @@ contract YuzuV3FacetParityTest is YuzuV3TestBase {
         assertGt(yzusd.maxWithdraw(user), 0, "redeemer cannot withdraw");
         assertGt(yzusd.maxRedeem(user), 0, "redeemer cannot redeem");
         assertGt(yzusd.maxRedeemOrder(user), 0, "redeemer cannot create a redeem order");
+    }
+
+    // --- fee setters answer to the fee manager; the liquidity buffer answers to the redeem manager ---
+
+    function test_FeeSetters_GateOnFeeManager_NotRedeemManager() public {
+        vm.startPrank(admin);
+        yzusd.grantRole(FEE_MANAGER_ROLE, feeManager);
+        yzusd.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
+        vm.stopPrank();
+
+        vm.startPrank(feeManager);
+        yzusd.setRedeemFee(1_000);
+        yzusd.setRedeemOrderFee(2_000);
+        vm.stopPrank();
+
+        vm.startPrank(redeemManager);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, redeemManager, FEE_MANAGER_ROLE
+            )
+        );
+        yzusd.setRedeemFee(1_000);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, redeemManager, FEE_MANAGER_ROLE
+            )
+        );
+        yzusd.setRedeemOrderFee(2_000);
+        yzusd.setLiquidityBufferTargetSize(1);
+        vm.stopPrank();
+
+        vm.prank(feeManager);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, feeManager, REDEEM_MANAGER_ROLE
+            )
+        );
+        yzusd.setLiquidityBufferTargetSize(1);
     }
 }

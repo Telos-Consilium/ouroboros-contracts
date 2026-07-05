@@ -8,10 +8,10 @@ import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.s
 import {YuzuV3FacetBase} from "./YuzuV3FacetBase.sol";
 import {
     ADMIN_ROLE,
+    FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     NAV_MANAGER_ROLE,
-    ORDER_FILLER_ROLE,
-    REDEEM_MANAGER_ROLE
+    ORDER_FILLER_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
@@ -139,7 +139,7 @@ contract YuzuUSDV3Facet is
     }
 
     function setRedeemFee(uint256 newFeePpm) external {
-        _checkRole(REDEEM_MANAGER_ROLE);
+        _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
@@ -149,7 +149,7 @@ contract YuzuUSDV3Facet is
     }
 
     function setRedeemOrderFee(uint256 newFeePpm) external {
-        _checkRole(REDEEM_MANAGER_ROLE);
+        _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }

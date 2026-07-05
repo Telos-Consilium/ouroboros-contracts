@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {NAV_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
+import {FEE_MANAGER_ROLE, NAV_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuUSD} from "./YuzuUSD.sol";
@@ -53,6 +53,7 @@ contract YuzuUSDV3 is
         __EIP712_init(name(), "2");
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         YuzuThrottleV3Storage.Layout storage throttleStorage = YuzuThrottleV3Storage.layout();
         Throttle storage mintThrottle_ = throttleStorage._mintThrottle;
         mintThrottle_.blockLimit = type(uint256).max;
