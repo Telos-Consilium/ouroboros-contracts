@@ -108,7 +108,6 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
-    /// @dev Routes to V3 fee and pool-split logic.
     function fillRedeemOrder(uint256) public virtual override {
         _delegateToFacet();
     }
@@ -151,7 +150,6 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     }
 
     // Facet routes: pool operations
-    /// @dev Routes to V3 fee and pool-update logic.
     function updatePool(uint256, uint256, uint256) public virtual override {
         _delegateToFacet();
     }
@@ -237,7 +235,6 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
-    /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
     function setRedeemFee(uint256) external virtual override {
         _delegateToFacet();
     }

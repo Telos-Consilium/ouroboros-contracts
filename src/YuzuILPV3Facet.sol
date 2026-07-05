@@ -300,7 +300,6 @@ contract YuzuILPV3Facet is
         emit UpdatedMintFee(oldFee, newFeePpm);
     }
 
-    /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
     function setRedeemFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
