@@ -46,7 +46,7 @@ coverage-html:
 	open coverage/html/index.html
 
 slither:
-	slitherin . --config-file slither.config.json
+	slither . --config-file slither.config.json
 
 slither-strict:
 	slitherin . --config-file slither.strict.config.json

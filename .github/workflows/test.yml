@@ -71,9 +71,9 @@ jobs:
           forge build --sizes
         id: build
 
-      - name: Run Slitherin
+      - name: Run Slither
         run: |
-          slitherin . --config-file slither.config.json
+          slither . --config-file slither.config.json
 
       - name: Run Forge tests
         run: |
