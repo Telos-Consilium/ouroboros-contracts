@@ -3,16 +3,12 @@ pragma solidity ^0.8.30;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {AccessControlDefaultAdminRulesUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlDefaultAdminRulesUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
+import {StakedYuzuUSDV3Migration} from "./StakedYuzuUSDV3Migration.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
-import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 import {
     ADMIN_ROLE,
     DELAY_EXEMPT_ROLE,
@@ -29,13 +25,7 @@ import {
  * @title StakedYuzuUSDV3
  * @notice Staked Yuzu USD V3 implementation.
  */
-contract StakedYuzuUSDV3 is
-    StakedYuzuUSDV2,
-    AccessControlDefaultAdminRulesUpgradeable,
-    YuzuThrottle,
-    YuzuMinAmounts,
-    IStakedYuzuUSDV3Definitions
-{
+contract StakedYuzuUSDV3 is StakedYuzuUSDV3Migration, YuzuThrottle, YuzuMinAmounts {
     uint256 public instantRedeemFeePpm;
     bool public isInstantRedeemEnabled;
     uint256 public maxDistributionPpm;
@@ -43,7 +33,8 @@ contract StakedYuzuUSDV3 is
 
     /// @notice Reinitializes the contract after V3 migration.
     /// @param _admin The admin of the contract
-    /// @dev Gated to the proxy admin
+    /// @dev Gated to the proxy admin. The owner and role checks require the AccessControl state
+    /// that only migrateToV3 produces, so this cannot run before the migration step.
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize(address _admin) external virtual reinitializer(4) whenPaused {
         if (msg.sender != ERC1967Utils.getAdmin()) revert UnauthorizedReinitializer(msg.sender);
@@ -59,19 +50,15 @@ contract StakedYuzuUSDV3 is
         maxDistributionPpm = type(uint256).max;
     }
 
-    /// @inheritdoc AccessControlDefaultAdminRulesUpgradeable
-    function owner()
-        public
-        view
-        virtual
-        override(OwnableUpgradeable, AccessControlDefaultAdminRulesUpgradeable)
-        returns (address)
-    {
-        return AccessControlDefaultAdminRulesUpgradeable.owner();
-    }
-
     /// @dev Ownable checks are disabled after AccessControl migration.
     function _checkOwner() internal view override {}
+
+    /// @dev Fresh deploys initialize at V1 and then run migrateToV3 and reinitialize; disabled
+    /// pending size headroom for the inherited initializer.
+    // slither-disable-next-line pess-unprotected-initialize
+    function initialize(IERC20, string memory, string memory, address, address, uint256) external pure override {
+        revert InitializationDisabled();
+    }
 
     /// @inheritdoc StakedYuzuUSDV2
     /// @dev Public instant redeem is gated by isInstantRedeemEnabled; owners holding
@@ -81,26 +68,6 @@ contract StakedYuzuUSDV3 is
             return false;
         }
         return isInstantRedeemEnabled || hasRole(DELAY_EXEMPT_ROLE, _owner);
-    }
-
-    /// @dev V3 is reached only by upgrading a live vault through the migration chain; a fresh proxy
-    /// initialized at V1 against this implementation can never satisfy {reinitialize}'s guards, so
-    /// the inherited initializer is disabled.
-    // slither-disable-next-line pess-unprotected-initialize
-    function initialize(IERC20, string memory, string memory, address, address, uint256) external pure override {
-        revert InitializationDisabled();
-    }
-
-    function transferOwnership(address) public pure override(Ownable2StepUpgradeable) {
-        revert OwnershipMigratedToAccessControl();
-    }
-
-    function acceptOwnership() public pure override(Ownable2StepUpgradeable) {
-        revert OwnershipMigratedToAccessControl();
-    }
-
-    function renounceOwnership() public pure override(OwnableUpgradeable) {
-        revert OwnershipMigratedToAccessControl();
     }
 
     function distribute(uint256 assets, uint256 period) public virtual override onlyRole(POOL_MANAGER_ROLE) {
