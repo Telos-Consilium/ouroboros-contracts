@@ -100,6 +100,7 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         vm.startPrank(admin);
         yzilp.grantRole(LIMIT_MANAGER_ROLE, limitManager);
         yzilp.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
+        yzusd.grantRole(LIMIT_MANAGER_ROLE, limitManager);
         yzusd.grantRole(REDEEM_MANAGER_ROLE, redeemManager);
         vm.stopPrank();
     }
@@ -143,7 +144,7 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         yzilp.setFillWindow(3600);
         assertEq(yzilp.fillWindow(), 3600, "facet setFillWindow visible through base getter");
 
-        vm.prank(redeemManager);
+        vm.prank(limitManager);
         yzilp.setMinRedeemOrder(42);
         assertEq(yzilp.minRedeemOrder(), 42, "facet setMinRedeemOrder visible through base getter");
     }
@@ -181,7 +182,7 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         yzusd.setFillWindow(3600);
         assertEq(yzusd.fillWindow(), 3600, "facet setFillWindow visible through base getter");
 
-        vm.prank(redeemManager);
+        vm.prank(limitManager);
         yzusd.setMinRedeemOrder(42);
         assertEq(yzusd.minRedeemOrder(), 42, "facet setMinRedeemOrder visible through base getter");
     }

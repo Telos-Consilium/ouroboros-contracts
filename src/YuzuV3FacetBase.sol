@@ -244,7 +244,7 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
     }
 
     function setMinRedeemOrder(uint256 newMin) external {
-        _checkRole(REDEEM_MANAGER_ROLE);
+        _checkRole(LIMIT_MANAGER_ROLE);
         YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
         uint256 oldMin = $._minRedeemOrder;
         $._minRedeemOrder = newMin;
