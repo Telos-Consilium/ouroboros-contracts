@@ -108,87 +108,70 @@ contract YuzuUSDV3 is
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setTreasury(address) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setFeeReceiver(address) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setSupplyCap(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setLiquidityBufferTargetSize(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setFillWindow(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinRedeemOrder(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemFee(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemOrderFee(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setIsMintRestricted(bool) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setIsRedeemRestricted(bool) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinWithdraw(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setNav(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setNavStepCap(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setNavCooldown(uint256) external virtual {
         _delegateToFacet();
     }

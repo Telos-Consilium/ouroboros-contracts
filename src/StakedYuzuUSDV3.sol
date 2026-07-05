@@ -316,12 +316,10 @@ contract StakedYuzuUSDV3 is
         return instantRedeemFeePpm;
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setMinDeposit(newMin);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setMinWithdraw(newMin);
     }

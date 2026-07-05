@@ -38,7 +38,6 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
         return _isThrottleExempt(account);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
         external
         virtual
@@ -47,7 +46,6 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
         _setMintThrottle(newBlockLimit, newDailyLimit);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
         external
         virtual
@@ -56,12 +54,10 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
         _setRedeemThrottle(newBlockLimit, newDailyLimit);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setMinDeposit(newMin);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setMinWithdraw(newMin);
     }

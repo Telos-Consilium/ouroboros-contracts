@@ -193,80 +193,65 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setTreasury(address) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setFeeReceiver(address) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setSupplyCap(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setLiquidityBufferTargetSize(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setFillWindow(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinRedeemOrder(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setIsMintRestricted(bool) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setIsRedeemRestricted(bool) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256, uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256) external virtual {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMintFee(uint256) external virtual {
         _delegateToFacet();
     }
 
     /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
-    // slither-disable-next-line pess-event-setter
     function setRedeemFee(uint256) external virtual override {
         _delegateToFacet();
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemOrderFee(uint256) external virtual override {
         _delegateToFacet();
     }
 
     /// @dev Stages the rate for the next pool update.
-    // slither-disable-next-line pess-event-setter
     function setPendingManagementFee(uint256) external virtual {
         _delegateToFacet();
     }
 
     /// @dev Stages the rate for the next pool update.
-    // slither-disable-next-line pess-event-setter
     function setPendingPerformanceFee(uint256) external virtual {
         _delegateToFacet();
     }

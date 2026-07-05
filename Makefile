@@ -48,6 +48,9 @@ coverage-html:
 slither:
 	slitherin . --config-file slither.config.json
 
+slither-strict:
+	slitherin . --config-file slither.strict.config.json
+
 check-submodules:
 	git submodule status --recursive
 	git diff --exit-code --submodule=log -- .gitmodules $(SUBMODULE_PATHS)

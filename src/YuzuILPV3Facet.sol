@@ -269,7 +269,6 @@ contract YuzuILPV3Facet is
     }
 
     // Config setters
-    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
@@ -280,7 +279,6 @@ contract YuzuILPV3Facet is
         emit UpdatedMintThrottle(oldBlockLimit, newBlockLimit, oldDailyLimit, newDailyLimit);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
@@ -289,7 +287,6 @@ contract YuzuILPV3Facet is
         emit UpdatedMinDeposit(oldMin, newMin);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMintFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
@@ -302,7 +299,6 @@ contract YuzuILPV3Facet is
     }
 
     /// @dev Uses FEE_MANAGER_ROLE for all fee rates.
-    // slither-disable-next-line pess-event-setter
     function setRedeemFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
@@ -313,7 +309,6 @@ contract YuzuILPV3Facet is
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemOrderFee(uint256 newFeePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
@@ -324,7 +319,6 @@ contract YuzuILPV3Facet is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setPendingManagementFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
@@ -336,7 +330,6 @@ contract YuzuILPV3Facet is
         emit UpdatedPendingManagementFee(oldRatePpm, newRatePpm);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setPendingPerformanceFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
         if (newRatePpm > 1e6) {

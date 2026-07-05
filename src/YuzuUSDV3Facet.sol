@@ -54,7 +54,6 @@ contract YuzuUSDV3Facet is
     }
 
     // Config setters
-    // slither-disable-next-line pess-event-setter
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
@@ -65,7 +64,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedMintThrottle(oldBlockLimit, newBlockLimit, oldDailyLimit, newDailyLimit);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
@@ -76,7 +74,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedRedeemThrottle(oldBlockLimit, newBlockLimit, oldDailyLimit, newDailyLimit);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinDeposit(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
@@ -85,7 +82,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedMinDeposit(oldMin, newMin);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setMinWithdraw(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
         YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
@@ -94,7 +90,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedMinWithdraw(oldMin, newMin);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setNav(uint256 newNav) external {
         _checkRole(NAV_MANAGER_ROLE);
         if (newNav == 0) {
@@ -124,7 +119,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedNav(currentNav, newNav);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setNavStepCap(uint256 newStepCapPpm) external {
         _checkRole(ADMIN_ROLE);
         if (newStepCapPpm > 1e6) {
@@ -136,7 +130,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedNavStepCap(oldStepCapPpm, newStepCapPpm);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setNavCooldown(uint256 newCooldown) external {
         _checkRole(ADMIN_ROLE);
         YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
@@ -145,7 +138,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedNavCooldown(oldCooldown, newCooldown);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemFee(uint256 newFeePpm) external {
         _checkRole(REDEEM_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
@@ -156,7 +148,6 @@ contract YuzuUSDV3Facet is
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    // slither-disable-next-line pess-event-setter
     function setRedeemOrderFee(uint256 newFeePpm) external {
         _checkRole(REDEEM_MANAGER_ROLE);
         if (newFeePpm > 1e6) {
