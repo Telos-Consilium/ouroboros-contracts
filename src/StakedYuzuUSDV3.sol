@@ -165,10 +165,9 @@ contract StakedYuzuUSDV3 is
         super.unpause();
     }
 
-    /// @dev V3 replaces the integration mapping with DELAY_EXEMPT_ROLE and REDEEM_FEE_EXEMPT_ROLE,
-    /// but entries written before the upgrade persist in storage and still feed the delay bypass
-    /// inside the inherited withdraw and redeem bodies. This setter is retained so those stale
-    /// entries can be zeroed out.
+    /// @dev The exemption roles replace the integration mapping; stale entries persist in storage
+    /// but nothing reads them, and this setter is kept to zero them out. The override is also
+    /// required because _checkOwner is disabled, which would leave the inherited onlyOwner gate open.
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
         public
         virtual
@@ -259,25 +258,33 @@ contract StakedYuzuUSDV3 is
         return depositedAssets;
     }
 
-    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee) and keys on the
-    /// owner in both account and fee basis, matching {maxWithdraw} so the view never overstates. The
-    /// fee actually charged remains the caller's rate.
+    /// @dev Self-contained body: the inherited one carries a legacy integration-mapping bypass
+    /// that must stay unreachable. Fee, throttle, and {maxWithdraw} all key on the owner, so the
+    /// view never overstates and the throttle books exactly the gross outflow (assets plus fee).
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         _checkMinWithdraw(assets);
-        uint256 shares = super.withdraw(assets, receiver, _owner);
-        _consumeRedeemThrottle(_owner, assets + _feeOnRaw(assets, _redeemFeePpmFor(_owner)));
+        uint256 maxAssets = maxWithdraw(_owner);
+        if (assets > maxAssets) {
+            revert ERC4626ExceededMaxWithdraw(_owner, assets, maxAssets);
+        }
+        (uint256 shares, uint256 fee) = _previewWithdrawWithFee(assets, _redeemFeePpmFor(_owner));
+        _withdraw(_msgSender(), receiver, _owner, shares, assets, fee);
+        _consumeRedeemThrottle(_owner, assets + fee);
         return shares;
     }
 
-    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee) and keys on the
-    /// owner, matching {maxRedeem}. Net plus fee at any single rate reconstructs the gross share
-    /// value, so the caller-rate split here books the same gross the view compares against.
+    /// @dev Self-contained body; see {withdraw}. Fee, throttle, and {maxRedeem} all key on the
+    /// owner.
     function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
-        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_msgSender()));
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_owner));
         _checkMinWithdraw(assets);
-        uint256 assetsOut = super.redeem(shares, receiver, _owner);
-        _consumeRedeemThrottle(_owner, assetsOut + fee);
-        return assetsOut;
+        uint256 maxShares = maxRedeem(_owner);
+        if (shares > maxShares) {
+            revert ERC4626ExceededMaxRedeem(_owner, shares, maxShares);
+        }
+        _withdraw(_msgSender(), receiver, _owner, shares, assets, fee);
+        _consumeRedeemThrottle(_owner, assets + fee);
+        return assets;
     }
 
     function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
@@ -288,6 +295,7 @@ contract StakedYuzuUSDV3 is
         return _previewRedeemWithFee(shares, instantRedeemFeePpm);
     }
 
+    // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
         virtual

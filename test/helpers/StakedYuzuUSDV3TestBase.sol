@@ -27,6 +27,8 @@ abstract contract StakedYuzuUSDV3TestBase is Test {
     bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+    bytes32 internal constant DELAY_EXEMPT_ROLE = keccak256("DELAY_EXEMPT_ROLE");
+    bytes32 internal constant REDEEM_FEE_EXEMPT_ROLE = keccak256("REDEEM_FEE_EXEMPT_ROLE");
 
     StakedYuzuUSDV3 public styz3;
     ProxyAdmin public proxyAdmin;
