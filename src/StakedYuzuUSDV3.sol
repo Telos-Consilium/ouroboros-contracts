@@ -222,66 +222,51 @@ contract StakedYuzuUSDV3 is
         return netAssets < minWithdraw() ? 0 : shares;
     }
 
+    /// @dev The mint throttle keys on the receiver, matching {maxDeposit}, so the view and the
+    /// execution agree on the same principal. Integrations that rate-limit their own inflow deposit
+    /// as the receiver and forward the shares.
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         _checkMinDeposit(assets);
-        address caller = _msgSender();
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
-            // Throttle-exempt callers bypass the mint throttle at execution time.
-            if (!_isThrottleExempt(caller) || paused()) {
-                revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
-            }
-            uint256 maxUnthrottled = StakedYuzuUSDV2.maxDeposit(receiver);
-            if (assets > maxUnthrottled) {
-                revert ERC4626ExceededMaxDeposit(receiver, assets, maxUnthrottled);
-            }
-            uint256 shares = previewDeposit(assets);
-            _deposit(caller, receiver, assets, shares);
-            return shares;
+            revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
         }
         uint256 mintedShares = super.deposit(assets, receiver);
-        _consumeMintThrottle(caller, assets);
+        _consumeMintThrottle(receiver, assets);
         return mintedShares;
     }
 
+    /// @dev The mint throttle keys on the receiver, matching {maxMint}; see {deposit}.
     function mint(uint256 shares, address receiver) public virtual override returns (uint256) {
         uint256 assets = previewMint(shares);
         _checkMinDeposit(assets);
-        address caller = _msgSender();
         uint256 maxShares = maxMint(receiver);
         if (shares > maxShares) {
-            // Throttle-exempt callers bypass the mint throttle at execution time.
-            if (!_isThrottleExempt(caller) || paused()) {
-                revert ERC4626ExceededMaxMint(receiver, shares, maxShares);
-            }
-            uint256 maxUnthrottled = StakedYuzuUSDV2.maxMint(receiver);
-            if (shares > maxUnthrottled) {
-                revert ERC4626ExceededMaxMint(receiver, shares, maxUnthrottled);
-            }
-            _deposit(caller, receiver, assets, shares);
-            return assets;
+            revert ERC4626ExceededMaxMint(receiver, shares, maxShares);
         }
         uint256 depositedAssets = super.mint(shares, receiver);
-        _consumeMintThrottle(caller, depositedAssets);
+        _consumeMintThrottle(receiver, depositedAssets);
         return depositedAssets;
     }
 
-    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee)
+    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee) and keys on the
+    /// owner in both account and fee basis, matching {maxWithdraw} so the view never overstates. The
+    /// fee actually charged remains the caller's rate.
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         _checkMinWithdraw(assets);
         uint256 shares = super.withdraw(assets, receiver, _owner);
-        address caller = _msgSender();
-        _consumeRedeemThrottle(caller, assets + _feeOnRaw(assets, _redeemFeePpmFor(caller)));
+        _consumeRedeemThrottle(_owner, assets + _feeOnRaw(assets, _redeemFeePpmFor(_owner)));
         return shares;
     }
 
-    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee)
+    /// @dev The redeem throttle is consumed on the gross outflow (assets plus fee) and keys on the
+    /// owner, matching {maxRedeem}. Net plus fee at any single rate reconstructs the gross share
+    /// value, so the caller-rate split here books the same gross the view compares against.
     function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
-        address caller = _msgSender();
-        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(caller));
+        (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_msgSender()));
         _checkMinWithdraw(assets);
         uint256 assetsOut = super.redeem(shares, receiver, _owner);
-        _consumeRedeemThrottle(caller, assetsOut + fee);
+        _consumeRedeemThrottle(_owner, assetsOut + fee);
         return assetsOut;
     }
 

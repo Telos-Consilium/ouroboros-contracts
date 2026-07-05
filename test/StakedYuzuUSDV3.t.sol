@@ -615,6 +615,76 @@ contract StakedYuzuUSDV3Test is
         _deposit(user1, 100e18);
     }
 
+    function test_MintThrottle_ExemptReceiver_BypassesForAnyCaller() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
+        styz3.setMintThrottle(100e18, type(uint256).max);
+        vm.stopPrank();
+
+        // The throttle keys on the receiver, matching maxDeposit, so any caller can fund an
+        // exempt receiver
+        assertEq(styz3.maxDeposit(user2), type(uint256).max);
+        vm.prank(user1);
+        styz3.deposit(150e18, user2);
+        assertEq(styz3.getMintThrottle().usedInBlock, 0);
+    }
+
+    function test_MintThrottle_ExemptCaller_NonExemptReceiver_Capped() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
+        styz3.setMintThrottle(100e18, type(uint256).max);
+        vm.stopPrank();
+
+        // Caller exemption confers nothing; the receiver's throttled maxDeposit governs
+        assertEq(styz3.maxDeposit(user2), 100e18);
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector, user2, 150e18, 100e18)
+        );
+        styz3.deposit(150e18, user2);
+    }
+
+    // Views and consumption share the same principal, so a max-sized call succeeds for any caller
+    function testFuzz_MaxDeposit_NeverOverstates_ForAnyCaller(uint256 cap, uint256 assets) public {
+        cap = bound(cap, 1e18, 1000e18);
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.setMintThrottle(cap, type(uint256).max);
+        vm.stopPrank();
+
+        uint256 maxAssets = styz3.maxDeposit(user2);
+        assets = bound(assets, 1, maxAssets);
+        vm.prank(user1);
+        styz3.deposit(assets, user2);
+    }
+
+    function testFuzz_MaxWithdraw_NeverOverstates_ForAnyCaller(uint256 cap, uint256 assets) public {
+        _enableInstantRedeem();
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(FEE_MANAGER_ROLE, admin);
+        // Diverging fee rates: the owner is fee-waived while the caller pays the instant fee, so the
+        // throttle's fee basis must follow the owner for the view to stay exact
+        styz3.setInstantRedeemFee(100_000);
+        styz3.setIntegration(user2, false, true);
+        vm.stopPrank();
+
+        _deposit(user2, 1000e18);
+        vm.prank(user2);
+        styz3.approve(user1, type(uint256).max);
+
+        cap = bound(cap, 1e18, 500e18);
+        vm.prank(admin);
+        styz3.setRedeemThrottle(cap, type(uint256).max);
+
+        uint256 maxAssets = styz3.maxWithdraw(user2);
+        assets = bound(assets, 1, maxAssets);
+        vm.prank(user1);
+        styz3.withdraw(assets, user1, user2);
+    }
+
     function test_RedeemThrottle_BlockLimit_GrossIncludesFee() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
@@ -713,7 +783,7 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
     }
 
-    function test_RedeemThrottle_NonExemptCaller_ConsumesForExemptOwner() public {
+    function test_RedeemThrottle_ExemptOwner_BypassesForAnyCaller() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
@@ -726,9 +796,32 @@ contract StakedYuzuUSDV3Test is
         vm.prank(user2);
         styz3.approve(user1, type(uint256).max);
 
-        // maxWithdraw(user2) is exempt, so the throttle reverts at consumption
+        // The throttle keys on the owner, matching maxWithdraw, so the exempt owner's shares
+        // bypass it for any caller
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 50e18));
+        styz3.withdraw(100e18, user1, user2);
+        assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
+    }
+
+    function test_RedeemThrottle_ExemptCaller_NonExemptOwner_Capped() public {
+        vm.startPrank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
+        styz3.setIsInstantRedeemEnabled(true);
+        styz3.setRedeemThrottle(50e18, type(uint256).max);
+        vm.stopPrank();
+
+        _deposit(user2, 500e18);
+        vm.prank(user2);
+        styz3.approve(user1, type(uint256).max);
+
+        // Caller exemption confers nothing; the owner's throttled maxWithdraw governs
+        assertEq(styz3.maxWithdraw(user2), 50e18);
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user2, 100e18, 50e18)
+        );
         styz3.withdraw(100e18, user1, user2);
     }
 

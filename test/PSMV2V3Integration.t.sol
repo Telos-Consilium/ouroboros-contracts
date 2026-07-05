@@ -36,6 +36,7 @@ contract PSMV2V3IntegrationTest is Test {
     bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
     bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
     bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
+    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
 
     PSMV2V3USDT0Mock internal asset;
     YuzuUSDV3 internal yzusd;
@@ -101,6 +102,51 @@ contract PSMV2V3IntegrationTest is Test {
         assertEq(asset.balanceOf(user) - balanceBefore, 100e6);
         assertEq(styz.balanceOf(user), 0);
         assertEq(asset.balanceOf(address(psm)), 999_900e6);
+        // The PSM interposes as the vault principal but holds no shares afterwards
+        assertEq(styz.balanceOf(address(psm)), 0);
+    }
+
+    function test_Redeem_PullsSharesViaAllowance() public {
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        assertEq(styz.balanceOf(address(psm)), 0);
+
+        vm.roll(block.number + 1);
+
+        // An exact approval is consumed by the pull, and the PSM keeps no shares
+        vm.prank(user);
+        styz.approve(address(psm), shares);
+        vm.prank(user);
+        psm.redeem(shares, user, user);
+
+        assertEq(styz.allowance(user, address(psm)), 0);
+        assertEq(styz.balanceOf(address(psm)), 0);
+        assertEq(styz.balanceOf(user), 0);
+    }
+
+    function test_OrderPath_FillRedeemsFromEscrow() public {
+        vm.prank(admin);
+        psm.grantRole(ORDER_FILLER_ROLE, liquidityManager);
+
+        vm.prank(user);
+        psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        vm.prank(user);
+        uint256 orderId = psm.createRedeemOrder(100e18, user, user);
+        // Shares sit in the PSM's escrow while the order is pending, so the fill redeems as the
+        // principal without pulling again
+        assertEq(styz.balanceOf(address(psm)), 100e18);
+        assertEq(styz.balanceOf(user), 0);
+
+        uint256 balanceBefore = asset.balanceOf(user);
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = orderId;
+        vm.prank(liquidityManager);
+        psm.fillRedeemOrders(0, ids);
+
+        assertEq(asset.balanceOf(user) - balanceBefore, 100e6);
+        assertEq(styz.balanceOf(address(psm)), 0);
     }
 
     function test_SameBlockGuard_AppliesThroughPSMV2WithV3Vaults() public {

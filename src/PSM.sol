@@ -300,7 +300,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
             && IVaultRestrictions(vault0()).canRedeem(address(this)) && IVaultRestrictions(vault0()).canBurn(address(this));
     }
 
-    function _deposit(address caller, address receiver, uint256 assets) internal returns (uint256) {
+    function _deposit(address caller, address receiver, uint256 assets) internal virtual returns (uint256) {
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), assets);
         SafeERC20.safeIncreaseAllowance(IERC20(asset()), vault0(), assets);
         uint256 shares0 = _vault0.deposit(assets, address(this));
@@ -311,7 +311,11 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     // slither-disable-next-line calls-loop
-    function _redeem(address caller, address receiver, address _owner, uint256 shares) internal returns (uint256) {
+    function _redeem(address caller, address receiver, address _owner, uint256 shares)
+        internal
+        virtual
+        returns (uint256)
+    {
         uint256 assets1 = _vault1.redeem(shares, address(this), _owner);
         uint256 assets0 = _vault0.convertToAssets(assets1);
         IERC20Burnable(address(_vault0)).burn(assets1);

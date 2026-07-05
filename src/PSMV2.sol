@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import {IERC20Burnable} from "./interfaces/IPSMDefinitions.sol";
 import {PSM} from "./PSM.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuSameBlockGuard} from "./proto/YuzuSameBlockGuard.sol";
@@ -108,6 +110,43 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
     {
         _checkMinWithdraw(_previewRedeemAssets(shares));
         return super._createRedeemOrder(caller, receiver, _owner, shares);
+    }
+
+    /// @dev Deposits into the staked vault as the principal and forwards the shares, so the vault's
+    /// receiver-keyed limits and exemptions apply to the PSM rather than to the recipient.
+    function _deposit(address caller, address receiver, uint256 assets) internal virtual override returns (uint256) {
+        SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), assets);
+        SafeERC20.safeIncreaseAllowance(IERC20(asset()), vault0(), assets);
+        uint256 shares0 = _vault0.deposit(assets, address(this));
+        SafeERC20.safeIncreaseAllowance(IERC20(vault0()), vault1(), shares0);
+        uint256 shares1 = _vault1.deposit(shares0, address(this));
+        SafeERC20.safeTransfer(IERC20(vault1()), receiver, shares1);
+        // slither-disable-next-line reentrancy-events
+        emit Deposit(caller, receiver, assets, shares1);
+        return shares1;
+    }
+
+    /// @dev Pulls the owner's staked shares and redeems as the principal, so the vault's owner-keyed
+    /// limits and exemptions apply to the PSM; mirrors the order path, which already escrows shares
+    /// before filling. The pull consumes the same share allowance the direct redeem consumed.
+    // slither-disable-next-line calls-loop
+    function _redeem(address caller, address receiver, address _owner, uint256 shares)
+        internal
+        virtual
+        override
+        returns (uint256)
+    {
+        if (_owner != address(this)) {
+            // slither-disable-next-line arbitrary-send-erc20
+            SafeERC20.safeTransferFrom(IERC20(vault1()), _owner, address(this), shares);
+        }
+        uint256 assets1 = _vault1.redeem(shares, address(this), address(this));
+        uint256 assets0 = _vault0.convertToAssets(assets1);
+        IERC20Burnable(address(_vault0)).burn(assets1);
+        SafeERC20.safeTransfer(IERC20(asset()), receiver, assets0);
+        // slither-disable-next-line reentrancy-events
+        emit Withdraw(caller, receiver, _owner, assets0, shares);
+        return assets0;
     }
 
     /// @dev Underlying asset value of shares at the fee-waived rate.
