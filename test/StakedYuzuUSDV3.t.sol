@@ -210,21 +210,44 @@ contract StakedYuzuUSDV3Test is
         styz3.withdraw(5e18, user1, user1);
     }
 
-    function test_InitiateRedeem_Revert_UnderMinWithdraw() public {
+    function test_InitiateRedeem_Revert_UnderMinRedeemOrder() public {
         vm.prank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
 
         vm.prank(admin);
-        styz3.setMinWithdraw(10e18);
+        styz3.setMinRedeemOrder(10e18);
 
         _deposit(user1, 100e18);
 
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(UnderMinWithdraw.selector, 5e18, 10e18));
+        vm.expectRevert(abi.encodeWithSelector(UnderMinRedeemOrder.selector, 5e18, 10e18));
         styz3.initiateRedeem(5e18, user1, user1);
 
         vm.prank(user1);
         styz3.initiateRedeem(10e18, user1, user1); // at the floor, succeeds
+    }
+
+    function test_SetMinRedeemOrder_Revert_NotLimitManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
+        );
+        styz3.setMinRedeemOrder(10e18);
+    }
+
+    function test_MaxRedeemOrder_BelowMinRedeemOrder_ReturnZero() public {
+        _deposit(user1, 5e18);
+
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMinRedeemOrder(10e18); // balance below the order floor
+
+        assertEq(styz3.maxRedeemOrder(user1), 0);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(UnderMinRedeemOrder.selector, 5e18, 10e18));
+        styz3.initiateRedeem(5e18, user1, user1);
     }
 
     // Public instant redeem
@@ -1022,12 +1045,10 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
     }
 
-    function test_RedeemThrottle_InitiateRedeem_FeeExemptionIgnored() public {
+    function test_InitiateRedeem_FeeExemptionIgnored() public {
         vm.startPrank(admin);
         styz3.grantRole(FEE_MANAGER_ROLE, admin);
-        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
-        styz3.setRedeemFee(100_000);
-        styz3.setMinWithdraw(100e18);
+        styz3.setRedeemFee(100_000); // 10% order fee
         styz3.grantRole(REDEEM_FEE_EXEMPT_ROLE, user1);
         vm.stopPrank();
 
@@ -1035,10 +1056,12 @@ contract StakedYuzuUSDV3Test is
         vm.prank(user2);
         styz3.approve(user1, type(uint256).max);
 
-        assertEq(styz3.maxRedeemOrder(user2), 0);
+        // user1 holds REDEEM_FEE_EXEMPT_ROLE, but redeem orders always charge the full
+        // order fee regardless of the caller's exemption, so the locked assets are net of it.
+        uint256 gross = styz3.convertToAssets(100e18);
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeemOrder.selector, user2, 100e18, 0));
-        styz3.initiateRedeem(100e18, user1, user2);
+        (, uint256 lockedAssets) = styz3.initiateRedeem(100e18, user1, user2);
+        assertLt(lockedAssets, gross);
     }
 
     // Max view exactness (ERC-4626 compliance)

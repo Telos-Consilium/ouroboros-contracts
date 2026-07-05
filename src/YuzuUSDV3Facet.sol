@@ -157,16 +157,4 @@ contract YuzuUSDV3Facet is
         _setRedeemOrderFeePpm(newFeePpm);
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
-
-    // Internal
-    function _checkMinWithdraw(uint256 assets) private view {
-        uint256 min = YuzuMinAmountsV3Storage.layout()._minWithdraw;
-        if (assets < min) revert UnderMinWithdraw(assets, min);
-    }
-
-    /// @dev New orders must clear the instant-withdraw floor at their current value.
-    function _validateOrderValue(IYuzuV3RouterBase router, uint256 tokens, uint256 feePpm) internal view override {
-        (uint256 assets,) = _orderValue(router, tokens, feePpm);
-        _checkMinWithdraw(assets);
-    }
 }

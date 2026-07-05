@@ -30,6 +30,7 @@ contract StakedYuzuUSDV3 is StakedYuzuUSDV3Migration, YuzuThrottle, YuzuMinAmoun
     bool public isInstantRedeemEnabled;
     uint256 public maxDistributionPpm;
     uint256 public minDistributionPeriod;
+    uint256 public minRedeemOrder;
 
     /// @notice Reinitializes the contract after V3 migration.
     /// @param _admin The admin of the contract
@@ -194,8 +195,7 @@ contract StakedYuzuUSDV3 is StakedYuzuUSDV3Migration, YuzuThrottle, YuzuMinAmoun
         uint256 maxShares = super.maxRedeemOrder(_owner);
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
-        (uint256 netAssets,) = _previewRedeemWithFee(shares, redeemFeePpm);
-        return netAssets < minWithdraw() ? 0 : shares;
+        return shares < minRedeemOrder ? 0 : shares;
     }
 
     /// @dev The mint throttle keys on the receiver, matching {maxDeposit}, so the view and the
@@ -271,11 +271,11 @@ contract StakedYuzuUSDV3 is StakedYuzuUSDV3Migration, YuzuThrottle, YuzuMinAmoun
     {
         if (receiver == address(0)) revert InvalidZeroAddress();
         address caller = _msgSender();
+        if (shares < minRedeemOrder) revert UnderMinRedeemOrder(shares, minRedeemOrder);
         uint256 maxShares = _maxRedeemOrderFor(_owner);
         if (shares > maxShares) revert ExceededMaxRedeemOrder(_owner, shares, maxShares);
 
         (uint256 assets, uint256 fee) = _previewRedeemWithFee(shares, redeemFeePpm);
-        _checkMinWithdraw(assets);
         _consumeRedeemThrottle(_owner, assets + fee);
         uint256 orderId = _initiateRedeem(caller, receiver, _owner, assets, shares, fee);
 
@@ -297,6 +297,12 @@ contract StakedYuzuUSDV3 is StakedYuzuUSDV3Migration, YuzuThrottle, YuzuMinAmoun
 
     function setMinWithdraw(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setMinWithdraw(newMin);
+    }
+
+    function setMinRedeemOrder(uint256 newMin) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+        uint256 oldMin = minRedeemOrder;
+        minRedeemOrder = newMin;
+        emit UpdatedMinRedeemOrder(oldMin, newMin);
     }
 
     /// @notice Cap on a single distribution, in ppm of current totalAssets; type(uint256).max disables it
@@ -337,5 +343,5 @@ contract StakedYuzuUSDV3 is StakedYuzuUSDV3Migration, YuzuThrottle, YuzuMinAmoun
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     // slither-disable-next-line unused-state
-    uint256[46] private __gap;
+    uint256[45] private __gap;
 }

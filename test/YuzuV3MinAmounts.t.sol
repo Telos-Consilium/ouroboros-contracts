@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuOrderBookDefinitions} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
@@ -92,15 +93,15 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
         yzusd.withdraw(10e6, user, user);
     }
 
-    function test_YuzuUSD_CreateRedeemOrder_Revert_UnderMinWithdraw() public {
+    function test_YuzuUSD_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
         vm.prank(user);
         yzusd.deposit(100e6, user);
 
         vm.prank(limitManager);
-        yzusd.setMinWithdraw(10e6);
+        yzusd.setMinRedeemOrder(10e18);
 
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(UnderMinWithdraw.selector, 5e6, 10e6));
+        vm.expectRevert(abi.encodeWithSelector(IYuzuOrderBookDefinitions.UnderMinRedeemOrder.selector, 5e18, 10e18));
         yzusd.createRedeemOrder(5e18, user, user);
 
         vm.prank(user);
