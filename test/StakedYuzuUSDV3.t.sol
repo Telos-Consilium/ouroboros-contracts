@@ -2,12 +2,14 @@
 pragma solidity ^0.8.30;
 
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {StakedYuzuUSDV3Migration} from "../src/StakedYuzuUSDV3Migration.sol";
 import {StakedYuzuUSDV3RecoveryMigration} from "../src/StakedYuzuUSDV3RecoveryMigration.sol";
 import {
@@ -99,6 +101,91 @@ contract StakedYuzuUSDV3Test is
 
         assertTrue(freshStyz.DOMAIN_SEPARATOR() != domainSeparatorBefore);
         assertEq(freshStyz.DOMAIN_SEPARATOR(), expectedDomainSeparator);
+    }
+
+    // Fresh deploy on the V3 implementation
+    function test_FreshDeploy_V3ImplementationRunsMigrationAndReinit() public {
+        address freshOwner = makeAddr("freshOwner");
+        address freshAdmin = makeAddr("freshAdmin");
+
+        TransparentUpgradeableProxy proxy = _deployV1Proxy(freshOwner);
+        ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
+        address v3Impl = address(new StakedYuzuUSDV3());
+
+        vm.prank(freshOwner);
+        StakedYuzuUSDV3(address(proxy)).pause();
+
+        // Both initializer stages run against the same implementation
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            v3Impl,
+            abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin)
+        );
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            v3Impl,
+            abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, freshAdmin)
+        );
+
+        StakedYuzuUSDV3 vault = StakedYuzuUSDV3(address(proxy));
+        assertEq(vault.owner(), freshAdmin);
+        assertTrue(vault.hasRole(ADMIN_ROLE, freshAdmin));
+        assertEq(vault.getRoleAdmin(DELAY_EXEMPT_ROLE), ADMIN_ROLE);
+        assertEq(vault.getRoleAdmin(REDEEM_FEE_EXEMPT_ROLE), ADMIN_ROLE);
+        assertFalse(vault.isInstantRedeemEnabled());
+
+        vm.startPrank(freshAdmin);
+        vault.grantRole(PAUSE_MANAGER_ROLE, freshAdmin);
+        vault.unpause();
+        vm.stopPrank();
+
+        _approveAssets(user1, address(vault), type(uint256).max);
+        vm.prank(user1);
+        uint256 shares = vault.deposit(100e18, user1);
+        assertEq(shares, 100e18);
+    }
+
+    function test_FreshDeploy_Reinitialize_Revert_BeforeMigration() public {
+        address freshOwner = makeAddr("freshOwner");
+        address freshAdmin = makeAddr("freshAdmin");
+
+        TransparentUpgradeableProxy proxy = _deployV1Proxy(freshOwner);
+        ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
+        address v3Impl = address(new StakedYuzuUSDV3());
+
+        vm.prank(freshOwner);
+        StakedYuzuUSDV3(address(proxy)).pause();
+
+        // Reinitialize demands the AccessControl state that only migrateToV3 produces
+        vm.prank(freshOwner);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedReinitializer.selector, freshAdmin));
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            v3Impl,
+            abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, freshAdmin)
+        );
+
+        // The failed attempt does not burn the version ladder; the chain still completes
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            v3Impl,
+            abi.encodeWithSelector(StakedYuzuUSDV3Migration.migrateToV3.selector, freshAdmin)
+        );
+        vm.prank(freshOwner);
+        freshProxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            v3Impl,
+            abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, freshAdmin)
+        );
+        assertEq(StakedYuzuUSDV3(address(proxy)).owner(), freshAdmin);
+    }
+
+    function test_MigrateToV3_Revert_AlreadyReinitialized() public {
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        styz3.migrateToV3(admin);
     }
 
     // Reinitialize gate
