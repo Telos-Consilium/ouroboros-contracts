@@ -286,8 +286,8 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
 
     function test_SetPendingPerformanceFee_Revert_TooHigh() public {
         vm.prank(feeManager);
-        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, 1e6 + 1, 1e6));
-        yzilp.setPendingPerformanceFee(1e6 + 1);
+        vm.expectRevert(abi.encodeWithSelector(FeeTooHigh.selector, 500_000 + 1, 500_000));
+        yzilp.setPendingPerformanceFee(500_000 + 1);
     }
 
     function test_SetPendingPerformanceFee_Revert_NotFeeManager() public {
@@ -612,7 +612,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     ) public {
         _setupPool();
         mgmtPpm = bound(mgmtPpm, 0, 100_000);
-        perfPpm = bound(perfPpm, 0, 1e6);
+        perfPpm = bound(perfPpm, 0, 500_000);
         yieldPpm = bound(yieldPpm, 0, 10_000);
         distroAssets = bound(distroAssets, 0, 500e6);
         warpSecs = bound(warpSecs, 0, 365 days);

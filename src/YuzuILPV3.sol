@@ -8,7 +8,12 @@ import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {IYuzuILPV3FacetPricing, IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {FEE_MANAGER_ROLE, MAX_MANAGEMENT_FEE_PPM, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
+import {
+    FEE_MANAGER_ROLE,
+    MAX_MANAGEMENT_FEE_PPM,
+    MAX_PERFORMANCE_FEE_PPM,
+    THROTTLE_EXEMPT_ROLE
+} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
@@ -50,7 +55,9 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         if (config.pendingManagementFeeRatePpm > MAX_MANAGEMENT_FEE_PPM) {
             revert FeeTooHigh(config.pendingManagementFeeRatePpm, MAX_MANAGEMENT_FEE_PPM);
         }
-        if (config.pendingPerformanceFeeRatePpm > 1e6) revert FeeTooHigh(config.pendingPerformanceFeeRatePpm, 1e6);
+        if (config.pendingPerformanceFeeRatePpm > MAX_PERFORMANCE_FEE_PPM) {
+            revert FeeTooHigh(config.pendingPerformanceFeeRatePpm, MAX_PERFORMANCE_FEE_PPM);
+        }
 
         isMintRestricted = config.isMintRestricted;
         isRedeemRestricted = config.isRedeemRestricted;

@@ -19,3 +19,5 @@ bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 // Protocol bounds
 /// @dev Maximum management fee, in ppm per year (10%)
 uint256 constant MAX_MANAGEMENT_FEE_PPM = 100_000;
+/// @dev Maximum performance fee, in ppm (50%)
+uint256 constant MAX_PERFORMANCE_FEE_PPM = 500_000;

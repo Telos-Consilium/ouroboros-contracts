@@ -15,6 +15,7 @@ import {
     FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     MAX_MANAGEMENT_FEE_PPM,
+    MAX_PERFORMANCE_FEE_PPM,
     MINTER_ROLE,
     ORDER_FILLER_ROLE,
     POOL_MANAGER_ROLE,
@@ -333,8 +334,8 @@ contract YuzuILPV3Facet is
 
     function setPendingPerformanceFee(uint256 newRatePpm) external {
         _checkRole(FEE_MANAGER_ROLE);
-        if (newRatePpm > 1e6) {
-            revert FeeTooHigh(newRatePpm, 1e6);
+        if (newRatePpm > MAX_PERFORMANCE_FEE_PPM) {
+            revert FeeTooHigh(newRatePpm, MAX_PERFORMANCE_FEE_PPM);
         }
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
         uint256 oldRatePpm = $._pendingPerformanceFeeRatePpm;

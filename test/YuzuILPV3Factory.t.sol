@@ -305,8 +305,8 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
     function test_InitializeV3_Revert_PendingPerformanceFeeTooHigh() public {
         address freshProxy = _rawFreshProxy();
         IYuzuILPV3Definitions.ConfigParams memory config = _config();
-        config.pendingPerformanceFeeRatePpm = 1e6 + 1;
-        vm.expectRevert(abi.encodeWithSelector(IYuzuProtoDefinitions.FeeTooHigh.selector, 1e6 + 1, 1e6));
+        config.pendingPerformanceFeeRatePpm = 500_000 + 1;
+        vm.expectRevert(abi.encodeWithSelector(IYuzuProtoDefinitions.FeeTooHigh.selector, 500_000 + 1, 500_000));
         YuzuILPV3(freshProxy).initializeV3(_params(), config);
     }
 
