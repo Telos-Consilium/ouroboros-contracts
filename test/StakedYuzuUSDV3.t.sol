@@ -159,13 +159,20 @@ contract StakedYuzuUSDV3Test is
         styz3.transferOwnership(user1);
     }
 
-    function test_SetIntegration() public {
+    function test_SetIntegration_WritesAndClearsLegacyEntries() public {
         vm.prank(admin);
         styz3.setIntegration(user1, true, true);
 
         IntegrationConfig memory cfg = styz3.getIntegration(user1);
         assertTrue(cfg.canSkipRedeemDelay);
         assertTrue(cfg.waiveRedeemFee);
+
+        vm.prank(admin);
+        styz3.setIntegration(user1, false, false);
+
+        cfg = styz3.getIntegration(user1);
+        assertFalse(cfg.canSkipRedeemDelay);
+        assertFalse(cfg.waiveRedeemFee);
     }
 
     function test_SetIntegration_Revert_NotAdmin() public {
@@ -273,12 +280,12 @@ contract StakedYuzuUSDV3Test is
         assertApproxEqAbs(previewed, expected, 1);
     }
 
-    function test_Redeem_SkipDelayIntegration_PaysInstantFee() public {
+    function test_Redeem_DelayExemptOwner_PaysInstantFee() public {
         vm.startPrank(admin);
         styz3.grantRole(FEE_MANAGER_ROLE, admin);
         styz3.setRedeemFee(50_000); // 5% delayed fee
         styz3.setInstantRedeemFee(200_000); // 20% instant fee
-        styz3.setIntegration(user1, true, false); // skipDelay, not waived
+        styz3.grantRole(DELAY_EXEMPT_ROLE, user1); // delay-exempt, not fee-exempt
         vm.stopPrank();
 
         uint256 shares = _deposit(user1, 100e18);
@@ -293,6 +300,29 @@ contract StakedYuzuUSDV3Test is
         assertApproxEqAbs(assetsOut, expectedAssets, 1);
         assertApproxEqAbs(yzusd.balanceOf(user1) - user1AssetsBefore, expectedAssets, 1);
         assertApproxEqAbs(yzusd.balanceOf(feeReceiver) - feeReceiverBefore, 100e18 - expectedAssets, 1);
+    }
+
+    function test_Redeem_FeeExemptCaller_PaysNoFee() public {
+        vm.startPrank(admin);
+        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
+        styz3.grantRole(FEE_MANAGER_ROLE, admin);
+        styz3.setIsInstantRedeemEnabled(true);
+        styz3.setInstantRedeemFee(200_000); // 20% instant fee
+        styz3.grantRole(REDEEM_FEE_EXEMPT_ROLE, user2);
+        vm.stopPrank();
+
+        uint256 shares = _deposit(user1, 100e18);
+        vm.prank(user1);
+        styz3.approve(user2, shares);
+
+        uint256 feeReceiverBefore = yzusd.balanceOf(feeReceiver);
+
+        // The fee is keyed on the caller, so the exempt caller redeems fee-free
+        vm.prank(user2);
+        uint256 assetsOut = styz3.redeem(shares, user1, user1);
+
+        assertEq(assetsOut, 100e18);
+        assertEq(yzusd.balanceOf(feeReceiver), feeReceiverBefore);
     }
 
     function test_InitiateRedeem_UsesRedeemFee_NotInstantFee() public {
@@ -356,24 +386,63 @@ contract StakedYuzuUSDV3Test is
         styz3.withdraw(50e18, user1, user1);
     }
 
-    function test_InstantRedeemDisabled_SkipDelayIntegration_StillRedeems() public {
-        vm.startPrank(admin);
-        styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
-        styz3.setIntegration(user2, true, false);
-        vm.stopPrank();
+    function test_InstantRedeemDisabled_DelayExemptOwner_StillRedeems() public {
+        vm.prank(admin);
+        styz3.grantRole(DELAY_EXEMPT_ROLE, user2);
 
-        // Integration owner retains view-level access
         assertTrue(styz3.canRedeem(user2));
+        assertFalse(styz3.canRedeem(user1));
 
-        // Integration caller redeems on behalf of a public user
+        // The exemption attaches to the owner, so any approved caller can redeem the exempt
+        // owner's shares
+        uint256 shares = _deposit(user2, 100e18);
+        vm.prank(user2);
+        styz3.approve(user1, shares);
+
+        vm.prank(user1);
+        uint256 assetsOut = styz3.redeem(shares, user2, user2);
+        assertGt(assetsOut, 0);
+        assertEq(styz3.balanceOf(user2), 0);
+    }
+
+    function test_InstantRedeemDisabled_DelayExemptCaller_CannotRedeemForOthers() public {
+        vm.prank(admin);
+        styz3.grantRole(DELAY_EXEMPT_ROLE, user2);
+
         uint256 shares = _deposit(user1, 100e18);
         vm.prank(user1);
         styz3.approve(user2, shares);
 
+        // The role does not reach the execution-time bypass, which reads the legacy mapping
+        // keyed on the caller
         vm.prank(user2);
-        uint256 assetsOut = styz3.redeem(shares, user1, user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
+        styz3.redeem(shares, user1, user1);
+    }
+
+    function test_InstantRedeemDisabled_StaleIntegrationEntry_BypassesUntilCleared() public {
+        // A mapping entry written before the upgrade persists in storage and still feeds the
+        // caller-keyed execution-time bypass in the inherited redeem body
+        vm.prank(admin);
+        styz3.setIntegration(user2, true, false);
+
+        uint256 shares = _deposit(user1, 100e18);
+        vm.prank(user1);
+        styz3.approve(user2, type(uint256).max);
+
+        vm.prank(user2);
+        uint256 assetsOut = styz3.redeem(shares / 2, user1, user1);
         assertGt(assetsOut, 0);
-        assertEq(styz3.balanceOf(user1), 0);
+
+        // Zeroing the entry through the retained setter closes the bypass
+        vm.prank(admin);
+        styz3.setIntegration(user2, false, false);
+
+        vm.prank(user2);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares / 2, 0)
+        );
+        styz3.redeem(shares / 2, user1, user1);
     }
 
     function test_InstantRedeemDisabled_InitiateRedeem_Unaffected() public {
@@ -583,18 +652,40 @@ contract StakedYuzuUSDV3Test is
         styz3.grantRole(THROTTLE_EXEMPT_ROLE, user2);
     }
 
-    function test_RedeemThrottle_SkipDelayIntegration_NotExempt_Throttled() public {
+    function test_ExemptRoles_AdminIsAdminRole() public view {
+        assertEq(styz3.getRoleAdmin(DELAY_EXEMPT_ROLE), ADMIN_ROLE);
+        assertEq(styz3.getRoleAdmin(REDEEM_FEE_EXEMPT_ROLE), ADMIN_ROLE);
+    }
+
+    function test_ExemptRoles_Grant_Revert_NotRoleAdmin() public {
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        styz3.grantRole(DELAY_EXEMPT_ROLE, user2);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
+        );
+        styz3.grantRole(REDEEM_FEE_EXEMPT_ROLE, user2);
+        vm.stopPrank();
+    }
+
+    function test_RedeemThrottle_DelayExemptOwner_NotThrottleExempt() public {
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
-        styz3.setIntegration(user2, true, false);
+        styz3.grantRole(DELAY_EXEMPT_ROLE, user2);
         styz3.setRedeemThrottle(50e18, type(uint256).max);
         vm.stopPrank();
 
         _deposit(user2, 500e18);
 
-        // Skip-delay status alone no longer grants throttle exemption
+        // Delay exemption alone grants no throttle exemption; the throttle caps maxWithdraw
+        assertEq(styz3.maxWithdraw(user2), 50e18);
         vm.prank(user2);
-        vm.expectRevert(abi.encodeWithSelector(ExceededRedeemBlockLimit.selector, 100e18, 50e18));
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user2, 100e18, 50e18)
+        );
         styz3.withdraw(100e18, user2, user2);
     }
 
@@ -665,10 +756,10 @@ contract StakedYuzuUSDV3Test is
         vm.startPrank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
         styz3.grantRole(FEE_MANAGER_ROLE, admin);
-        // Diverging fee rates: the owner is fee-waived while the caller pays the instant fee, so the
+        // Diverging fee rates: the owner is fee-exempt while the caller pays the instant fee, so the
         // throttle's fee basis must follow the owner for the view to stay exact
         styz3.setInstantRedeemFee(100_000);
-        styz3.setIntegration(user2, false, true);
+        styz3.grantRole(REDEEM_FEE_EXEMPT_ROLE, user2);
         vm.stopPrank();
 
         _deposit(user2, 1000e18);
@@ -881,13 +972,13 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.getRedeemThrottle().usedInBlock, 0);
     }
 
-    function test_RedeemThrottle_InitiateRedeem_IntegrationFeeWaiverIgnored() public {
+    function test_RedeemThrottle_InitiateRedeem_FeeExemptionIgnored() public {
         vm.startPrank(admin);
         styz3.grantRole(FEE_MANAGER_ROLE, admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
         styz3.setRedeemFee(100_000);
         styz3.setMinWithdraw(100e18);
-        styz3.setIntegration(user1, false, true);
+        styz3.grantRole(REDEEM_FEE_EXEMPT_ROLE, user1);
         vm.stopPrank();
 
         _deposit(user2, 100e18);

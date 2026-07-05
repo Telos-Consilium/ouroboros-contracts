@@ -9,6 +9,15 @@ import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.s
 
 import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
 import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
+import {
+    ADMIN_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    PAUSE_MANAGER_ROLE,
+    POOL_MANAGER_ROLE,
+    REDEEM_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE
+} from "./libraries/YuzuV3Constants.sol";
 
 /**
  * @title StakedYuzuUSDV3Migration
@@ -19,14 +28,6 @@ contract StakedYuzuUSDV3Migration is
     AccessControlDefaultAdminRulesUpgradeable,
     IStakedYuzuUSDV3Definitions
 {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-
     /// @notice Migrates ownership to AccessControl.
     /// @param _admin The admin of the contract
     /// @dev Gated to the proxy admin.

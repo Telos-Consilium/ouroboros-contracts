@@ -13,6 +13,17 @@ import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
+import {
+    ADMIN_ROLE,
+    DELAY_EXEMPT_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    PAUSE_MANAGER_ROLE,
+    POOL_MANAGER_ROLE,
+    REDEEM_FEE_EXEMPT_ROLE,
+    REDEEM_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE
+} from "./libraries/YuzuV3Constants.sol";
 
 /**
  * @title StakedYuzuUSDV3
@@ -25,14 +36,6 @@ contract StakedYuzuUSDV3 is
     YuzuMinAmounts,
     IStakedYuzuUSDV3Definitions
 {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-
     uint256 public instantRedeemFeePpm;
     bool public isInstantRedeemEnabled;
     uint256 public maxDistributionPpm;
@@ -48,6 +51,8 @@ contract StakedYuzuUSDV3 is
         if (owner() != _admin || !hasRole(ADMIN_ROLE, _admin)) revert UnauthorizedReinitializer(_admin);
 
         isInstantRedeemEnabled = false;
+        _setRoleAdmin(DELAY_EXEMPT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(REDEEM_FEE_EXEMPT_ROLE, ADMIN_ROLE);
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
         // max uint disables the distribution amount cap; 0 would block all distributions.
@@ -69,12 +74,13 @@ contract StakedYuzuUSDV3 is
     function _checkOwner() internal view override {}
 
     /// @inheritdoc StakedYuzuUSDV2
-    /// @dev Public instant redeem is gated by isInstantRedeemEnabled; skip-delay integrations bypass it.
+    /// @dev Public instant redeem is gated by isInstantRedeemEnabled; owners holding
+    /// DELAY_EXEMPT_ROLE bypass it.
     function canRedeem(address _owner) public view virtual override returns (bool) {
         if (paused()) {
             return false;
         }
-        return isInstantRedeemEnabled || integrations[_owner].canSkipRedeemDelay;
+        return isInstantRedeemEnabled || hasRole(DELAY_EXEMPT_ROLE, _owner);
     }
 
     /// @dev V3 is reached only by upgrading a live vault through the migration chain; a fresh proxy
@@ -159,6 +165,10 @@ contract StakedYuzuUSDV3 is
         super.unpause();
     }
 
+    /// @dev V3 replaces the integration mapping with DELAY_EXEMPT_ROLE and REDEEM_FEE_EXEMPT_ROLE,
+    /// but entries written before the upgrade persist in storage and still feed the delay bypass
+    /// inside the inherited withdraw and redeem bodies. This setter is retained so those stale
+    /// entries can be zeroed out.
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
         public
         virtual
@@ -300,7 +310,7 @@ contract StakedYuzuUSDV3 is
     }
 
     function _redeemFeePpmFor(address account) internal view virtual override returns (uint256) {
-        if (integrations[account].waiveRedeemFee) {
+        if (hasRole(REDEEM_FEE_EXEMPT_ROLE, account)) {
             return 0;
         }
         return instantRedeemFeePpm;

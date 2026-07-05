@@ -37,6 +37,8 @@ contract PSMV2V3IntegrationTest is Test {
     bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
     bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+    bytes32 internal constant DELAY_EXEMPT_ROLE = keccak256("DELAY_EXEMPT_ROLE");
+    bytes32 internal constant REDEEM_FEE_EXEMPT_ROLE = keccak256("REDEEM_FEE_EXEMPT_ROLE");
 
     PSMV2V3USDT0Mock internal asset;
     YuzuUSDV3 internal yzusd;
@@ -65,7 +67,8 @@ contract PSMV2V3IntegrationTest is Test {
         yzusd.grantRole(MINTER_ROLE, address(psm));
         yzusd.grantRole(REDEEMER_ROLE, address(psm));
         yzusd.grantRole(BURNER_ROLE, address(psm));
-        styz.setIntegration(address(psm), true, true);
+        styz.grantRole(DELAY_EXEMPT_ROLE, address(psm));
+        styz.grantRole(REDEEM_FEE_EXEMPT_ROLE, address(psm));
         psm.grantRole(LIQUIDITY_MANAGER_ROLE, liquidityManager);
         psm.grantRole(RESTRICTION_MANAGER_ROLE, restrictionManager);
         vm.stopPrank();

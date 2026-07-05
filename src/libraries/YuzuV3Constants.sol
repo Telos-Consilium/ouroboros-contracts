@@ -4,12 +4,15 @@ pragma solidity ^0.8.30;
 // Roles
 bytes32 constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 bytes32 constant BURNER_ROLE = keccak256("BURNER_ROLE");
+bytes32 constant DELAY_EXEMPT_ROLE = keccak256("DELAY_EXEMPT_ROLE");
 bytes32 constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 bytes32 constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
 bytes32 constant MINTER_ROLE = keccak256("MINTER_ROLE");
 bytes32 constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
 bytes32 constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
+bytes32 constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
 bytes32 constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
+bytes32 constant REDEEM_FEE_EXEMPT_ROLE = keccak256("REDEEM_FEE_EXEMPT_ROLE");
 bytes32 constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
 bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
