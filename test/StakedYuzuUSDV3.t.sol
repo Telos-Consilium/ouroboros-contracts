@@ -61,6 +61,7 @@ contract StakedYuzuUSDV3Test is
         StakedYuzuUSDV3 freshStyz = StakedYuzuUSDV3(address(proxy));
 
         bytes32 domainSeparatorBefore = freshStyz.DOMAIN_SEPARATOR();
+        address v3Impl = address(new StakedYuzuUSDV3());
 
         vm.prank(freshOwner);
         freshStyz.pause();
@@ -68,7 +69,7 @@ contract StakedYuzuUSDV3Test is
         vm.prank(freshOwner);
         freshProxyAdmin.upgradeAndCall(
             ITransparentUpgradeableProxy(payable(address(proxy))),
-            address(new StakedYuzuUSDV3()),
+            v3Impl,
             abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, freshAdmin)
         );
 
@@ -135,10 +136,9 @@ contract StakedYuzuUSDV3Test is
         address freshAdmin = makeAddr("freshAdmin");
 
         (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin,) = _deploySeededV1Proxy(freshOwner);
+        address v3Impl = address(new StakedYuzuUSDV3());
         vm.prank(freshOwner);
-        freshProxyAdmin.upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(address(proxy))), address(new StakedYuzuUSDV3()), bytes("")
-        );
+        freshProxyAdmin.upgradeAndCall(ITransparentUpgradeableProxy(payable(address(proxy))), v3Impl, bytes(""));
         StakedYuzuUSDV3 freshStyz = StakedYuzuUSDV3(address(proxy));
 
         vm.prank(attacker);
