@@ -165,9 +165,9 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         yzusd.setNav(0);
     }
 
-    function test_SetNav_Revert_StepTooLargeUp() public {
+    function test_SetNav_Revert_StepTooHighUp() public {
         vm.prank(navManager);
-        vm.expectRevert(abi.encodeWithSelector(NavStepTooLarge.selector, 12e17, PAR, 1e17));
+        vm.expectRevert(abi.encodeWithSelector(NavStepTooHigh.selector, 12e17, PAR, 1e17));
         yzusd.setNav(12e17); // +20% exceeds the 10% cap
     }
 

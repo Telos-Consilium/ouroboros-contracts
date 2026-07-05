@@ -104,7 +104,7 @@ contract YuzuUSDV3Facet is
             uint256 maxDelta = Math.mulDiv(currentNav, $._stepCapPpm, 1e6);
             uint256 delta = newNav - currentNav;
             if (delta > maxDelta) {
-                revert NavStepTooLarge(newNav, currentNav, maxDelta);
+                revert NavStepTooHigh(newNav, currentNav, maxDelta);
             }
         }
 

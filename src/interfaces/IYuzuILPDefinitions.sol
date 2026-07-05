@@ -51,7 +51,7 @@ interface IYuzuILPV3Definitions {
     error PoolFeeEroded();
     error InitializationDisabled();
 
-    event UpdatedMintFee(uint256 oldFeePpm, uint256 newFeePpm);
+    event UpdatedMintFee(uint256 oldFee, uint256 newFee);
     event UpdatedPendingManagementFee(uint256 oldRatePpm, uint256 newRatePpm);
     event RealizedManagementFee(uint256 assets, uint256 cumulative);
     event UpdatedPendingPerformanceFee(uint256 oldRatePpm, uint256 newRatePpm);

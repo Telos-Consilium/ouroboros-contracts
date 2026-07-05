@@ -355,9 +355,9 @@ contract YuzuUSDV3 is
     }
 
     // Router callbacks
-    function __routerBurn(address _owner, uint256 tokens) external {
+    function __routerBurn(address owner, uint256 tokens) external {
         _requireRouterSelfCall();
-        _burn(_owner, tokens);
+        _burn(owner, tokens);
     }
 
     function __routerTransfer(address from, address to, uint256 value) external {
@@ -365,9 +365,9 @@ contract YuzuUSDV3 is
         _transfer(from, to, value);
     }
 
-    function __routerSpendAllowance(address _owner, address spender, uint256 value) external {
+    function __routerSpendAllowance(address owner, address spender, uint256 value) external {
         _requireRouterSelfCall();
-        _spendAllowance(_owner, spender, value);
+        _spendAllowance(owner, spender, value);
     }
 
     // Limit and guard helpers
