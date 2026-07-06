@@ -35,7 +35,7 @@ contract YuzuILPV3PoolEdgeTest is
 
     // With zero supply the vault is fresh regardless of a residual poolSize (operator mark with
     // no shares out, or rounding dust after a full exit), so deposits mint at the 1:1 offset
-    // rate instead of converting against the empty supply and minting nothing.
+    // rate.
     function test_Deposit_SupplyZeroPoolNonzero_MintsAtOffsetRate() public {
         vm.startPrank(admin);
         yzilp.startPoolUpdate();
@@ -114,8 +114,8 @@ contract YuzuILPV3PoolEdgeTest is
     // --- deposit pricing when poolSize is zero but distributed assets remain ---
 
     // A zeroed pool bucket with live supply is not a fresh vault: the distribution bucket still
-    // backs the shares, so deposits price against total assets rather than minting at par and
-    // moving value between the depositor and the existing holders.
+    // backs the shares, so deposits price against total assets and existing holders keep their
+    // per-share value.
     function test_Deposit_PoolZeroWithDistributions_MintsAtDistributionBackedPrice() public {
         vm.prank(user);
         yzilp.deposit(1000e6, user);

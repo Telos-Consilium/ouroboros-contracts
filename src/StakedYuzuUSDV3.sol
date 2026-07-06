@@ -104,7 +104,7 @@ contract StakedYuzuUSDV3 is
         revert OwnershipMigratedToAccessControl();
     }
 
-    /// @dev Ownable checks are disabled after AccessControl migration.
+    /// @dev Ownable checks are no-ops; authorization is role-based.
     function _checkOwner() internal view override {}
 
     // Views

@@ -49,8 +49,8 @@ contract YuzuILPV3PriceGuardTest is YuzuV3TestBase, IYuzuILPDefinitions, IYuzuIL
         vm.stopPrank();
     }
 
-    function test_UpdatePool_Revert_FormerlyValidYieldNowRejected() public {
-        // 500_000 ppm (50%/day) passed the old 1e6 cap but exceeds the V3 ceiling
+    function test_UpdatePool_Revert_YieldAboveV3Ceiling() public {
+        // 500_000 ppm (50%/day) is within the inherited 1e6 bound but exceeds the 10_000 ppm V3 ceiling
         _seedPool();
         vm.startPrank(poolManager);
         yzilp.startPoolUpdate();
