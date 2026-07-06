@@ -5,6 +5,7 @@ import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinit
 import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {FEE_MANAGER_ROLE, ORDER_FILLER_ROLE, POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3PoolEdgeTest is

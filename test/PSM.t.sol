@@ -74,6 +74,7 @@ contract PSMTest is IPSMDefinitions, Test {
         orderFiller = makeAddr("orderFiller");
         liquidityManager = makeAddr("liquidityManager");
         restrictionManager = makeAddr("restrictionManager");
+        redeemManager = makeAddr("redeemManager");
 
         Vm.Wallet memory user1Wallet = vm.createWallet("user1");
         user1 = user1Wallet.addr;

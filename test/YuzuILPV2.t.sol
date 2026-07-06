@@ -10,6 +10,7 @@ import {Order, OrderStatus} from "../src/interfaces/proto/IYuzuOrderBookDefiniti
 
 import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 
+import {POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuProtoTest} from "./YuzuProto.t.sol";
 import {YuzuProtoV2Test_Common, YuzuProtoV2Test_OrderBook} from "./YuzuProtoV2.t.sol";
 import {YuzuILPTest_Common, YuzuILPTest_OrderBook} from "./YuzuILP.t.sol";

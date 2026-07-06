@@ -12,6 +12,7 @@ import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {YuzuProto} from "../src/proto/YuzuProto.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
 
+import {POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {
     YuzuProtoTest_Common,
     YuzuProtoTest_Issuer,
@@ -24,8 +25,6 @@ contract YuzuILPTest_Common is YuzuProtoTest_Common, IYuzuILPDefinitions {
     YuzuILP public ilp;
 
     address public poolManager;
-
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     function setUp() public virtual override {
         super.setUp();
@@ -322,8 +321,6 @@ contract YuzuILPHandler is YuzuProtoHandler {
 
 contract YuzuILPInvariantTest is YuzuProtoInvariantTest {
     YuzuILP public ilp;
-
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     function _deploy() internal virtual override returns (address) {
         return address(new YuzuILP());

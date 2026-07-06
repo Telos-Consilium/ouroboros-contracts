@@ -13,14 +13,12 @@ import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {YuzuILPV3Factory} from "../src/YuzuILPV3Factory.sol";
 import {IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
-import {DEPLOYER_ROLE} from "./helpers/TestRoles.sol";
+import {ADMIN_ROLE, DEPLOYER_ROLE, FEE_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "./helpers/TestRoles.sol";
+import {UpgradeTestBase} from "./helpers/UpgradeTestBase.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-contract YuzuILPV3FactoryTest is YuzuV3TestBase {
+contract YuzuILPV3FactoryTest is YuzuV3TestBase, UpgradeTestBase {
     bytes32 internal constant SALT = keccak256("yuzu.ilp.v3");
-
-    bytes32 internal constant ERC1967_ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-    bytes32 internal constant ERC1967_IMPL_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     YuzuILPV3Factory internal factory;
     address internal impl;
@@ -65,10 +63,6 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
     function _deploy(bytes32 salt) internal returns (YuzuILPV3) {
         vm.prank(deployer);
         return YuzuILPV3(factory.deploy(salt, impl, proxyAdminOwner, _params(), _config()));
-    }
-
-    function _proxyAdminOf(address proxy) internal view returns (ProxyAdmin) {
-        return ProxyAdmin(address(uint160(uint256(vm.load(proxy, ERC1967_ADMIN_SLOT)))));
     }
 
     // --- constructor ---
@@ -200,7 +194,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
 
     function test_Deploy_ProxyAdminOwnedByGivenOwner() public {
         YuzuILPV3 vault = _deploy(SALT);
-        assertEq(_proxyAdminOf(address(vault)).owner(), proxyAdminOwner);
+        assertEq(_proxyAdmin(address(vault)).owner(), proxyAdminOwner);
     }
 
     function test_ProxyAdmin_CanUpgrade() public {
@@ -208,9 +202,9 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         address newImpl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
 
         vm.prank(proxyAdminOwner);
-        _proxyAdminOf(address(vault)).upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), newImpl, "");
+        _proxyAdmin(address(vault)).upgradeAndCall(ITransparentUpgradeableProxy(address(vault)), newImpl, "");
 
-        assertEq(address(uint160(uint256(vm.load(address(vault), ERC1967_IMPL_SLOT)))), newImpl);
+        assertEq(_implementation(address(vault)), newImpl);
         assertEq(vault.name(), "Yuzu ILP");
     }
 
@@ -273,7 +267,7 @@ contract YuzuILPV3FactoryTest is YuzuV3TestBase {
         );
         address proxy = address(new TransparentUpgradeableProxy(address(new YuzuILP()), proxyAdminOwner, data));
         vm.prank(proxyAdminOwner);
-        _proxyAdminOf(proxy).upgradeAndCall(ITransparentUpgradeableProxy(proxy), impl, "");
+        _proxyAdmin(proxy).upgradeAndCall(ITransparentUpgradeableProxy(proxy), impl, "");
         vm.expectRevert(IYuzuILPV3Definitions.AlreadyInitialized.selector);
         YuzuILPV3(proxy).initializeV3(_params(), _config());
     }

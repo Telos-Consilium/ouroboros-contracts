@@ -15,6 +15,17 @@ import {YuzuILPV2} from "../../src/YuzuILPV2.sol";
 import {YuzuILPV3} from "../../src/YuzuILPV3.sol";
 import {YuzuILPV3Facet} from "../../src/YuzuILPV3Facet.sol";
 import {IYuzuILPV3Definitions} from "../../src/interfaces/IYuzuILPDefinitions.sol";
+import {
+    ADMIN_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    MARKDOWN_STEP_EXEMPT_ROLE,
+    NAV_MANAGER_ROLE,
+    ORDER_FILLER_ROLE,
+    POOL_MANAGER_ROLE,
+    REDEEM_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE
+} from "./TestRoles.sol";
 
 contract YuzuV3USDT0Mock is ERC20Mock {
     function decimals() public pure virtual override returns (uint8) {
@@ -23,16 +34,6 @@ contract YuzuV3USDT0Mock is ERC20Mock {
 }
 
 abstract contract YuzuV3TestBase is Test {
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-    bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
-    bytes32 internal constant MARKDOWN_STEP_EXEMPT_ROLE = keccak256("MARKDOWN_STEP_EXEMPT_ROLE");
-
     YuzuV3USDT0Mock internal asset;
     YuzuUSDV3 internal yzusd;
     YuzuILPV3 internal yzilp;

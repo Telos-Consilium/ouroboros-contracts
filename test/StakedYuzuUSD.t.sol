@@ -609,7 +609,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         address spender = user2;
         uint256 value = 123e18;
         uint256 deadline = block.timestamp + 1 hours;
-        uint256 nonce = styz.nonces(owner);
+        uint256 nonce = styz.nonces(_owner);
 
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", styz.DOMAIN_SEPARATOR(), structHash));
@@ -643,11 +643,11 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_Permit_Revert_ExpiredSignature() public {
         address _owner = user1;
-        uint256 ownerPrivateKey = user2key;
+        uint256 ownerPrivateKey = user1key;
         address spender = user2;
         uint256 value = 123e18;
         uint256 deadline = block.timestamp - 1;
-        uint256 nonce = styz.nonces(owner);
+        uint256 nonce = styz.nonces(_owner);
 
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", styz.DOMAIN_SEPARATOR(), structHash));

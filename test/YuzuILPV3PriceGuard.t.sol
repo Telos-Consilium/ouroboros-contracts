@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IYuzuILPDefinitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3PriceGuardTest is YuzuV3TestBase, IYuzuILPDefinitions, IYuzuILPV3Definitions {

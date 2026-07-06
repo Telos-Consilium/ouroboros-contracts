@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import {YuzuILPV3} from "../../src/YuzuILPV3.sol";
 import {YuzuILPV3Facet} from "../../src/YuzuILPV3Facet.sol";
 import {IYuzuILPV2} from "../../src/interfaces/IYuzuILP.sol";
 import {Throttle} from "../../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {ADMIN_ROLE, FEE_MANAGER_ROLE, LIMIT_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "../helpers/TestRoles.sol";
+import {UpgradeTestBase} from "../helpers/UpgradeTestBase.sol";
 
-contract YuzuILPV3UpgradeForkTest is Test {
-    bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-    bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
+contract YuzuILPV3UpgradeForkTest is UpgradeTestBase {
     function test_ForkUpgrade() public {
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) {
@@ -110,15 +107,7 @@ contract YuzuILPV3UpgradeForkTest is Test {
         );
         v3.setMintThrottle(1, 1);
 
-        vm.expectRevert();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         v3.reinitialize();
-    }
-
-    function _implementation(address proxy) private view returns (address) {
-        return address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
-    }
-
-    function _admin(address proxy) private view returns (address) {
-        return address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT))));
     }
 }

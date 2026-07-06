@@ -4,7 +4,14 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {YuzuV3Fees} from "../src/libraries/YuzuV3Fees.sol";
-import {REDEEMER_ROLE, RESTRICTION_MANAGER_ROLE} from "./helpers/TestRoles.sol";
+import {
+    FEE_MANAGER_ROLE,
+    MARKDOWN_STEP_EXEMPT_ROLE,
+    NAV_MANAGER_ROLE,
+    REDEEMER_ROLE,
+    REDEEM_MANAGER_ROLE,
+    RESTRICTION_MANAGER_ROLE
+} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 /// @dev Covers the facet's redemption pricing and gating: instant redemptions must settle

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
@@ -18,6 +16,7 @@ import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {PSM} from "../src/PSM.sol";
 import {PSMV2} from "../src/PSMV2.sol";
 import {IYuzuSameBlockGuardDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {UpgradeTestBase} from "./helpers/UpgradeTestBase.sol";
 import {
     BURNER_ROLE,
     DELAY_EXEMPT_ROLE,
@@ -37,9 +36,7 @@ contract PSMV2V3USDT0Mock is ERC20Mock {
     }
 }
 
-contract PSMV2V3IntegrationTest is Test {
-    bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
+contract PSMV2V3IntegrationTest is UpgradeTestBase {
     PSMV2V3USDT0Mock internal asset;
     YuzuUSDV3 internal yzusd;
     StakedYuzuUSDV3 internal styz;
@@ -218,9 +215,5 @@ contract PSMV2V3IntegrationTest is Test {
         );
         deployed = PSMV2(address(new ERC1967Proxy(impl, initData)));
         deployed.reinitialize();
-    }
-
-    function _proxyAdmin(address proxy) internal view returns (ProxyAdmin) {
-        return ProxyAdmin(address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT)))));
     }
 }

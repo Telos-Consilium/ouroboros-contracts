@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IYuzuSameBlockGuardDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {REDEEM_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuSameBlockGuardDefinitions {

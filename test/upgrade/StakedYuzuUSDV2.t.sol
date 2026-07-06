@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test, console2} from "forge-std/Test.sol";
-
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import {StakedYuzuUSDV2} from "../../src/StakedYuzuUSDV2.sol";
 import {IStakedYuzuUSD, IStakedYuzuUSDV2, IntegrationConfig} from "../../src/interfaces/IStakedYuzuUSD.sol";
+import {UpgradeTestBase} from "../helpers/UpgradeTestBase.sol";
 
 interface IOwnable {
     function owner() external returns (address);
 }
 
-contract StakedYuzuUSDUpgradeForkTest is Test {
-    bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-    bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
+contract StakedYuzuUSDUpgradeForkTest is UpgradeTestBase {
     function test_ForkUpgrade() public {
         // Skip when RPC_URL is not provided
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));
@@ -45,8 +42,8 @@ contract StakedYuzuUSDUpgradeForkTest is Test {
         // Read baseline state before upgrade
         IStakedYuzuUSD baseView = IStakedYuzuUSD(proxy);
         address owner = IOwnable(address(baseView)).owner();
-        address implBefore = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
-        address adminBefore = address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT))));
+        address implBefore = _implementation(proxy);
+        address adminBefore = _admin(proxy);
         uint256 redeemDelayBefore = baseView.redeemDelay();
         uint256 redeemFeePpmBefore = baseView.redeemFeePpm();
         address feeReceiverBefore = baseView.feeReceiver();
@@ -62,7 +59,7 @@ contract StakedYuzuUSDUpgradeForkTest is Test {
         StakedYuzuUSDV2 newImplementation = new StakedYuzuUSDV2();
 
         // Perform the upgrade through the proxy admin
-        address proxyAdmin = address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT))));
+        address proxyAdmin = _admin(proxy);
         address proxyAdminOwner = ProxyAdmin(proxyAdmin).owner();
         vm.prank(proxyAdminOwner);
         ProxyAdmin(proxyAdmin).upgradeAndCall(
@@ -70,8 +67,8 @@ contract StakedYuzuUSDUpgradeForkTest is Test {
         );
 
         // Capture post-upgrade slots
-        address implAfter = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
-        address adminAfter = address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT))));
+        address implAfter = _implementation(proxy);
+        address adminAfter = _admin(proxy);
         assertTrue(implBefore != implAfter, "implementation unchanged");
         assertEq(implAfter, address(newImplementation), "implementation not updated");
         assertEq(adminAfter, adminBefore, "admin drift");
@@ -102,7 +99,7 @@ contract StakedYuzuUSDUpgradeForkTest is Test {
         StakedYuzuUSDV2(proxy).reinitialize();
 
         // Verify reinitialize cannot be called again
-        vm.expectRevert();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         StakedYuzuUSDV2(proxy).reinitialize();
     }
 }

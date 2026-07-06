@@ -6,6 +6,14 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {IYuzuProtoDefinitions, IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {
+    ADMIN_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    ORDER_FILLER_ROLE,
+    POOL_MANAGER_ROLE,
+    REDEEM_MANAGER_ROLE
+} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2Definitions, IYuzuILPV3Definitions {

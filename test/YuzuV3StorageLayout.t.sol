@@ -13,6 +13,7 @@ import {
     YuzuSameBlockGuardV3Storage,
     YuzuThrottleV3Storage
 } from "../src/storage/YuzuV3Storage.sol";
+import {LIMIT_MANAGER_ROLE, REDEEM_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 /// @dev ERC-7201: keccak256(abi.encode(uint256(keccak256(id)) - 1)) & ~bytes32(uint256(0xff))

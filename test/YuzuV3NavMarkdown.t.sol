@@ -4,6 +4,13 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IYuzuNavMarkdownDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {
+    ADMIN_ROLE,
+    MARKDOWN_STEP_EXEMPT_ROLE,
+    NAV_MANAGER_ROLE,
+    ORDER_FILLER_ROLE,
+    REDEEM_MANAGER_ROLE
+} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {

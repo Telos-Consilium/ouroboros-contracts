@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
@@ -11,24 +9,21 @@ import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/
 import {StakedYuzuUSD} from "../../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3Recovery} from "../../src/StakedYuzuUSDV3Recovery.sol";
 import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
+import {LOST_ADDRESS, RECOVERY_AMOUNT, RECOVERY_RECEIVER} from "./RecoveryConstants.sol";
+import {
+    ADMIN_ROLE,
+    DELAY_EXEMPT_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    PAUSE_MANAGER_ROLE,
+    POOL_MANAGER_ROLE,
+    REDEEM_FEE_EXEMPT_ROLE,
+    REDEEM_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE
+} from "./TestRoles.sol";
+import {UpgradeTestBase} from "./UpgradeTestBase.sol";
 
-abstract contract StakedYuzuUSDV3TestBase is Test {
-    bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    address internal constant LOST_ADDRESS = 0xB3a9009c89a3Fc46314C2df642d920c244C61c06;
-    address internal constant RECOVERY_RECEIVER = 0xAFFcbAb01F7C2B3D533198B741C9E32Df2d78616;
-    uint256 internal constant RECOVERY_AMOUNT = 2_913_260.544695655463689601 ether;
-
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
-    bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
-    bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
-    bytes32 internal constant DELAY_EXEMPT_ROLE = keccak256("DELAY_EXEMPT_ROLE");
-    bytes32 internal constant REDEEM_FEE_EXEMPT_ROLE = keccak256("REDEEM_FEE_EXEMPT_ROLE");
-
+abstract contract StakedYuzuUSDV3TestBase is UpgradeTestBase {
     StakedYuzuUSDV3 public styz3;
     ProxyAdmin public proxyAdmin;
     ERC20Mock public yzusd;
@@ -134,10 +129,6 @@ abstract contract StakedYuzuUSDV3TestBase is Test {
 
     function _deploy() internal virtual returns (address) {
         return address(new StakedYuzuUSDV3());
-    }
-
-    function _proxyAdmin(address proxy) internal view returns (ProxyAdmin) {
-        return ProxyAdmin(address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT)))));
     }
 
     function _approveAssets(address assetOwner, address spender, uint256 amount) internal {

@@ -18,7 +18,19 @@ import {
 } from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {LOST_ADDRESS, RECOVERY_AMOUNT, RECOVERY_RECEIVER} from "./helpers/RecoveryConstants.sol";
 import {StakedYuzuUSDV3TestBase} from "./helpers/StakedYuzuUSDV3TestBase.sol";
+import {
+    ADMIN_ROLE,
+    DELAY_EXEMPT_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    PAUSE_MANAGER_ROLE,
+    POOL_MANAGER_ROLE,
+    REDEEM_FEE_EXEMPT_ROLE,
+    REDEEM_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE
+} from "./helpers/TestRoles.sol";
 
 contract StakedYuzuUSDV3Test is
     StakedYuzuUSDV3TestBase,

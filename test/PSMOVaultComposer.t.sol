@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-contract YuzuOVaultComposerTest is Test {
+/// @dev Covers the bytes32 to address receiver decoding used by the OVault composer role checks.
+contract PSMOVaultComposerTest is Test {
     function bytes32toAddress(bytes32 b) public pure returns (address) {
         return address(SafeCast.toUint160(uint256(b)));
     }
@@ -28,6 +28,6 @@ contract YuzuOVaultComposerTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(SafeCast.SafeCastOverflowedUintDowncast.selector, uint8(160), uint256(b))
         );
-        address a = this.bytes32toAddress(b);
+        this.bytes32toAddress(b);
     }
 }

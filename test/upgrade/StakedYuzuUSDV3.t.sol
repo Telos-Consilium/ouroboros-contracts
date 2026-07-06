@@ -1,29 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
-
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import {StakedYuzuUSDV3Recovery} from "../../src/StakedYuzuUSDV3Recovery.sol";
 import {StakedYuzuUSDV3} from "../../src/StakedYuzuUSDV3.sol";
 import {IStakedYuzuUSD, IStakedYuzuUSDV2} from "../../src/interfaces/IStakedYuzuUSD.sol";
 import {IStakedYuzuUSDV3Definitions} from "../../src/interfaces/IStakedYuzuUSDDefinitions.sol";
+import {LOST_ADDRESS, RECOVERY_AMOUNT, RECOVERY_RECEIVER} from "../helpers/RecoveryConstants.sol";
 import {ADMIN_ROLE, PAUSE_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "../helpers/TestRoles.sol";
+import {UpgradeTestBase} from "../helpers/UpgradeTestBase.sol";
 
 interface IOwnable {
     function owner() external view returns (address);
 }
 
-contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
-    bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-    bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    address constant LOST_ADDRESS = 0xB3a9009c89a3Fc46314C2df642d920c244C61c06;
-    address constant RECOVERY_RECEIVER = 0xAFFcbAb01F7C2B3D533198B741C9E32Df2d78616;
-    uint256 constant RECOVERY_AMOUNT = 2_913_260.544695655463689601 ether;
-
+contract StakedYuzuUSDV3UpgradeForkTest is UpgradeTestBase, IStakedYuzuUSDV3Definitions {
     function test_ForkUpgrade() public {
         string memory rpcUrl = vm.envOr("RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) {
@@ -43,7 +37,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
 
         IStakedYuzuUSDV2 v2 = IStakedYuzuUSDV2(proxy);
         address v2Owner = IOwnable(proxy).owner();
-        address proxyAdmin = address(uint160(uint256(vm.load(proxy, _ADMIN_SLOT))));
+        address proxyAdmin = _admin(proxy);
         address proxyAdminOwner = ProxyAdmin(proxyAdmin).owner();
 
         uint256 redeemDelayBefore = v2.redeemDelay();
@@ -70,7 +64,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         vm.prank(proxyAdminOwner);
         ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), recoveryImpl, recoveryData);
 
-        address implAfterRecovery = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
+        address implAfterRecovery = _implementation(proxy);
         assertEq(implAfterRecovery, recoveryImpl, "recovery impl not active");
 
         StakedYuzuUSDV3Recovery rec = StakedYuzuUSDV3Recovery(proxy);
@@ -94,7 +88,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
 
         // recover is one-shot
         vm.prank(proxyAdminOwner);
-        vm.expectRevert();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
         ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), recoveryImpl, recoveryData);
 
         // Upgrade recovery -> parked V3 runtime; reinitialize migrates ownership and configures
@@ -103,7 +97,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is Test, IStakedYuzuUSDV3Definitions {
         vm.prank(proxyAdminOwner);
         ProxyAdmin(proxyAdmin).upgradeAndCall(ITransparentUpgradeableProxy(payable(proxy)), v3Impl, parkedData);
 
-        address implAfterStripped = address(uint160(uint256(vm.load(proxy, _IMPLEMENTATION_SLOT))));
+        address implAfterStripped = _implementation(proxy);
         assertEq(implAfterStripped, v3Impl, "v3 impl not active");
 
         StakedYuzuUSDV3 v3 = StakedYuzuUSDV3(proxy);

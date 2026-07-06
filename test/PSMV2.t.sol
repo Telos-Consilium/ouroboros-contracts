@@ -100,7 +100,7 @@ contract PSMV2Test is PSMTest {
 
     // --- reinitialize ---
 
-    function test_ReinitializeV2_SeedsThrottleAndRoles() public {
+    function test_Reinitialize_SeedsThrottleAndRoles() public {
         assertEq(psmV2.getMintThrottle().blockLimit, type(uint256).max);
         assertEq(psmV2.getMintThrottle().dailyLimit, type(uint256).max);
         assertEq(psmV2.getRedeemThrottle().blockLimit, type(uint256).max);
@@ -109,7 +109,7 @@ contract PSMV2Test is PSMTest {
         assertEq(psmV2.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE);
     }
 
-    function test_ReinitializeV2_Revert_SecondCall() public {
+    function test_Reinitialize_Revert_SecondCall() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         psmV2.reinitialize();
     }
