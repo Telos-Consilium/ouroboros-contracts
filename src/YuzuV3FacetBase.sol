@@ -72,7 +72,6 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
             revert UnderMinRedeemOrder(tokens, minTokens);
         }
         uint256 feePpm = router.redeemOrderFeePpm();
-        _validateOrderValue(router, tokens, feePpm);
 
         $._totalPendingOrderSize += tokens;
         uint256 orderId = $._orderCount;
@@ -215,9 +214,6 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
     }
 
     // Internal
-    /// @dev Hook for vault-specific floors on a new order's asset value; the default accepts any value.
-    function _validateOrderValue(IYuzuV3RouterBase router, uint256 tokens, uint256 feePpm) internal view virtual {}
-
     function _checkRole(bytes32 role) internal view {
         if (!IAccessControl(address(this)).hasRole(role, msg.sender)) {
             revert IAccessControl.AccessControlUnauthorizedAccount(msg.sender, role);
