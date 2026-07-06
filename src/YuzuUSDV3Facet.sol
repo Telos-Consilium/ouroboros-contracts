@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {YuzuV3FacetBase} from "./YuzuV3FacetBase.sol";
-import {ADMIN_ROLE, LIMIT_MANAGER_ROLE, NAV_MANAGER_ROLE, ORDER_FILLER_ROLE} from "./libraries/YuzuV3Constants.sol";
+import {
+    ADMIN_ROLE,
+    LIMIT_MANAGER_ROLE,
+    MARKDOWN_STEP_EXEMPT_ROLE,
+    NAV_MANAGER_ROLE,
+    ORDER_FILLER_ROLE
+} from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
@@ -100,12 +107,18 @@ contract YuzuUSDV3Facet is
             }
         }
 
+        // The step cap binds both directions; markdowns beyond the cap require
+        // MARKDOWN_STEP_EXEMPT_ROLE so a major loss can be marked in one call.
+        uint256 maxDelta = Math.mulDiv(currentNav, $._stepCapPpm, 1e6);
         if (newNav > currentNav) {
-            uint256 maxDelta = Math.mulDiv(currentNav, $._stepCapPpm, 1e6);
-            uint256 delta = newNav - currentNav;
-            if (delta > maxDelta) {
+            if (newNav - currentNav > maxDelta) {
                 revert NavStepTooHigh(newNav, currentNav, maxDelta);
             }
+        } else if (
+            currentNav - newNav > maxDelta
+                && !IAccessControl(address(this)).hasRole(MARKDOWN_STEP_EXEMPT_ROLE, msg.sender)
+        ) {
+            revert NavStepTooHigh(newNav, currentNav, maxDelta);
         }
 
         $._nav = newNav;

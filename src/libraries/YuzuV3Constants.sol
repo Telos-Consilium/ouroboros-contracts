@@ -7,6 +7,7 @@ bytes32 constant BURNER_ROLE = keccak256("BURNER_ROLE");
 bytes32 constant DELAY_EXEMPT_ROLE = keccak256("DELAY_EXEMPT_ROLE");
 bytes32 constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 bytes32 constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+bytes32 constant MARKDOWN_STEP_EXEMPT_ROLE = keccak256("MARKDOWN_STEP_EXEMPT_ROLE");
 bytes32 constant MINTER_ROLE = keccak256("MINTER_ROLE");
 bytes32 constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
 bytes32 constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");

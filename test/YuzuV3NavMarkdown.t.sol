@@ -50,6 +50,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         assertEq(yzusd.navLastUpdate(), 0);
         assertFalse(yzusd.isMarkedDown());
         assertEq(yzusd.getRoleAdmin(NAV_MANAGER_ROLE), ADMIN_ROLE);
+        assertEq(yzusd.getRoleAdmin(MARKDOWN_STEP_EXEMPT_ROLE), ADMIN_ROLE);
     }
 
     function test_AtPar_RedeemOneToOne() public {
@@ -153,10 +154,50 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         assertEq(yzusd.navLastUpdate(), block.timestamp);
     }
 
-    function test_SetNav_MarkdownBypassesStepCap() public {
+    function test_SetNav_Revert_StepTooHighDown() public {
         vm.prank(navManager);
-        yzusd.setNav(8e17); // -20%; markdowns bypass the 10% recovery cap
+        vm.expectRevert(abi.encodeWithSelector(NavStepTooHigh.selector, 8e17, PAR, 1e17));
+        yzusd.setNav(8e17); // -20% exceeds the 10% cap
+    }
+
+    function test_SetNav_MarkdownStepExempt_UncapsMarkdown() public {
+        vm.prank(admin);
+        yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
+
+        vm.prank(navManager);
+        yzusd.setNav(8e17); // -20%
         assertEq(yzusd.nav(), 8e17);
+    }
+
+    function test_SetNav_MarkdownStepExempt_DoesNotUncapRecovery() public {
+        vm.prank(admin);
+        yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
+
+        vm.prank(navManager);
+        vm.expectRevert(abi.encodeWithSelector(NavStepTooHigh.selector, 12e17, PAR, 1e17));
+        yzusd.setNav(12e17); // +20% exceeds the 10% cap regardless of the exemption
+    }
+
+    function test_SetNav_MarkdownStepExempt_CooldownStillApplies() public {
+        vm.prank(admin);
+        yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
+        _setNav(8e17);
+        uint256 readyAt = yzusd.navLastUpdate() + yzusd.navCooldown();
+
+        vm.prank(navManager);
+        vm.expectRevert(abi.encodeWithSelector(NavCooldownActive.selector, block.timestamp, readyAt));
+        yzusd.setNav(6e17);
+    }
+
+    function test_SetNav_Revert_MarkdownStepExemptLacksNavManager() public {
+        vm.prank(admin);
+        yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, other);
+
+        vm.prank(other);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, other, NAV_MANAGER_ROLE)
+        );
+        yzusd.setNav(8e17);
     }
 
     function test_SetNav_Revert_Zero() public {
@@ -172,6 +213,8 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
     }
 
     function test_SetNav_RecoveryStepRelativeToCurrent() public {
+        vm.prank(admin);
+        yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
         _setNav(8e17);
         vm.warp(block.timestamp + 1 days);
         // From 0.8 the cap is 10% of 0.8 = 0.08, so 0.88 is allowed

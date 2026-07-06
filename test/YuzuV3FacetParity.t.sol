@@ -21,6 +21,7 @@ contract YuzuV3FacetParityTest is YuzuV3TestBase {
 
         vm.startPrank(admin);
         yzusd.grantRole(NAV_MANAGER_ROLE, navManager);
+        yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
         yzusd.grantRole(FEE_MANAGER_ROLE, admin);
         yzusd.grantRole(REDEEM_MANAGER_ROLE, admin);
         yzusd.grantRole(RESTRICTION_MANAGER_ROLE, admin);

@@ -31,6 +31,7 @@ abstract contract YuzuV3TestBase is Test {
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
     bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
     bytes32 internal constant NAV_MANAGER_ROLE = keccak256("NAV_MANAGER_ROLE");
+    bytes32 internal constant MARKDOWN_STEP_EXEMPT_ROLE = keccak256("MARKDOWN_STEP_EXEMPT_ROLE");
 
     YuzuV3USDT0Mock internal asset;
     YuzuUSDV3 internal yzusd;
