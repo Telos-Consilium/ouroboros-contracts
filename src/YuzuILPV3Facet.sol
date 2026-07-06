@@ -570,8 +570,7 @@ contract YuzuILPV3Facet is
 
     /// @dev True when the accrued management fee has consumed the pool bucket's entire net value,
     /// leaving pool units with no marginal worth; deposits cannot be priced until the next pool update.
-    /// Matches the second {_poolSizeCredit} revert guard: with netDistributed constant on both sides
-    /// of that comparison, it reduces to this pool-only predicate.
+    /// Mirrors the pool-only case of the second {_poolSizeCredit} revert guard.
     function _isPoolFeeEroded(IYuzuILPV3Router router) private view returns (bool) {
         uint256 pool = router.poolSize();
         // slither-disable-next-line incorrect-equality

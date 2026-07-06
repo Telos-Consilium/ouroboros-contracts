@@ -7,7 +7,7 @@ import {YuzuV3Fees} from "../src/libraries/YuzuV3Fees.sol";
 import {REDEEMER_ROLE, RESTRICTION_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-/// @dev Regression net for the facet's redemption pricing and gating: instant redemptions must settle
+/// @dev Covers the facet's redemption pricing and gating: instant redemptions must settle
 /// exactly at the public quotes, and the redeem restriction must close the instant and order paths
 /// together.
 contract YuzuV3FacetParityTest is YuzuV3TestBase {

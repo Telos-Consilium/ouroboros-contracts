@@ -27,7 +27,7 @@ import {
 
 /**
  * @title StakedYuzuUSDV3
- * @notice Staked Yuzu USD V3 implementation.
+ * @notice Staked Yuzu USD with V3 role-based access control, throttles, and minimum amounts.
  */
 contract StakedYuzuUSDV3 is
     StakedYuzuUSDV2,
@@ -73,8 +73,8 @@ contract StakedYuzuUSDV3 is
         maxDistributionPpm = type(uint256).max;
     }
 
-    /// @dev Fresh deploys initialize at V1 and then run reinitialize; disabled pending size
-    /// headroom for the inherited initializer.
+    /// @dev The inherited V1 initializer is disabled; fresh deploys initialize at V1 and then
+    /// run reinitialize.
     // slither-disable-next-line pess-unprotected-initialize
     function initialize(IERC20, string memory, string memory, address, address, uint256) external pure override {
         revert InitializationDisabled();
@@ -187,9 +187,9 @@ contract StakedYuzuUSDV3 is
         return depositedAssets;
     }
 
-    /// @dev Self-contained body: the inherited one carries a legacy integration-mapping bypass
-    /// that must stay unreachable. Fee, throttle, and {maxWithdraw} all key on the owner, so the
-    /// view never overstates and the throttle books exactly the gross outflow (assets plus fee).
+    /// @dev Self-contained body; the inherited path routes through the integration mapping. Fee,
+    /// throttle, and {maxWithdraw} all key on the owner, so the view never overstates and the
+    /// throttle books exactly the gross outflow (assets plus fee).
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         _checkMinWithdraw(assets);
         uint256 maxAssets = maxWithdraw(_owner);
@@ -278,9 +278,9 @@ contract StakedYuzuUSDV3 is
         super.unpause();
     }
 
-    /// @dev The exemption roles replace the integration mapping; stale entries persist in storage
-    /// but nothing reads them, and this setter is kept to zero them out. The override is also
-    /// required because _checkOwner is disabled, which would leave the inherited onlyOwner gate open.
+    /// @dev Writes the integration mapping, which nothing reads because delay and fee exemptions
+    /// are role-based; it stays available only to zero stale entries. Overridden to gate on
+    /// ADMIN_ROLE, since _checkOwner is disabled and the inherited onlyOwner would otherwise be open.
     function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
         public
         virtual
