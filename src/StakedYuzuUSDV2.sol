@@ -14,6 +14,7 @@ import {IntegrationConfig, IStakedYuzuUSDV2Definitions} from "./interfaces/IStak
  * and against the caller in state-changing functions.
  */
 contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
+    // slither-disable-next-line uninitialized-state
     mapping(address => IntegrationConfig) internal integrations;
 
     /// @notice Reinitializes the contract for V2 upgrade

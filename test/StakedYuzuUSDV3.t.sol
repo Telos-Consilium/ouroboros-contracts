@@ -186,27 +186,13 @@ contract StakedYuzuUSDV3Test is
         styz3.transferOwnership(user1);
     }
 
-    function test_SetIntegration_WritesAndClearsLegacyEntries() public {
+    function test_SetIntegration_Revert_MigratedToRoles() public {
         vm.prank(admin);
+        vm.expectRevert(IntegrationsMigratedToRoles.selector);
         styz3.setIntegration(user1, true, true);
 
-        IntegrationConfig memory cfg = styz3.getIntegration(user1);
-        assertTrue(cfg.canSkipRedeemDelay);
-        assertTrue(cfg.waiveRedeemFee);
-
-        vm.prank(admin);
-        styz3.setIntegration(user1, false, false);
-
-        cfg = styz3.getIntegration(user1);
-        assertFalse(cfg.canSkipRedeemDelay);
-        assertFalse(cfg.waiveRedeemFee);
-    }
-
-    function test_SetIntegration_Revert_NotAdmin() public {
         vm.prank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, ADMIN_ROLE)
-        );
+        vm.expectRevert(IntegrationsMigratedToRoles.selector);
         styz3.setIntegration(user1, true, true);
     }
 
@@ -518,31 +504,45 @@ contract StakedYuzuUSDV3Test is
     }
 
     function test_InstantRedeemDisabled_StaleIntegrationEntry_HasNoEffect() public {
-        // A mapping entry written before the upgrade persists in storage, but the bodies that
-        // acted on it are overridden, so it grants nothing on either axis
-        vm.prank(admin);
-        styz3.setIntegration(user2, true, true);
+        // Entries written before the V3 upgrade persist in storage, but the bodies that acted
+        // on them are overridden, so they grant nothing on either axis
+        address freshOwner = makeAddr("freshOwner");
+        (TransparentUpgradeableProxy proxy, ProxyAdmin freshProxyAdmin,) = _deploySeededV1Proxy(freshOwner);
+        _upgradeToRecovery(freshProxyAdmin, proxy, freshOwner);
 
-        uint256 shares = _deposit(user1, 100e18);
+        vm.startPrank(freshOwner);
+        StakedYuzuUSDV3Recovery(address(proxy)).setIntegration(user1, true, true);
+        StakedYuzuUSDV3Recovery(address(proxy)).setIntegration(user2, true, true);
+        vm.stopPrank();
+
+        _upgradeToParkedV3(freshProxyAdmin, proxy, freshOwner, admin);
+        StakedYuzuUSDV3 vault = StakedYuzuUSDV3(address(proxy));
+
+        vm.startPrank(admin);
+        vault.grantRole(PAUSE_MANAGER_ROLE, admin);
+        vault.unpause();
+        vm.stopPrank();
+
+        // The stale entries survive in storage
+        IntegrationConfig memory cfg = vault.getIntegration(user2);
+        assertTrue(cfg.canSkipRedeemDelay);
+        assertTrue(cfg.waiveRedeemFee);
+
+        _approveAssets(user1, address(vault), type(uint256).max);
         vm.prank(user1);
-        styz3.approve(user2, type(uint256).max);
+        uint256 shares = vault.deposit(100e18, user1);
+        vm.prank(user1);
+        vault.approve(user2, type(uint256).max);
 
+        // The caller-side entry does not open the instant path
         vm.prank(user2);
         vm.expectRevert(
             abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares / 2, 0)
         );
-        styz3.redeem(shares / 2, user1, user1);
+        vault.redeem(shares / 2, user1, user1);
 
-        // The entry on the owner does not open the delay gate either
-        vm.prank(admin);
-        styz3.setIntegration(user1, true, true);
-        assertFalse(styz3.canRedeem(user1));
-
-        vm.prank(user2);
-        vm.expectRevert(
-            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares / 2, 0)
-        );
-        styz3.redeem(shares / 2, user1, user1);
+        // The owner-side entry does not open the delay gate either
+        assertFalse(vault.canRedeem(user1));
     }
 
     function test_InstantRedeemDisabled_InitiateRedeem_Unaffected() public {

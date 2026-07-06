@@ -278,16 +278,11 @@ contract StakedYuzuUSDV3 is
         super.unpause();
     }
 
-    /// @dev Writes the integration mapping, which nothing reads because delay and fee exemptions
-    /// are role-based; it stays available only to zero stale entries. Overridden to gate on
-    /// ADMIN_ROLE, since _checkOwner is disabled and the inherited onlyOwner would otherwise be open.
-    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
-        public
-        virtual
-        override
-        onlyRole(ADMIN_ROLE)
-    {
-        super.setIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
+    /// @dev Delay and fee exemptions are role-based and nothing reads the integration mapping,
+    /// so writes are disabled. The override also seals the inherited onlyOwner entry point,
+    /// which the disabled _checkOwner would otherwise leave open.
+    function setIntegration(address, bool, bool) public pure override {
+        revert IntegrationsMigratedToRoles();
     }
 
     // Config setters

@@ -72,6 +72,7 @@ interface IStakedYuzuUSDV2Definitions {
 
 interface IStakedYuzuUSDV3Definitions {
     error OwnershipMigratedToAccessControl();
+    error IntegrationsMigratedToRoles();
     error UnauthorizedReinitializer(address caller);
     error RedeemDelayTooLow(uint256 provided, uint256 min);
     error DistributionAmountTooHigh(uint256 provided, uint256 max);
