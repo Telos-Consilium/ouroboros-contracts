@@ -48,7 +48,7 @@ contract PSMV2UpgradeForkTest is Test {
         address impl = address(new PSMV2());
         vm.prank(proxyAdminOwner);
         ProxyAdmin(adminBefore).upgradeAndCall(
-            ITransparentUpgradeableProxy(payable(proxy)), impl, abi.encodeWithSelector(PSMV2.reinitializeV2.selector)
+            ITransparentUpgradeableProxy(payable(proxy)), impl, abi.encodeWithSelector(PSMV2.reinitialize.selector)
         );
 
         assertTrue(implBefore != _implementation(proxy), "implementation unchanged");
@@ -85,7 +85,7 @@ contract PSMV2UpgradeForkTest is Test {
         v2.setMintThrottle(1, 1);
 
         vm.expectRevert();
-        v2.reinitializeV2();
+        v2.reinitialize();
     }
 
     function _implementation(address proxy) private view returns (address) {

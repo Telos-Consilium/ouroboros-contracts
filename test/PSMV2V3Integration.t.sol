@@ -217,7 +217,7 @@ contract PSMV2V3IntegrationTest is Test {
             PSM.initialize.selector, IERC20(address(asset)), IERC4626(address(yzusd)), IERC4626(address(styz)), admin, 0
         );
         deployed = PSMV2(address(new ERC1967Proxy(impl, initData)));
-        deployed.reinitializeV2();
+        deployed.reinitialize();
     }
 
     function _proxyAdmin(address proxy) internal view returns (ProxyAdmin) {

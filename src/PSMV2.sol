@@ -21,7 +21,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
 
     /// @notice Reinitializes the contract for the V2 upgrade
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitializeV2() external reinitializer(2) {
+    function reinitialize() external reinitializer(2) {
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setMintThrottle(type(uint256).max, type(uint256).max);

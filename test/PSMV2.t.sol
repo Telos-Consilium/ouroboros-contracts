@@ -46,7 +46,7 @@ contract PSMV2Test is PSMTest {
         bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusd, styz, admin, 0);
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         psmV2 = PSMV2(address(proxy));
-        psmV2.reinitializeV2();
+        psmV2.reinitialize();
 
         vm.label(address(psmV2), "PSMV2 (proxy)");
 
@@ -111,7 +111,7 @@ contract PSMV2Test is PSMTest {
 
     function test_ReinitializeV2_Revert_SecondCall() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        psmV2.reinitializeV2();
+        psmV2.reinitialize();
     }
 
     // --- min amounts ---
