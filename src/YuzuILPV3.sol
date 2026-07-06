@@ -3,6 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+import {YuzuILP} from "./YuzuILP.sol";
 import {YuzuILPV2} from "./YuzuILPV2.sol";
 import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
 import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
@@ -313,6 +314,24 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
 
     function _totalAssets(Math.Rounding rounding) internal view override(YuzuILPV2) returns (uint256) {
         return IYuzuILPV3FacetPricing(_facet).totalAssetsWithRounding(uint256(rounding));
+    }
+
+    /// @dev Replaces the inherited poolSize == 0 fresh-vault sentinel
+    function _convertToShares(uint256 assets, Math.Rounding rounding)
+        internal
+        view
+        override(YuzuIssuer, YuzuILP)
+        returns (uint256)
+    {
+        uint256 supply = totalSupply();
+        if (supply == 0) {
+            return assets * 10 ** _decimalsOffset();
+        }
+        uint256 totalAssets_ = _totalAssets(Math.Rounding(1 - uint256(rounding)));
+        if (totalAssets_ == 0) {
+            return 0;
+        }
+        return Math.mulDiv(supply, assets, totalAssets_, rounding);
     }
 
     // Router callbacks

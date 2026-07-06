@@ -114,7 +114,13 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return poolSize + yieldSinceUpdate;
     }
 
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+    function _convertToShares(uint256 assets, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         // slither-disable-next-line incorrect-equality
         if (poolSize == 0) {
             return assets * 10 ** _decimalsOffset();
