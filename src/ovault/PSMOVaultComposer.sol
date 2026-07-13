@@ -11,7 +11,7 @@ import {ProtoOVaultComposer} from "./ProtoOVaultComposer.sol";
 
 /**
  * @title PSMOVaultComposer
- * @notice Cross-chain vault composer enabling omnichain PSM operations via LayerZero
+ * @notice DEPRECATED LayerZero composer for omnichain PSM operations.
  */
 contract PSMOVaultComposer is ProtoOVaultComposer {
     using SafeERC20 for IERC20;
@@ -55,6 +55,7 @@ contract PSMOVaultComposer is ProtoOVaultComposer {
 
         if (!IOFT(SHARE_OFT).approvalRequired()) revert ShareOFTNotAdapter(SHARE_OFT);
 
+        IERC20(shareERC20).forceApprove(address(VAULT), type(uint256).max);
         IERC20(shareERC20).forceApprove(SHARE_OFT, type(uint256).max);
     }
 }
