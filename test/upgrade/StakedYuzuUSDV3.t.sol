@@ -116,6 +116,7 @@ contract StakedYuzuUSDV3UpgradeForkTest is UpgradeTestBase, IStakedYuzuUSDV3Defi
 
         // Public instant redeem starts disabled; integrations can still be enabled explicitly.
         assertFalse(v3.isInstantRedeemEnabled(), "isInstantRedeemEnabled set");
+        assertEq(v3.minDistributionPeriod(), 1 days, "minDistributionPeriod default");
 
         // Throttles unlimited at parked upgrade time
         assertEq(v3.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE, "THROTTLE_EXEMPT_ROLE admin not set");

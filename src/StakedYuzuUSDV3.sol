@@ -69,6 +69,7 @@ contract StakedYuzuUSDV3 is
         isInstantRedeemEnabled = false;
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
+        minDistributionPeriod = 1 days;
         // max uint disables the distribution amount cap; 0 would block all distributions.
         maxDistributionPpm = type(uint256).max;
     }
@@ -332,6 +333,9 @@ contract StakedYuzuUSDV3 is
     }
 
     function setMinDistributionPeriod(uint256 newPeriod) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+        if (newPeriod < 1 hours) {
+            revert DistributionPeriodTooLow(newPeriod, 1 hours);
+        }
         if (newPeriod > 7 days) {
             revert DistributionPeriodTooHigh(newPeriod, 7 days);
         }

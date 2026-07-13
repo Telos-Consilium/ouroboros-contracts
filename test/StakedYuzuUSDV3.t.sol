@@ -125,6 +125,7 @@ contract StakedYuzuUSDV3Test is
         assertEq(vault.getRoleAdmin(PAUSE_MANAGER_ROLE), ADMIN_ROLE);
         assertEq(vault.getRoleAdmin(DELAY_EXEMPT_ROLE), ADMIN_ROLE);
         assertFalse(vault.isInstantRedeemEnabled());
+        assertEq(vault.minDistributionPeriod(), 1 days);
 
         vm.startPrank(freshAdmin);
         vault.grantRole(PAUSE_MANAGER_ROLE, freshAdmin);
@@ -1131,8 +1132,8 @@ contract StakedYuzuUSDV3Test is
         vm.prank(admin);
         yzusd.approve(address(styz3), 500e18);
         vm.prank(admin);
-        styz3.distribute(500e18, 1);
-        vm.warp(block.timestamp + 2);
+        styz3.distribute(500e18, 1 days);
+        vm.warp(block.timestamp + 1 days + 1);
         assertGt(styz3.convertToAssets(1e18), 1e18);
 
         // Unlimited throttle converts uint256.max assets to shares with no overflow
@@ -1198,9 +1199,9 @@ contract StakedYuzuUSDV3Test is
         _deposit(user1, 1000e18);
     }
 
-    function test_Reinitialize_DistributionGuardsDefaultOff() public view {
+    function test_Reinitialize_DistributionGuardDefaults() public view {
         assertEq(styz3.maxDistributionPpm(), type(uint256).max);
-        assertEq(styz3.minDistributionPeriod(), 0);
+        assertEq(styz3.minDistributionPeriod(), 1 days);
     }
 
     function test_Distribute_WithinCap() public {
@@ -1262,6 +1263,34 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.maxDistributionPpm(), 50_000);
     }
 
+    function test_SetMinDistributionPeriod_AtProtocolFloor() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+
+        vm.expectEmit(false, false, false, true, address(styz3));
+        emit UpdatedMinDistributionPeriod(1 days, 1 hours);
+        vm.prank(admin);
+        styz3.setMinDistributionPeriod(1 hours);
+
+        assertEq(styz3.minDistributionPeriod(), 1 hours);
+    }
+
+    function test_SetMinDistributionPeriod_AtMaximum() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        styz3.setMinDistributionPeriod(7 days);
+        assertEq(styz3.minDistributionPeriod(), 7 days);
+    }
+
+    function test_SetMinDistributionPeriod_Revert_TooLow() public {
+        vm.prank(admin);
+        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooLow.selector, 1 hours - 1, 1 hours));
+        styz3.setMinDistributionPeriod(1 hours - 1);
+    }
+
     function test_SetMinDistributionPeriod_Revert_TooHigh() public {
         vm.prank(admin);
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
@@ -1276,5 +1305,13 @@ contract StakedYuzuUSDV3Test is
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
         );
         styz3.setMaxDistributionPpm(50_000);
+    }
+
+    function test_SetMinDistributionPeriod_Revert_NotLimitManager() public {
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
+        );
+        styz3.setMinDistributionPeriod(1 days);
     }
 }
