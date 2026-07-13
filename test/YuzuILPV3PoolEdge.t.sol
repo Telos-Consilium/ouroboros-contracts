@@ -5,7 +5,7 @@ import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinit
 import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
-import {FEE_MANAGER_ROLE, ORDER_FILLER_ROLE, POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
+import {BURNER_ROLE, FEE_MANAGER_ROLE, ORDER_FILLER_ROLE, POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3PoolEdgeTest is
@@ -32,12 +32,9 @@ contract YuzuILPV3PoolEdgeTest is
         _approve(other, address(yzilp));
     }
 
-    // --- deposit pricing when supply is zero but poolSize is not ---
+    // --- entry closure with unresolved zero-supply accounting ---
 
-    // With zero supply the vault is fresh regardless of a residual poolSize (operator mark with
-    // no shares out, or rounding dust after a full exit), so deposits mint at the 1:1 offset
-    // rate.
-    function test_Deposit_SupplyZeroPoolNonzero_MintsAtOffsetRate() public {
+    function test_Entry_SupplyZeroTotalAssetsNonzero_IsClosed() public {
         vm.startPrank(admin);
         yzilp.startPoolUpdate();
         yzilp.updatePool(0, 1, 0);
@@ -45,33 +42,141 @@ contract YuzuILPV3PoolEdgeTest is
         vm.stopPrank();
 
         assertEq(yzilp.totalSupply(), 0);
-        assertEq(yzilp.poolSize(), 1);
-        assertGt(yzilp.maxDeposit(user), 0);
-        assertEq(yzilp.previewDeposit(100e6), 100e18);
+        assertEq(yzilp.totalAssets(), 1);
+        assertEq(yzilp.maxDeposit(user), 0);
+        assertEq(yzilp.maxMint(user), 0);
 
-        uint256 balBefore = asset.balanceOf(user);
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxDeposit.selector, user, 100e6, 0));
+        yzilp.deposit(100e6, user);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxMint.selector, user, 100e18, 0));
+        yzilp.mint(100e18, user);
+
+        assertEq(yzilp.balanceOf(user), 0);
+        assertEq(asset.balanceOf(user), 10_000_000e6);
+    }
+
+    // --- zero-supply entry closure and pool-manager resolution ---
+
+    function test_LastShareFill_ClosesEntryUntilPoolManagerResolves() public {
         vm.prank(user);
         uint256 shares = yzilp.deposit(100e6, user);
 
-        assertEq(shares, 100e18);
-        assertEq(yzilp.balanceOf(user), 100e18);
-        assertEq(balBefore - asset.balanceOf(user), 100e6);
-    }
-
-    // The mirrored path prices freshness off totalSupply == 0 too, so mint agrees with deposit
-    // at the 1:1 offset rate.
-    function test_Mint_SupplyZeroPoolNonzero_MintsAtOffsetRate() public {
         vm.startPrank(admin);
         yzilp.startPoolUpdate();
-        yzilp.updatePool(0, 1, 0);
+        yzilp.updatePool(100e6, 100e6, 0);
+        yzilp.endPoolUpdate();
+        yzilp.distribute(700e6, 7 days);
+        yzilp.grantRole(ORDER_FILLER_ROLE, filler);
+        vm.stopPrank();
+
+        uint256 distributionStart = block.timestamp;
+        vm.warp(distributionStart + 1 days);
+        assertEq(yzilp.netDistributedSinceUpdate(), 100e6);
+        assertEq(yzilp.totalAssets(), 200e6);
+
+        vm.prank(user);
+        uint256 orderId = yzilp.createRedeemOrder(shares, user, user);
+
+        asset.mint(filler, 1_000e6);
+        _approve(filler, address(yzilp));
+        vm.prank(filler);
+        yzilp.fillRedeemOrder(orderId);
+
+        Order memory order = yzilp.getRedeemOrder(orderId);
+        assertEq(order.assets, 200e6);
+        assertEq(yzilp.totalSupply(), 0);
+        assertEq(yzilp.poolSize(), 0);
+        assertEq(yzilp.netDistributedSinceUpdate(), 0);
+        assertEq(yzilp.totalAssets(), 0);
+        assertEq(yzilp.maxDeposit(other), 0);
+        assertEq(yzilp.maxMint(other), 0);
+
+        vm.prank(other);
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxDeposit.selector, other, 100e6, 0));
+        yzilp.deposit(100e6, other);
+
+        vm.startPrank(admin);
+        yzilp.terminateDistribution();
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(0, 0, 0);
         yzilp.endPoolUpdate();
         vm.stopPrank();
 
-        vm.prank(user);
-        uint256 paid = yzilp.mint(100e18, user);
+        assertEq(yzilp.lastDistributedAmount(), 0);
+        assertEq(yzilp.lastDistributionPeriod(), 0);
+        assertEq(yzilp.lastDistributionTimestamp(), 0);
+        vm.warp(distributionStart + 7 days);
+        assertEq(yzilp.netDistributedSinceUpdate(), 0);
+        assertEq(yzilp.totalAssets(), 0);
 
-        assertEq(paid, 100e6);
-        assertEq(yzilp.balanceOf(user), 100e18);
+        vm.prank(other);
+        uint256 newShares = yzilp.deposit(100e6, other);
+        assertEq(newShares, 100e18);
+        assertEq(yzilp.totalAssets(), 100e6);
+        assertEq(yzilp.convertToAssets(newShares), 100e6);
+    }
+
+    function test_FullBurn_ClosesEntryUntilPoolManagerResolves() public {
+        vm.prank(user);
+        uint256 shares = yzilp.deposit(100e6, user);
+
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(100e6, 100e6, 0);
+        yzilp.endPoolUpdate();
+        yzilp.distribute(70e6, 7 days);
+        yzilp.grantRole(BURNER_ROLE, user);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(user);
+        yzilp.burn(shares);
+
+        assertEq(yzilp.totalSupply(), 0);
+        assertEq(yzilp.netDistributedSinceUpdate(), 10e6);
+        assertEq(yzilp.lastDistributedAmount(), 70e6);
+        assertEq(yzilp.lastDistributionPeriod(), 7 days);
+        assertEq(yzilp.totalAssets(), 110e6);
+        assertEq(yzilp.maxDeposit(other), 0);
+        assertEq(yzilp.maxMint(other), 0);
+
+        vm.startPrank(admin);
+        yzilp.terminateDistribution();
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(100e6, 0, 0);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+
+        assertEq(yzilp.netDistributedSinceUpdate(), 0);
+        assertEq(yzilp.totalAssets(), 0);
+        assertGt(yzilp.maxDeposit(other), 0);
+        assertGt(yzilp.maxMint(other), 0);
+    }
+
+    function test_PartialBurn_DoesNotReconcileDistribution() public {
+        vm.prank(user);
+        yzilp.deposit(100e6, user);
+
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(100e6, 100e6, 0);
+        yzilp.endPoolUpdate();
+        yzilp.distribute(70e6, 7 days);
+        yzilp.grantRole(BURNER_ROLE, user);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(user);
+        yzilp.burn(50e18);
+
+        assertEq(yzilp.totalSupply(), 50e18);
+        assertEq(yzilp.netDistributedSinceUpdate(), 10e6);
+        assertEq(yzilp.lastDistributedAmount(), 70e6);
+        assertEq(yzilp.lastDistributionPeriod(), 7 days);
+        assertGt(yzilp.lastDistributionTimestamp(), 0);
     }
 
     // --- free-mint griefing when the pool is marked to zero against live supply ---

@@ -527,6 +527,9 @@ contract YuzuILPV3Facet is
             return 0;
         }
         IYuzuILPV3Router router = IYuzuILPV3Router(proxy);
+        if (_requiresZeroSupplyReconciliation(router)) {
+            return 0;
+        }
         if (_isPoolFeeEroded(router)) {
             return 0;
         }
@@ -554,6 +557,9 @@ contract YuzuILPV3Facet is
             return 0;
         }
         IYuzuILPV3Router router = IYuzuILPV3Router(proxy);
+        if (_requiresZeroSupplyReconciliation(router)) {
+            return 0;
+        }
         if (router.totalSupply() > 0 && router.totalAssets() == 0) {
             return 0;
         }
@@ -566,6 +572,16 @@ contract YuzuILPV3Facet is
             remaining >= type(uint128).max ? headroom : Math.min(headroom, router.convertToShares(remaining));
         uint256 min = router.minDeposit();
         return router.previewMint(shares) < min ? 0 : shares;
+    }
+
+    function _requiresZeroSupplyReconciliation(IYuzuILPV3Router router) private view returns (bool) {
+        if (router.totalSupply() != 0) {
+            return false;
+        }
+        if (router.totalAssets() > 0) {
+            return true;
+        }
+        return block.timestamp < router.lastDistributionTimestamp() + router.lastDistributionPeriod();
     }
 
     /// @dev True when the accrued management fee has consumed the pool bucket's entire net value,
