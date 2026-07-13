@@ -169,7 +169,7 @@ contract YuzuUSDV3 is
         return YuzuMinAmountsV3Storage.layout()._minWithdraw;
     }
 
-    /// @notice Shares received in the current block that cannot be redeemed until the next block
+    /// @notice Shares received this block and excluded from instant redemption unless the owner has SAME_BLOCK_EXEMPT_ROLE
     function currentBlockRestrictedBalance(address account) external view returns (uint256) {
         return YuzuV3RestrictedShares.currentBlockRestrictedBalance(account);
     }

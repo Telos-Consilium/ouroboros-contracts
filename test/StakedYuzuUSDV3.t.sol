@@ -1264,7 +1264,7 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.maxDistributionPpm(), 50_000);
     }
 
-    function test_SetMinDistributionPeriod_AtProtocolFloor() public {
+    function test_SetMinDistributionPeriod_AtMinimum() public {
         vm.prank(admin);
         styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
 

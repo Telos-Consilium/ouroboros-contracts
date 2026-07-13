@@ -156,7 +156,7 @@ contract YuzuILPV3PoolEdgeTest is
         assertGt(yzilp.maxMint(other), 0);
     }
 
-    function test_PartialBurn_DoesNotReconcileDistribution() public {
+    function test_PartialBurn_PreservesDistribution() public {
         vm.prank(user);
         yzilp.deposit(100e6, user);
 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IYuzuProtoDefinitions, IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
@@ -161,6 +162,10 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
 
     function _reportPool(uint256 newPoolSize) internal {
         _reportIlpPool(newPoolSize);
+    }
+
+    function _expectedManagementFee(uint256 poolSize, uint256 elapsed) internal view returns (uint256) {
+        return Math.mulDiv(poolSize * yzilp.managementFeeRatePpm(), elapsed, 1e6 * 365 days, Math.Rounding.Ceil);
     }
 
     function test_ManagementFee_DefaultsToZero() public view {
@@ -362,6 +367,125 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         assertEq(yzilp.cumulativePerformanceFees(), 0);
         _reportPool(1100e6); // now above the mark: fee on the 100e6 above 1000e6
         assertEq(yzilp.cumulativePerformanceFees(), 20e6);
+    }
+
+    function test_PerformanceFee_TracksNetPriceDelta_WithLiveManagementFee() public {
+        _setupPool(); // pool 1000e6, supply 1000e18, share price 1e6
+
+        vm.startPrank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10%/year
+        yzilp.setPendingPerformanceFee(200_000); // 20% of netOfManagementFee gains above the high-water mark
+        vm.stopPrank();
+        _promote(0);
+
+        uint256 interval = 365 days / 10;
+        uint256 shareUnit = 10 ** yzilp.decimals();
+        uint256 supply = yzilp.totalSupply();
+        uint256 startingMarkPrice = yzilp.highWaterMark();
+        uint256 startingMarkAssets = Math.mulDiv(startingMarkPrice, supply, shareUnit);
+        uint256 peakNetOfManagementAssets = startingMarkAssets;
+        uint256 expectedManagementFees;
+        uint256 cumulativeGrossToNetMarkdown;
+        uint256 firstHighNetOfManagementAssets;
+        uint256 performanceFeesAtFirstHigh;
+
+        assertEq(startingMarkPrice, 1e6);
+        assertEq(startingMarkAssets, 1000e6);
+        assertEq(yzilp.managementFeeRatePpm(), 100_000);
+        assertEq(yzilp.performanceFeeRatePpm(), 200_000);
+
+        // At the first new high, 1300e6 gross less 10e6 management fee sets netOfManagementFee
+        // to 1290e6. Performance fee applies to its 290e6 excess over the high-water-mark assets.
+        {
+            uint256 reportedGrossPool = 1300e6;
+            uint256 managementFee = _expectedManagementFee(yzilp.poolSize(), interval);
+            assertEq(managementFee, 10e6);
+            uint256 netOfManagementFee = reportedGrossPool - managementFee;
+
+            vm.warp(yzilp.lastPoolUpdateTimestamp() + interval);
+            _reportPool(reportedGrossPool);
+
+            expectedManagementFees += managementFee;
+            peakNetOfManagementAssets = Math.max(peakNetOfManagementAssets, netOfManagementFee);
+            firstHighNetOfManagementAssets = netOfManagementFee;
+            performanceFeesAtFirstHigh = yzilp.cumulativePerformanceFees();
+            cumulativeGrossToNetMarkdown += reportedGrossPool - yzilp.poolSize();
+
+            assertEq(yzilp.cumulativeManagementFees(), expectedManagementFees);
+            assertEq(performanceFeesAtFirstHigh, 58e6);
+        }
+
+        // Below the first netOfManagementFee high, the update realizes management fee but no
+        // performance fee.
+        {
+            uint256 reportedGrossPool = 1100e6;
+            uint256 managementFee = _expectedManagementFee(yzilp.poolSize(), interval);
+            uint256 netOfManagementFee = reportedGrossPool - managementFee;
+
+            vm.warp(yzilp.lastPoolUpdateTimestamp() + interval);
+            _reportPool(reportedGrossPool);
+
+            expectedManagementFees += managementFee;
+            cumulativeGrossToNetMarkdown += reportedGrossPool - yzilp.poolSize();
+
+            assertLt(netOfManagementFee, firstHighNetOfManagementAssets);
+            assertEq(yzilp.cumulativeManagementFees(), expectedManagementFees);
+            assertEq(yzilp.cumulativePerformanceFees(), performanceFeesAtFirstHigh);
+        }
+
+        // Recover exactly to the prior netOfManagementFee asset level. The entire
+        // down-and-back-up leg remains performance-fee free despite another management fee.
+        {
+            uint256 managementFee = _expectedManagementFee(yzilp.poolSize(), interval);
+            uint256 reportedGrossPool = firstHighNetOfManagementAssets + managementFee;
+            uint256 netOfManagementFee = reportedGrossPool - managementFee;
+
+            vm.warp(yzilp.lastPoolUpdateTimestamp() + interval);
+            _reportPool(reportedGrossPool);
+
+            expectedManagementFees += managementFee;
+            cumulativeGrossToNetMarkdown += reportedGrossPool - yzilp.poolSize();
+
+            assertEq(netOfManagementFee, firstHighNetOfManagementAssets);
+            assertEq(yzilp.cumulativeManagementFees(), expectedManagementFees);
+            assertEq(yzilp.cumulativePerformanceFees(), performanceFeesAtFirstHigh);
+        }
+
+        // Cross the prior netOfManagementFee high. Only the new portion above that high
+        // is subject to the performance fee.
+        {
+            uint256 reportedGrossPool = 1500e6;
+            uint256 managementFee = _expectedManagementFee(yzilp.poolSize(), interval);
+            uint256 netOfManagementFee = reportedGrossPool - managementFee;
+
+            vm.warp(yzilp.lastPoolUpdateTimestamp() + interval);
+            _reportPool(reportedGrossPool);
+
+            expectedManagementFees += managementFee;
+            peakNetOfManagementAssets = Math.max(peakNetOfManagementAssets, netOfManagementFee);
+            cumulativeGrossToNetMarkdown += reportedGrossPool - yzilp.poolSize();
+
+            assertGt(yzilp.cumulativePerformanceFees(), performanceFeesAtFirstHigh);
+        }
+
+        // Express the expected fee through peak netOfManagementFee per share. With fixed supply,
+        // it equals the fee rate times (peak price - starting highWaterMark) times supply.
+        uint256 peakNetOfManagementPrice = Math.mulDiv(peakNetOfManagementAssets, shareUnit, supply);
+        uint256 netNewHighAssets = Math.mulDiv(peakNetOfManagementPrice - startingMarkPrice, supply, shareUnit);
+        uint256 expectedPerformanceFees =
+            Math.mulDiv(yzilp.performanceFeeRatePpm(), netNewHighAssets, 1e6, Math.Rounding.Ceil);
+
+        assertEq(peakNetOfManagementPrice, 1_487_100);
+        assertEq(expectedManagementFees, 46_096_800);
+        assertEq(expectedPerformanceFees, 97_420_000);
+        assertApproxEqAbs(yzilp.cumulativePerformanceFees(), expectedPerformanceFees, 2);
+        assertEq(yzilp.cumulativeManagementFees(), expectedManagementFees);
+        assertEq(yzilp.highWaterMark(), peakNetOfManagementPrice);
+        assertEq(yzilp.totalSupply(), supply);
+
+        // For these non-saturating updates, each reportedGrossPool - poolSize delta equals
+        // the management and performance fees realized by that update.
+        assertEq(cumulativeGrossToNetMarkdown, yzilp.cumulativeManagementFees() + yzilp.cumulativePerformanceFees());
     }
 
     function test_PerformanceFee_EnableIsNotRetroactive() public {

@@ -74,7 +74,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuIssuerDefinitions {
         uint256 fresh = yzusd.deposit(100e6, user);
         vm.roll(block.number + 1);
 
-        // Mature `other` receives a dust amount minted this block.
+        // Mature `other` receives a one-share transfer in the current block.
         vm.prank(user);
         yzusd.transfer(other, 1);
 
@@ -104,7 +104,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuIssuerDefinitions {
     }
 
     function test_PartialTransfer_ConsumesMatureFirst() public {
-        // user holds 100e6 mature, then mints another 100e6 fresh in the current block.
+        // user holds shares from a mature 100e6 deposit, then deposits another 100e6 this block.
         vm.prank(user);
         uint256 matureShares = yzusd.deposit(100e6, user);
         vm.roll(block.number + 1);
@@ -112,7 +112,7 @@ contract YuzuV3SameBlockGuardTest is YuzuV3TestBase, IYuzuIssuerDefinitions {
         uint256 freshShares = yzusd.deposit(100e6, user);
         assertEq(yzusd.currentBlockRestrictedBalance(user), freshShares);
 
-        // Transfer the mature amount out; mature shares leave first, restriction stays with user.
+        // Transferring the mature capacity leaves the current-block restriction with user.
         vm.prank(user);
         yzusd.transfer(other, matureShares);
 

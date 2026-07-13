@@ -369,7 +369,7 @@ contract StakedYuzuUSDV3 is
         return YuzuV3RestrictedShares.currentBlockRestrictedBalance(account);
     }
 
-    /// @notice Redeem-throttle capacity remaining for {account}, in asset terms; max for exempt accounts
+    /// @notice Redeem-throttle capacity remaining for {account}, in asset terms; max for THROTTLE_EXEMPT_ROLE accounts
     function redeemThrottleRemaining(address account) external view returns (uint256) {
         return _redeemThrottleRemaining(account);
     }

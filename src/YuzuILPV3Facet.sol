@@ -33,7 +33,6 @@ import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} fr
  * @dev Fee and pricing math reads state through the vault's external interface so every path prices
  * from one implementation; storage writes and the pool state machine use the pinned slots below.
  */
-// The facet exposes a burn entrypoint but is not the token; the interface belongs to the proxy
 // slither-disable-next-line missing-inheritance
 contract YuzuILPV3Facet is
     YuzuV3FacetBase,
@@ -574,6 +573,8 @@ contract YuzuILPV3Facet is
         return router.previewMint(shares) < min ? 0 : shares;
     }
 
+    /// @dev With zero supply, entry remains closed while assets or an active distribution are unresolved;
+    /// a clean zero-asset bootstrap remains open.
     function _requiresZeroSupplyReconciliation(IYuzuILPV3Router router) private view returns (bool) {
         if (router.totalSupply() != 0) {
             return false;
@@ -584,9 +585,8 @@ contract YuzuILPV3Facet is
         return block.timestamp < router.lastDistributionTimestamp() + router.lastDistributionPeriod();
     }
 
-    /// @dev True when the accrued management fee has consumed the pool bucket's entire net value,
-    /// leaving pool units with no marginal worth; deposits cannot be priced until the next pool update.
-    /// Mirrors the pool-only case of the second {_poolSizeCredit} revert guard.
+    /// @dev True when accrued management fees equal or exceed the pool bucket plus its accrued yield,
+    /// leaving no pool value to price entry until the next pool update.
     function _isPoolFeeEroded(IYuzuILPV3Router router) private view returns (bool) {
         uint256 pool = router.poolSize();
         // slither-disable-next-line incorrect-equality

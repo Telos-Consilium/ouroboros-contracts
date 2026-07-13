@@ -162,7 +162,7 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
         vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxRedeem.selector, user, shares, 0));
         psm.redeem(shares, user, user);
 
-        // The failed redeem leaves the owner's shares and allowance intact.
+        // The failed redeem leaves the owner's shares intact.
         assertEq(styz.balanceOf(user), shares);
     }
 
@@ -187,7 +187,7 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
     }
 
     function test_SameBlock_DustReceipt_PreservesMatureRedeem() public {
-        // user holds a mature position from an earlier block.
+        // User holds a mature position from an earlier block.
         vm.prank(user);
         uint256 shares = psm.deposit(100e6, user);
         vm.roll(block.number + 1);

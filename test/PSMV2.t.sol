@@ -35,10 +35,9 @@ import {PSMTest} from "./PSM.t.sol";
 contract PSMV2Test is PSMTest {
     PSMV2 public psmV2;
 
-    // PSMV2's vault1 must expose currentBlockRestrictedBalance(address), which only
-    // StakedYuzuUSDV3 implements. The parent deploys a V2 styz, so this suite stands up a
-    // getter-bearing V3 styz and rewires the PSM's vault1 to it while leaving the parent's
-    // V1-PSM tests untouched on the inherited V2 vaults.
+    // PSMV2 requires vault1 to expose currentBlockRestrictedBalance(address) and
+    // redeemThrottleRemaining(address). The parent fixture uses V2 syzUSD, so this suite deploys
+    // V3 syzUSD and a separate PSMV2 while inherited PSM tests keep the parent vaults.
     StakedYuzuUSDV3 public styzV3;
 
     address public limitManager;
@@ -54,11 +53,11 @@ contract PSMV2Test is PSMTest {
         throttleExempt = makeAddr("throttleExempt");
         styzOwner = makeAddr("styzOwner");
 
-        // Deploy a V3 styz over the parent's yzUSD so vault1 exposes the same-block getter
+        // Deploy V3 syzUSD so vault1 exposes both views required by PSMV2
         styzV3 = _deployStakedYuzuUSDV3();
         vm.label(address(styzV3), "Staked Yuzu USD V3 (proxy)");
 
-        // Stand up a PSMV2 proxy against the parent's yzUSD (vault0) and the new V3 styz (vault1)
+        // Deploy PSMV2 with yzUSD as vault0 and V3 syzUSD as vault1
         PSMV2 implementation = new PSMV2();
         bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusd, styzV3, admin, 0);
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -67,8 +66,7 @@ contract PSMV2Test is PSMTest {
 
         vm.label(address(psmV2), "PSMV2 (proxy)");
 
-        // Wire PSMV2 exactly as the parent wired the v1 PSM, plus the new LIMIT_MANAGER_ROLE.
-        // V3 styz replaces the V2 setIntegration waiver with role-based delay/fee exemptions.
+        // The PSM's inner syzUSD redemption must remain immediate and fee-free.
         vm.startPrank(admin);
         styzV3.grantRole(DELAY_EXEMPT_ROLE, address(psmV2));
         styzV3.grantRole(REDEEM_FEE_EXEMPT_ROLE, address(psmV2));
@@ -105,8 +103,8 @@ contract PSMV2Test is PSMTest {
         psmV2.depositLiquidity(LIQUIDITY);
     }
 
-    // Deploys StakedYuzuUSD at V1 behind a transparent proxy, pauses, upgrades to V3 via
-    // reinitialize (proxy-admin gated), then unpauses. Mirrors PSMV2V3IntegrationTest.
+    // Deploys StakedYuzuUSD at V1 behind a transparent proxy, pauses, upgrades to V3 through the
+    // proxy-admin-gated reinitializer, then unpauses.
     function _deployStakedYuzuUSDV3() internal returns (StakedYuzuUSDV3 deployed) {
         address v1Impl = address(new StakedYuzuUSD());
         bytes memory initData = abi.encodeWithSelector(
@@ -212,8 +210,8 @@ contract PSMV2Test is PSMTest {
         _deposit(user1, 100e6);
         vm.roll(block.number + 1);
 
-        // V3 charges the instant-redeem fee unless the redeemer holds REDEEM_FEE_EXEMPT_ROLE.
-        // Drop the PSM's exemption and set a 1% instant fee so the styz fee reaches the PSM.
+        // The PSM owns the syzUSD shares during the inner redemption. Remove its fee exemption and
+        // set a 1% instant fee so the PSM receives fee-reduced proceeds.
         vm.startPrank(admin);
         styzV3.grantRole(FEE_MANAGER_ROLE, admin);
         styzV3.revokeRole(REDEEM_FEE_EXEMPT_ROLE, address(psmV2));

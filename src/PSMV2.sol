@@ -12,8 +12,8 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 /**
  * @title PSMV2
  * @notice PSM with V2 limits and throttles
- * @dev Throttles and the same-block redeem restriction apply only to instant deposit and redeem paths.
- * @dev Requires a V3 staked vault (vault1) exposing {redeemThrottleRemaining} and {currentBlockRestrictedBalance}.
+ * @dev Mint and redeem throttles apply to their instant paths; the same-block restriction applies to instant redemption.
+ * @dev Requires vault1 to expose {redeemThrottleRemaining} and {currentBlockRestrictedBalance}.
  */
 contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
@@ -85,7 +85,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         // The staked vault throttles the redeem the PSM performs while transiently holding the pulled
         // shares, so bind the view by the inner remaining capacity. Read it against the PSM (the inner
         // owner), not {IERC4626-maxRedeem}, which reads zero when the PSM holds no shares between
-        // operations. Compare in asset terms first so an unlimited budget skips the share conversion.
+        // operations. Compare in asset terms first so an unlimited budget skips {convertToShares}.
         uint256 innerRemaining = IRedeemThrottle(vault1()).redeemThrottleRemaining(address(this));
         if (_vault1.convertToAssets(maxShares) > innerRemaining) {
             maxShares = _vault1.convertToShares(innerRemaining);
@@ -95,14 +95,14 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         return _previewRedeemAssets(shares) < minWithdraw() ? 0 : shares;
     }
 
-    /// @dev Shares the owner received in the current block, read from the staked vault. vault1 must
-    /// expose this getter (syzUSD V3); a vault without it reverts here, so the restriction fails closed.
+    /// @dev Shares received by the owner in the current block, read from vault1. A vault without
+    /// {currentBlockRestrictedBalance} reverts here, so the restriction fails closed.
     function _restrictedShares(address _owner) private view returns (uint256) {
         return IRestrictedShares(vault1()).currentBlockRestrictedBalance(_owner);
     }
 
     /// @inheritdoc PSM
-    /// @dev Not nonReentrant; super holds the guard and the trailing throttle write touches only storage.
+    /// @dev {PSM-deposit} applies the reentrancy guard; the trailing throttle write touches only storage.
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         _checkMinDeposit(assets);
         uint256 shares = super.deposit(assets, receiver);
@@ -111,9 +111,9 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     }
 
     /// @inheritdoc PSM
-    /// @dev Not nonReentrant; super holds the guard and the trailing throttle write touches only storage.
-    /// The same-block restriction is enforced by {maxRedeem}, which excludes the owner's shares received
-    /// this block before super.redeem pulls them into the PSM.
+    /// @dev {PSM-redeem} applies the reentrancy guard; the trailing throttle write touches only storage.
+    /// For owners without SAME_BLOCK_EXEMPT_ROLE, {maxRedeem} excludes shares received this block before
+    /// {PSM-redeem} pulls them into the PSM.
     function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
         uint256 assetsOut = super.redeem(shares, receiver, _owner);
         _checkMinWithdraw(assetsOut);
