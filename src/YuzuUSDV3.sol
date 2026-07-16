@@ -7,6 +7,7 @@ import {
     FEE_MANAGER_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
+    PRICE_GUARD_MANAGER_ROLE,
     SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
@@ -52,6 +53,7 @@ contract YuzuUSDV3 is
         _setRoleAdmin(SAME_BLOCK_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(MARKDOWN_STEP_EXEMPT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         YuzuThrottleV3Storage.Layout storage throttleStorage = YuzuThrottleV3Storage.layout();
         Throttle storage mintThrottle_ = throttleStorage._mintThrottle;

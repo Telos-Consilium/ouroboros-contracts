@@ -21,6 +21,7 @@ import {
     LIMIT_MANAGER_ROLE,
     PAUSE_MANAGER_ROLE,
     POOL_MANAGER_ROLE,
+    PRICE_GUARD_MANAGER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEM_MANAGER_ROLE,
     THROTTLE_EXEMPT_ROLE
@@ -62,6 +63,7 @@ contract StakedYuzuUSDV3 is
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(DELAY_EXEMPT_ROLE, ADMIN_ROLE);
@@ -328,13 +330,13 @@ contract StakedYuzuUSDV3 is
     }
 
     /// @notice Cap on a single distribution, in ppm of current totalAssets; type(uint256).max disables it
-    function setMaxDistributionPpm(uint256 newMaxPpm) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+    function setMaxDistributionPpm(uint256 newMaxPpm) external virtual onlyRole(PRICE_GUARD_MANAGER_ROLE) {
         uint256 oldMaxPpm = maxDistributionPpm;
         maxDistributionPpm = newMaxPpm;
         emit UpdatedMaxDistributionPpm(oldMaxPpm, newMaxPpm);
     }
 
-    function setMinDistributionPeriod(uint256 newPeriod) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
+    function setMinDistributionPeriod(uint256 newPeriod) external virtual onlyRole(PRICE_GUARD_MANAGER_ROLE) {
         if (newPeriod < 1 hours) {
             revert DistributionPeriodTooLow(newPeriod, 1 hours);
         }

@@ -9,6 +9,7 @@ import {
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
+    PRICE_GUARD_MANAGER_ROLE,
     REDEEM_MANAGER_ROLE
 } from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
@@ -26,6 +27,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.startPrank(admin);
         yzusd.grantRole(NAV_MANAGER_ROLE, navManager);
         yzusd.grantRole(REDEEM_MANAGER_ROLE, admin);
+        yzusd.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
         yzusd.grantRole(ORDER_FILLER_ROLE, filler);
         yzusd.setIsMintRestricted(false);
         yzusd.setIsRedeemRestricted(false);
@@ -258,10 +260,12 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
     }
 
     function test_SetNavStepCap_Revert_NavManagerCannot() public {
-        // The nav-setter cannot relax its own guardrails; only ADMIN_ROLE can
+        // The nav-setter cannot relax its own guardrails; only PRICE_GUARD_MANAGER_ROLE can
         vm.prank(navManager);
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, navManager, ADMIN_ROLE)
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, navManager, PRICE_GUARD_MANAGER_ROLE
+            )
         );
         yzusd.setNavStepCap(500_000);
     }
@@ -269,7 +273,9 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
     function test_SetNavCooldown_Revert_NavManagerCannot() public {
         vm.prank(navManager);
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, navManager, ADMIN_ROLE)
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, navManager, PRICE_GUARD_MANAGER_ROLE
+            )
         );
         yzusd.setNavCooldown(0);
     }

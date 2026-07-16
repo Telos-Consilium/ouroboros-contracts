@@ -27,6 +27,7 @@ import {
     LIMIT_MANAGER_ROLE,
     PAUSE_MANAGER_ROLE,
     POOL_MANAGER_ROLE,
+    PRICE_GUARD_MANAGER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEM_MANAGER_ROLE,
     THROTTLE_EXEMPT_ROLE
@@ -1192,7 +1193,7 @@ contract StakedYuzuUSDV3Test is
     function _setupDistribute() internal {
         vm.startPrank(admin);
         styz3.grantRole(POOL_MANAGER_ROLE, owner);
-        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
         styz3.setMaxDistributionPpm(100_000);
         styz3.setMinDistributionPeriod(6 hours);
         vm.stopPrank();
@@ -1254,7 +1255,7 @@ contract StakedYuzuUSDV3Test is
 
     function test_SetMaxDistributionPpm_Updates() public {
         vm.prank(admin);
-        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
 
         vm.expectEmit(false, false, false, true, address(styz3));
         emit UpdatedMaxDistributionPpm(type(uint256).max, 50_000);
@@ -1265,7 +1266,7 @@ contract StakedYuzuUSDV3Test is
 
     function test_SetMinDistributionPeriod_AtProtocolFloor() public {
         vm.prank(admin);
-        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
 
         vm.expectEmit(false, false, false, true, address(styz3));
         emit UpdatedMinDistributionPeriod(1 days, 1 hours);
@@ -1277,7 +1278,7 @@ contract StakedYuzuUSDV3Test is
 
     function test_SetMinDistributionPeriod_AtMaximum() public {
         vm.prank(admin);
-        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
         vm.prank(admin);
         styz3.setMinDistributionPeriod(7 days);
         assertEq(styz3.minDistributionPeriod(), 7 days);
@@ -1285,7 +1286,7 @@ contract StakedYuzuUSDV3Test is
 
     function test_SetMinDistributionPeriod_Revert_TooLow() public {
         vm.prank(admin);
-        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooLow.selector, 1 hours - 1, 1 hours));
         styz3.setMinDistributionPeriod(1 hours - 1);
@@ -1293,24 +1294,28 @@ contract StakedYuzuUSDV3Test is
 
     function test_SetMinDistributionPeriod_Revert_TooHigh() public {
         vm.prank(admin);
-        styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooHigh.selector, 7 days + 1, 7 days));
         styz3.setMinDistributionPeriod(7 days + 1);
     }
 
-    function test_SetMaxDistributionPpm_Revert_NotLimitManager() public {
+    function test_SetMaxDistributionPpm_Revert_NotPriceGuardManager() public {
         vm.prank(user1);
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user1, PRICE_GUARD_MANAGER_ROLE
+            )
         );
         styz3.setMaxDistributionPpm(50_000);
     }
 
-    function test_SetMinDistributionPeriod_Revert_NotLimitManager() public {
+    function test_SetMinDistributionPeriod_Revert_NotPriceGuardManager() public {
         vm.prank(user1);
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user1, LIMIT_MANAGER_ROLE)
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user1, PRICE_GUARD_MANAGER_ROLE
+            )
         );
         styz3.setMinDistributionPeriod(1 days);
     }

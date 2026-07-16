@@ -8,11 +8,11 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {YuzuV3FacetBase} from "./YuzuV3FacetBase.sol";
 import {
-    ADMIN_ROLE,
     LIMIT_MANAGER_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
-    ORDER_FILLER_ROLE
+    ORDER_FILLER_ROLE,
+    PRICE_GUARD_MANAGER_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
@@ -127,7 +127,7 @@ contract YuzuUSDV3Facet is
     }
 
     function setNavStepCap(uint256 newStepCapPpm) external {
-        _checkRole(ADMIN_ROLE);
+        _checkRole(PRICE_GUARD_MANAGER_ROLE);
         if (newStepCapPpm > 1e6) {
             revert InvalidNavStepCap(newStepCapPpm, 1e6);
         }
@@ -138,7 +138,7 @@ contract YuzuUSDV3Facet is
     }
 
     function setNavCooldown(uint256 newCooldown) external {
-        _checkRole(ADMIN_ROLE);
+        _checkRole(PRICE_GUARD_MANAGER_ROLE);
         YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
         uint256 oldCooldown = $._cooldown;
         $._cooldown = newCooldown;
