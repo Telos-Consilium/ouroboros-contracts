@@ -4,13 +4,13 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 
 import {YuzuMinAmounts} from "../src/proto/YuzuMinAmounts.sol";
-import {YuzuSameBlockGuard} from "../src/proto/YuzuSameBlockGuard.sol";
 import {YuzuThrottle} from "../src/proto/YuzuThrottle.sol";
+import {YuzuV3RestrictedShares} from "../src/libraries/YuzuV3RestrictedShares.sol";
 import {
     YuzuILPFeesV3Storage,
     YuzuMinAmountsV3Storage,
     YuzuNavMarkdownV3Storage,
-    YuzuSameBlockGuardV3Storage,
+    YuzuRestrictedSharesV3Storage,
     YuzuThrottleV3Storage
 } from "../src/storage/YuzuV3Storage.sol";
 import {LIMIT_MANAGER_ROLE, REDEEM_MANAGER_ROLE} from "./helpers/TestRoles.sol";
@@ -25,7 +25,11 @@ contract MinAmountsHarness is YuzuMinAmounts {}
 
 contract ThrottleHarness is YuzuThrottle {}
 
-contract SameBlockGuardHarness is YuzuSameBlockGuard {}
+contract RestrictedSharesHarness {
+    function currentBlockRestrictedBalance(address account) external view returns (uint256) {
+        return YuzuV3RestrictedShares.currentBlockRestrictedBalance(account);
+    }
+}
 
 /// @notice Pins every V3 ERC-7201 storage location to the value derived from its namespace string. Each
 /// location is hardcoded independently in the proto mixin (private) and the YuzuV3Storage library
@@ -43,8 +47,8 @@ contract YuzuV3StorageLayoutTest is Test {
         assertEq(YuzuThrottleV3Storage.LOCATION, _erc7201("yuzu.storage.throttle"));
     }
 
-    function test_Location_SameBlockGuard() public pure {
-        assertEq(YuzuSameBlockGuardV3Storage.LOCATION, _erc7201("yuzu.storage.sameblockguard"));
+    function test_Location_RestrictedShares() public pure {
+        assertEq(YuzuRestrictedSharesV3Storage.LOCATION, _erc7201("yuzu.storage.restrictedshares"));
     }
 
     function test_Location_NavMarkdown() public pure {
@@ -77,12 +81,18 @@ contract YuzuV3StorageLayoutTest is Test {
         assertEq(h.getRedeemThrottle().blockLimit, 444, "redeem throttle at base + 6");
     }
 
-    function test_MixinMatchesLibrary_SameBlockGuard() public {
-        SameBlockGuardHarness h = new SameBlockGuardHarness();
+    function test_RestrictedShares_RecordLayout() public {
+        RestrictedSharesHarness h = new RestrictedSharesHarness();
         address who = address(0xA11CE);
-        bytes32 slot = keccak256(abi.encode(who, YuzuSameBlockGuardV3Storage.LOCATION));
-        vm.store(address(h), slot, bytes32(uint256(1234)));
-        assertEq(h.lastMintBlock(who), 1234, "lastMintBlock at mapping slot");
+        bytes32 elem = keccak256(abi.encode(who, YuzuRestrictedSharesV3Storage.LOCATION));
+        // Restriction.blockNumber at the element base slot, Restriction.amount at base + 1.
+        vm.store(address(h), elem, bytes32(block.number));
+        vm.store(address(h), bytes32(uint256(elem) + 1), bytes32(uint256(1234)));
+        assertEq(h.currentBlockRestrictedBalance(who), 1234, "amount at record base + 1 for the current block");
+
+        // A record stored for a past block reads as zero.
+        vm.store(address(h), elem, bytes32(uint256(block.number) - 1));
+        assertEq(h.currentBlockRestrictedBalance(who), 0, "stale record reads zero");
     }
 }
 

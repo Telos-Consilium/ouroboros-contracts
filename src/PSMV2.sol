@@ -4,25 +4,26 @@ pragma solidity ^0.8.30;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {IERC20Burnable} from "./interfaces/IPSMDefinitions.sol";
+import {IERC20Burnable, IRestrictedShares} from "./interfaces/IPSMDefinitions.sol";
 import {PSM} from "./PSM.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
-import {YuzuSameBlockGuard} from "./proto/YuzuSameBlockGuard.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 
 /**
  * @title PSMV2
- * @notice PSM with V2 limits, throttles, and same-block guard
- * @dev Throttles and same-block checks apply only to instant deposit and redeem paths.
+ * @notice PSM with V2 limits and throttles
+ * @dev Throttles and the same-block redeem restriction apply only to instant deposit and redeem paths.
  */
-contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
+contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
+    bytes32 internal constant SAME_BLOCK_EXEMPT_ROLE = keccak256("SAME_BLOCK_EXEMPT_ROLE");
     bytes32 internal constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
     /// @notice Reinitializes the contract for the V2 upgrade
     // slither-disable-next-line pess-unprotected-initialize
     function reinitialize() external reinitializer(2) {
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(SAME_BLOCK_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
@@ -33,9 +34,8 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
         return hasRole(THROTTLE_EXEMPT_ROLE, account);
     }
 
-    /// @inheritdoc YuzuSameBlockGuard
-    function _isSameBlockGuardExempt(address account) internal view override returns (bool) {
-        return _isThrottleExempt(account);
+    function _isSameBlockExempt(address account) private view returns (bool) {
+        return hasRole(SAME_BLOCK_EXEMPT_ROLE, account);
     }
 
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit)
@@ -73,25 +73,39 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle, YuzuSameBlockGuard {
     /// the share ceiling's asset value, so it cannot overflow on an unlimited (exempt or max) budget.
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
         uint256 maxShares = super.maxRedeem(_owner);
+        if (!_isSameBlockExempt(_owner)) {
+            uint256 restricted = _restrictedShares(_owner);
+            uint256 balance = _vault1.balanceOf(_owner);
+            uint256 mature = balance > restricted ? balance - restricted : 0;
+            if (maxShares > mature) {
+                maxShares = mature;
+            }
+        }
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = _previewRedeemAssets(maxShares) <= remaining ? maxShares : _sharesForAssets(remaining);
         return _previewRedeemAssets(shares) < minWithdraw() ? 0 : shares;
     }
 
+    /// @dev Shares the owner received in the current block, read from the staked vault. vault1 must
+    /// expose this getter (syzUSD V3); a vault without it reverts here, so the restriction fails closed.
+    function _restrictedShares(address _owner) private view returns (uint256) {
+        return IRestrictedShares(vault1()).currentBlockRestrictedBalance(_owner);
+    }
+
     /// @inheritdoc PSM
-    /// @dev Not nonReentrant; super holds the guard and the trailing throttle and stamp writes touch only storage.
+    /// @dev Not nonReentrant; super holds the guard and the trailing throttle write touches only storage.
     function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
         _checkMinDeposit(assets);
         uint256 shares = super.deposit(assets, receiver);
         _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver, shares);
         return shares;
     }
 
     /// @inheritdoc PSM
     /// @dev Not nonReentrant; super holds the guard and the trailing throttle write touches only storage.
+    /// The same-block restriction is enforced by {maxRedeem}, which excludes the owner's shares received
+    /// this block before super.redeem pulls them into the PSM.
     function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
-        _checkSameBlockRedeem(_owner);
         uint256 assetsOut = super.redeem(shares, receiver, _owner);
         _checkMinWithdraw(assetsOut);
         _consumeRedeemThrottle(_owner, assetsOut);

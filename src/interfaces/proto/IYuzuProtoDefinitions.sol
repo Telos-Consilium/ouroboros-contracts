@@ -27,10 +27,6 @@ interface IYuzuMinAmountsDefinitions {
     event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
 }
 
-interface IYuzuSameBlockGuardDefinitions {
-    error SameBlockMintRedeem(address account);
-}
-
 interface IYuzuNavMarkdownDefinitions {
     error InvalidNav(uint256 nav);
     error NavStepTooHigh(uint256 requestedNav, uint256 currentNav, uint256 maxDelta);

@@ -15,7 +15,7 @@ import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {PSM} from "../src/PSM.sol";
 import {PSMV2} from "../src/PSMV2.sol";
-import {IYuzuSameBlockGuardDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IPSMDefinitions} from "../src/interfaces/IPSMDefinitions.sol";
 import {UpgradeTestBase} from "./helpers/UpgradeTestBase.sol";
 import {
     BURNER_ROLE,
@@ -149,13 +149,66 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
         assertEq(styz.balanceOf(address(psm)), 0);
     }
 
-    function test_SameBlockGuard_AppliesThroughPSMV2WithV3Vaults() public {
+    function test_SameBlock_OuterOwnerRestricted() public {
         vm.prank(user);
         uint256 shares = psm.deposit(100e6, user);
 
+        assertEq(styz.currentBlockRestrictedBalance(user), shares);
+        assertEq(psm.maxRedeem(user), 0);
+
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(IYuzuSameBlockGuardDefinitions.SameBlockMintRedeem.selector, user));
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxRedeem.selector, user, shares, 0));
         psm.redeem(shares, user, user);
+
+        // The failed redeem leaves the owner's shares and allowance intact.
+        assertEq(styz.balanceOf(user), shares);
+    }
+
+    function test_SameBlock_TransferHopBypass_Closed() public {
+        address user2 = makeAddr("user2");
+        vm.prank(restrictionManager);
+        psm.grantRole(USER_ROLE, user2);
+        vm.prank(user2);
+        styz.approve(address(psm), type(uint256).max);
+
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        vm.prank(user);
+        styz.transfer(user2, shares);
+
+        assertEq(styz.currentBlockRestrictedBalance(user2), shares);
+        assertEq(psm.maxRedeem(user2), 0);
+
+        vm.prank(user2);
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxRedeem.selector, user2, shares, 0));
+        psm.redeem(shares, user2, user2);
+    }
+
+    function test_SameBlock_DustReceipt_PreservesMatureRedeem() public {
+        // user holds a mature position from an earlier block.
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        // A fresh dust deposit routed to user restricts only the dust shares, not the mature balance.
+        vm.prank(user);
+        uint256 dustShares = psm.deposit(1, user);
+        assertEq(styz.currentBlockRestrictedBalance(user), dustShares);
+        assertEq(psm.maxRedeem(user), shares);
+
+        vm.prank(user);
+        uint256 assetsOut = psm.redeem(shares, user, user);
+        assertGt(assetsOut, 0);
+    }
+
+    function test_SameBlock_MaturesNextBlock() public {
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        assertEq(styz.currentBlockRestrictedBalance(user), 0);
+        vm.prank(user);
+        assertGt(psm.redeem(shares, user, user), 0);
     }
 
     function _deployYuzuUSDV3() internal returns (YuzuUSDV3 deployed) {

@@ -7,37 +7,30 @@ import {
     FEE_MANAGER_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
+    SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
+import {YuzuV3RestrictedShares} from "./libraries/YuzuV3RestrictedShares.sol";
 import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {YuzuUSD} from "./YuzuUSD.sol";
 import {YuzuUSDV2} from "./YuzuUSDV2.sol";
 import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
-import {
-    IYuzuMinAmountsDefinitions,
-    IYuzuNavMarkdownDefinitions,
-    IYuzuSameBlockGuardDefinitions
-} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {
-    YuzuMinAmountsV3Storage,
-    YuzuNavMarkdownV3Storage,
-    YuzuSameBlockGuardV3Storage,
-    YuzuThrottleV3Storage
-} from "./storage/YuzuV3Storage.sol";
+import {YuzuMinAmountsV3Storage, YuzuNavMarkdownV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuUSDV3
  * @notice YuzuUSD with V3 limits, throttles, same-block guard, and NAV markdowns
  * @dev Throttles and the same-block guard apply only to the instant paths, not the order path.
  */
+// slither-disable-next-line missing-inheritance
 contract YuzuUSDV3 is
     YuzuUSDV2,
     YuzuV3FacetRouting,
     IYuzuMinAmountsDefinitions,
     IYuzuThrottleDefinitions,
-    IYuzuSameBlockGuardDefinitions,
     IYuzuNavMarkdownDefinitions
 {
     /// @notice Par backing of one share, in the same scale as nav
@@ -56,6 +49,7 @@ contract YuzuUSDV3 is
         __YuzuProtoV2_init_unchained();
         __EIP712_init(name(), "2");
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(SAME_BLOCK_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(MARKDOWN_STEP_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
@@ -173,8 +167,9 @@ contract YuzuUSDV3 is
         return YuzuMinAmountsV3Storage.layout()._minWithdraw;
     }
 
-    function lastMintBlock(address account) external view returns (uint256) {
-        return YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[account];
+    /// @notice Shares received in the current block that cannot be redeemed until the next block
+    function currentBlockRestrictedBalance(address account) external view returns (uint256) {
+        return YuzuV3RestrictedShares.currentBlockRestrictedBalance(account);
     }
 
     /// @notice Backing value of one share; NAV_PRECISION is par
@@ -232,7 +227,7 @@ contract YuzuUSDV3 is
         }
         uint256 liquid = liquidityBufferSize();
         uint256 fee = _feeOnTotal(liquid, redeemFeePpm);
-        (uint256 redeemable,) = _previewRedeem(balanceOf(_owner));
+        (uint256 redeemable,) = _previewRedeem(_matureBalance(_owner));
         uint256 baseMax = Math.min(redeemable, liquid - fee);
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 throttleMax = remaining - _feeOnTotal(remaining, redeemFeePpm);
@@ -244,7 +239,8 @@ contract YuzuUSDV3 is
         if (!canRedeem(_owner)) {
             return 0;
         }
-        uint256 maxTokens = Math.min(_convertToShares(liquidityBufferSize(), Math.Rounding.Floor), balanceOf(_owner));
+        uint256 maxTokens =
+            Math.min(_convertToShares(liquidityBufferSize(), Math.Rounding.Floor), _matureBalance(_owner));
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = _convertToAssets(maxTokens, Math.Rounding.Floor) <= remaining
             ? maxTokens
@@ -262,7 +258,6 @@ contract YuzuUSDV3 is
         }
         uint256 tokens = previewDeposit(assets);
         _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver, tokens);
         _deposit(_msgSender(), receiver, assets, tokens);
         return tokens;
     }
@@ -275,14 +270,12 @@ contract YuzuUSDV3 is
             revert ExceededMaxMint(receiver, tokens, maxTokens);
         }
         _consumeMintThrottle(receiver, assets);
-        _recordMintBlock(receiver, tokens);
         _deposit(_msgSender(), receiver, assets, tokens);
         return assets;
     }
 
     function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         _checkMinWithdraw(assets);
-        _checkSameBlockRedeem(_owner);
         uint256 maxAssets = maxWithdraw(_owner);
         if (assets > maxAssets) {
             revert ExceededMaxWithdraw(_owner, assets, maxAssets);
@@ -300,7 +293,6 @@ contract YuzuUSDV3 is
         }
         (uint256 assets, uint256 fee) = _previewRedeem(tokens);
         _checkMinWithdraw(assets);
-        _checkSameBlockRedeem(_owner);
         _consumeRedeemThrottle(_owner, assets + fee);
         _withdraw(_msgSender(), receiver, _owner, assets, tokens, fee);
         return assets;
@@ -390,23 +382,22 @@ contract YuzuUSDV3 is
         YuzuV3Throttle.consumeRedeemChecked(YuzuThrottleV3Storage.layout()._redeemThrottle, assets);
     }
 
-    function _recordMintBlock(address receiver, uint256 amount) private {
-        // slither-disable-next-line incorrect-equality
-        if (amount == 0 || _isThrottleExempt(receiver)) {
-            return;
-        }
-        YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[receiver] = block.number;
+    function _isSameBlockExempt(address account) private view returns (bool) {
+        return hasRole(SAME_BLOCK_EXEMPT_ROLE, account);
     }
 
-    function _checkSameBlockRedeem(address _owner) private view {
-        if (_isThrottleExempt(_owner)) {
-            return;
+    /// @dev Balance an owner can redeem this block; excludes shares received in the current block
+    /// unless the owner is same-block exempt.
+    function _matureBalance(address _owner) private view returns (uint256) {
+        if (_isSameBlockExempt(_owner)) {
+            return balanceOf(_owner);
         }
-        // The same-block equality check is the guard design, not a manipulable condition
-        // slither-disable-next-line incorrect-equality
-        if (YuzuSameBlockGuardV3Storage.layout()._lastMintBlock[_owner] == block.number) {
-            revert SameBlockMintRedeem(_owner);
-        }
+        return balanceOf(_owner) - YuzuV3RestrictedShares.currentBlockRestrictedBalance(_owner);
+    }
+
+    function _update(address from, address to, uint256 value) internal virtual override {
+        super._update(from, to, value);
+        YuzuV3RestrictedShares.update(from, to, value, balanceOf(from));
     }
 
     function _checkMinDeposit(uint256 assets) private view {

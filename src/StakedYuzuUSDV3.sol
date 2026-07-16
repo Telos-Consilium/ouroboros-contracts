@@ -10,6 +10,7 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
+import {YuzuV3RestrictedShares} from "./libraries/YuzuV3RestrictedShares.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
 import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -29,6 +30,7 @@ import {
  * @title StakedYuzuUSDV3
  * @notice Staked Yuzu USD with V3 role-based access control, throttles, and minimum amounts.
  */
+// slither-disable-next-line missing-inheritance
 contract StakedYuzuUSDV3 is
     StakedYuzuUSDV2,
     AccessControlDefaultAdminRulesUpgradeable,
@@ -360,7 +362,17 @@ contract StakedYuzuUSDV3 is
         _setRedeemThrottle(newBlockLimit, newDailyLimit);
     }
 
+    /// @notice Shares received in the current block, tracked so downstream redeemers can exclude them
+    function currentBlockRestrictedBalance(address account) external view returns (uint256) {
+        return YuzuV3RestrictedShares.currentBlockRestrictedBalance(account);
+    }
+
     // Internal
+    function _update(address from, address to, uint256 value) internal virtual override {
+        super._update(from, to, value);
+        YuzuV3RestrictedShares.update(from, to, value, balanceOf(from));
+    }
+
     /// @inheritdoc YuzuThrottle
     function _isThrottleExempt(address account) internal view virtual override returns (bool) {
         return hasRole(THROTTLE_EXEMPT_ROLE, account);

@@ -16,6 +16,7 @@ import {
     POOL_MANAGER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEM_MANAGER_ROLE,
+    SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "../../src/libraries/YuzuV3Constants.sol";
 

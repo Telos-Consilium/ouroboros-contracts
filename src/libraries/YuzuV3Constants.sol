@@ -15,6 +15,7 @@ bytes32 constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
 bytes32 constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 bytes32 constant REDEEM_FEE_EXEMPT_ROLE = keccak256("REDEEM_FEE_EXEMPT_ROLE");
 bytes32 constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
+bytes32 constant SAME_BLOCK_EXEMPT_ROLE = keccak256("SAME_BLOCK_EXEMPT_ROLE");
 bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 
 // Protocol bounds

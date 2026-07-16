@@ -3,23 +3,28 @@ pragma solidity ^0.8.30;
 
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ProxyAdmin, ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {PSM} from "../src/PSM.sol";
 import {PSMV2} from "../src/PSMV2.sol";
+import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
+import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {
-    IYuzuMinAmountsDefinitions,
-    IYuzuSameBlockGuardDefinitions
-} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
 import {
     ADMIN_ROLE,
     BURNER_ROLE,
+    DELAY_EXEMPT_ROLE,
+    FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     LIQUIDITY_MANAGER_ROLE,
     MINTER_ROLE,
     ORDER_FILLER_ROLE,
+    PAUSE_MANAGER_ROLE,
+    REDEEM_FEE_EXEMPT_ROLE,
     REDEEMER_ROLE,
     RESTRICTION_MANAGER_ROLE,
     THROTTLE_EXEMPT_ROLE,
@@ -30,8 +35,15 @@ import {PSMTest} from "./PSM.t.sol";
 contract PSMV2Test is PSMTest {
     PSMV2 public psmV2;
 
+    // PSMV2's vault1 must expose currentBlockRestrictedBalance(address), which only
+    // StakedYuzuUSDV3 implements. The parent deploys a V2 styz, so this suite stands up a
+    // getter-bearing V3 styz and rewires the PSM's vault1 to it while leaving the parent's
+    // V1-PSM tests untouched on the inherited V2 vaults.
+    StakedYuzuUSDV3 public styzV3;
+
     address public limitManager;
     address public throttleExempt;
+    address public styzOwner;
 
     uint256 internal constant LIQUIDITY = 5_000_000e6;
 
@@ -40,19 +52,26 @@ contract PSMV2Test is PSMTest {
 
         limitManager = makeAddr("limitManager");
         throttleExempt = makeAddr("throttleExempt");
+        styzOwner = makeAddr("styzOwner");
 
-        // Stand up a PSMV2 proxy against the same yzUSD/syzUSD vaults the parent deployed
+        // Deploy a V3 styz over the parent's yzUSD so vault1 exposes the same-block getter
+        styzV3 = _deployStakedYuzuUSDV3();
+        vm.label(address(styzV3), "Staked Yuzu USD V3 (proxy)");
+
+        // Stand up a PSMV2 proxy against the parent's yzUSD (vault0) and the new V3 styz (vault1)
         PSMV2 implementation = new PSMV2();
-        bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusd, styz, admin, 0);
+        bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusd, styzV3, admin, 0);
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         psmV2 = PSMV2(address(proxy));
         psmV2.reinitialize();
 
         vm.label(address(psmV2), "PSMV2 (proxy)");
 
-        // Wire PSMV2 exactly as the parent wired the v1 PSM, plus the new LIMIT_MANAGER_ROLE
+        // Wire PSMV2 exactly as the parent wired the v1 PSM, plus the new LIMIT_MANAGER_ROLE.
+        // V3 styz replaces the V2 setIntegration waiver with role-based delay/fee exemptions.
         vm.startPrank(admin);
-        styz.setIntegration(address(psmV2), true, true);
+        styzV3.grantRole(DELAY_EXEMPT_ROLE, address(psmV2));
+        styzV3.grantRole(REDEEM_FEE_EXEMPT_ROLE, address(psmV2));
         yzusd.grantRole(MINTER_ROLE, address(psmV2));
         yzusd.grantRole(REDEEMER_ROLE, address(psmV2));
         yzusd.grantRole(BURNER_ROLE, address(psmV2));
@@ -73,17 +92,62 @@ contract PSMV2Test is PSMTest {
         _approveAssets(user1, address(psmV2), type(uint256).max);
         _approveAssets(user2, address(psmV2), type(uint256).max);
         _approveAssets(liquidityManager, address(psmV2), type(uint256).max);
-        _approveStaked(user1, address(psmV2), type(uint256).max);
-        _approveStaked(user2, address(psmV2), type(uint256).max);
+        _approveStakedV3(user1, address(psmV2), type(uint256).max);
+        _approveStakedV3(user2, address(psmV2), type(uint256).max);
 
         // Give the exempt account a balance and approvals too
         asset.mint(throttleExempt, 10_000_000e6);
         _approveAssets(throttleExempt, address(psmV2), type(uint256).max);
-        _approveStaked(throttleExempt, address(psmV2), type(uint256).max);
+        _approveStakedV3(throttleExempt, address(psmV2), type(uint256).max);
 
         // Fund the instant-redeem liquidity pool
         vm.prank(liquidityManager);
         psmV2.depositLiquidity(LIQUIDITY);
+    }
+
+    // Deploys StakedYuzuUSD at V1 behind a transparent proxy, pauses, upgrades to V3 via
+    // reinitialize (proxy-admin gated), then unpauses. Mirrors PSMV2V3IntegrationTest.
+    function _deployStakedYuzuUSDV3() internal returns (StakedYuzuUSDV3 deployed) {
+        address v1Impl = address(new StakedYuzuUSD());
+        bytes memory initData = abi.encodeWithSelector(
+            StakedYuzuUSD.initialize.selector,
+            IERC20(address(yzusd)),
+            "Staked Yuzu USD",
+            "syzUSD",
+            styzOwner,
+            feeReceiver,
+            1 days
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(v1Impl, styzOwner, initData);
+        ProxyAdmin proxyAdmin = ProxyAdmin(
+            address(
+                uint160(
+                    uint256(vm.load(address(proxy), 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103))
+                )
+            )
+        );
+
+        vm.prank(styzOwner);
+        StakedYuzuUSD(address(proxy)).pause();
+
+        address v3Impl = address(new StakedYuzuUSDV3());
+        vm.prank(styzOwner);
+        proxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            v3Impl,
+            abi.encodeWithSelector(StakedYuzuUSDV3.reinitialize.selector, admin)
+        );
+
+        deployed = StakedYuzuUSDV3(address(proxy));
+        vm.startPrank(admin);
+        deployed.grantRole(PAUSE_MANAGER_ROLE, admin);
+        deployed.unpause();
+        vm.stopPrank();
+    }
+
+    function _approveStakedV3(address _owner, address spender, uint256 amount) internal {
+        vm.prank(_owner);
+        styzV3.approve(spender, amount);
     }
 
     // --- helpers ---
@@ -148,9 +212,12 @@ contract PSMV2Test is PSMTest {
         _deposit(user1, 100e6);
         vm.roll(block.number + 1);
 
+        // V3 charges the instant-redeem fee unless the redeemer holds REDEEM_FEE_EXEMPT_ROLE.
+        // Drop the PSM's exemption and set a 1% instant fee so the styz fee reaches the PSM.
         vm.startPrank(admin);
-        styz.setIntegration(address(psmV2), true, false);
-        styz.setRedeemFee(10_000); // 1%
+        styzV3.grantRole(FEE_MANAGER_ROLE, admin);
+        styzV3.revokeRole(REDEEM_FEE_EXEMPT_ROLE, address(psmV2));
+        styzV3.setInstantRedeemFee(10_000); // 1%
         vm.stopPrank();
 
         vm.prank(limitManager);
@@ -238,34 +305,6 @@ contract PSMV2Test is PSMTest {
         psmV2.redeem(1e18, user2, user2);
     }
 
-    // --- same-block guard ---
-
-    function test_SameBlock_Revert_DepositThenRedeem() public {
-        _deposit(user1, 100e6);
-        vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(IYuzuSameBlockGuardDefinitions.SameBlockMintRedeem.selector, user1));
-        psmV2.redeem(1e18, user1, user1);
-    }
-
-    function test_SameBlock_RedeemNextBlock() public {
-        _deposit(user1, 100e6);
-        vm.roll(block.number + 1);
-        assertGt(_redeem(user1, 1e18), 0);
-    }
-
-    function test_SameBlock_ZeroAmountDeposit_DoesNotStamp() public {
-        // user1 holds a position from an earlier block
-        _deposit(user1, 100e6);
-        vm.roll(block.number + 1);
-
-        // A zero-amount deposit from user2 to user1 does not stamp user1
-        vm.prank(user2);
-        psmV2.deposit(0, user1);
-
-        // So user1's same-block redeem still works
-        assertGt(_redeem(user1, 1e18), 0);
-    }
-
     // --- exemptions ---
 
     function test_Exempt_BypassesMintThrottle() public {
@@ -274,12 +313,6 @@ contract PSMV2Test is PSMTest {
 
         // Far above the 1e6 block limit, but exempt
         assertGt(_deposit(throttleExempt, 1000e6), 0);
-    }
-
-    function test_Exempt_BypassesSameBlockGuard() public {
-        _deposit(throttleExempt, 100e6);
-        // Same block redeem succeeds for an exempt owner
-        assertGt(_redeem(throttleExempt, 1e18), 0);
     }
 
     // --- order path stays ungated ---

@@ -37,13 +37,18 @@ library YuzuThrottleV3Storage {
     }
 }
 
-library YuzuSameBlockGuardV3Storage {
-    struct Layout {
-        mapping(address => uint256) _lastMintBlock;
+library YuzuRestrictedSharesV3Storage {
+    struct Restriction {
+        uint256 blockNumber;
+        uint256 amount;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.sameblockguard")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 internal constant LOCATION = 0xaca45614502cdf54c71f9031d97993837104eaf27a6531196fcefc0ea3a7a400;
+    struct Layout {
+        mapping(address => Restriction) _restrictions;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.restrictedshares")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 internal constant LOCATION = 0x6640948ddaf4f725e158ddd802cd097cb6a3e22fadb04689cd03dc5493988600;
 
     function layout() internal pure returns (Layout storage $) {
         // slither-disable-next-line assembly

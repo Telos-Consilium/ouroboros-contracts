@@ -1314,4 +1314,70 @@ contract StakedYuzuUSDV3Test is
         );
         styz3.setMinDistributionPeriod(1 days);
     }
+
+    // --- same-block restricted-share bookkeeping ---
+    // The staked vault records restricted shares for the PSM boundary but does not enforce them on its
+    // own instant redemption.
+
+    function test_RestrictedShares_DepositRecordsMint() public {
+        uint256 shares = _deposit(user1, 100e18);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), shares);
+    }
+
+    function test_RestrictedShares_TransferRecordsInbound() public {
+        uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
+        vm.prank(user1);
+        styz3.transfer(user2, shares);
+        assertEq(styz3.currentBlockRestrictedBalance(user2), shares);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), 0);
+    }
+
+    function test_RestrictedShares_PartialTransferConsumesMatureFirst() public {
+        uint256 mature = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
+        uint256 fresh = _deposit(user1, 100e18);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), fresh);
+
+        vm.prank(user1);
+        styz3.transfer(user2, mature);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), fresh);
+        assertEq(styz3.currentBlockRestrictedBalance(user2), mature);
+    }
+
+    function test_RestrictedShares_SelfAndZeroTransferNoop() public {
+        uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
+
+        vm.prank(user1);
+        styz3.transfer(user1, shares);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), 0);
+
+        vm.prank(user1);
+        styz3.transfer(user2, 0);
+        assertEq(styz3.currentBlockRestrictedBalance(user2), 0);
+    }
+
+    function test_RestrictedShares_MaturesNextBlock() public {
+        _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), 0);
+    }
+
+    function test_RestrictedShares_BooksExemptAccount() public {
+        vm.prank(admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
+        uint256 shares = _deposit(user1, 100e18);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), shares);
+    }
+
+    function test_RestrictedShares_BurnClampsRecord() public {
+        _enableInstantRedeem();
+        uint256 shares = _deposit(user1, 100e18);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), shares);
+
+        vm.prank(user1);
+        styz3.redeem(shares, user1, user1);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), 0);
+    }
 }

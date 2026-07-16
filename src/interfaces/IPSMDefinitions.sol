@@ -58,3 +58,7 @@ interface IVaultRestrictions {
     function canCreateRedeemOrder(address owner) external view returns (bool);
     function canBurn(address owner) external view returns (bool);
 }
+
+interface IRestrictedShares {
+    function currentBlockRestrictedBalance(address account) external view returns (uint256);
+}

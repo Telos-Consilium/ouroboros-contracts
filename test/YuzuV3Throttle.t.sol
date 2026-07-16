@@ -149,6 +149,7 @@ contract YuzuUSDV3ThrottleTest is YuzuV3TestBase, IYuzuIssuerDefinitions, IYuzuT
 
         vm.prank(exempt);
         yzusd.deposit(1000e6, exempt);
+        vm.roll(block.number + 1); // mature the shares so the same-block guard is not in scope here
 
         vm.prank(limitManager);
         yzusd.setRedeemThrottle(100e6, type(uint256).max);
