@@ -20,6 +20,7 @@ import {UpgradeTestBase} from "./helpers/UpgradeTestBase.sol";
 import {
     BURNER_ROLE,
     DELAY_EXEMPT_ROLE,
+    LIMIT_MANAGER_ROLE,
     LIQUIDITY_MANAGER_ROLE,
     MINTER_ROLE,
     ORDER_FILLER_ROLE,
@@ -27,6 +28,7 @@ import {
     REDEEMER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     RESTRICTION_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE,
     USER_ROLE
 } from "./helpers/TestRoles.sol";
 
@@ -209,6 +211,41 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
         assertEq(styz.currentBlockRestrictedBalance(user), 0);
         vm.prank(user);
         assertGt(psm.redeem(shares, user, user), 0);
+    }
+
+    function test_MaxRedeem_BoundedByInnerRedeemThrottle() public {
+        vm.prank(user);
+        psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        // Constrain the staked vault's redeem throttle (in yzUSD) below the user's holdings.
+        vm.startPrank(admin);
+        styz.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz.setRedeemThrottle(40e18, type(uint256).max);
+        vm.stopPrank();
+
+        // The view folds in the inner throttle, and the reported maximum actually settles.
+        uint256 maxShares = psm.maxRedeem(user);
+        assertEq(maxShares, 40e18);
+
+        vm.prank(user);
+        uint256 assetsOut = psm.redeem(maxShares, user, user);
+        assertEq(assetsOut, 40e6);
+    }
+
+    function test_MaxRedeem_UnaffectedWhenPsmThrottleExempt() public {
+        vm.prank(user);
+        psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        styz.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz.setRedeemThrottle(40e18, type(uint256).max);
+        styz.grantRole(THROTTLE_EXEMPT_ROLE, address(psm));
+        vm.stopPrank();
+
+        // An exempt PSM is not subject to the inner throttle, so the full balance stays redeemable.
+        assertEq(psm.maxRedeem(user), 100e18);
     }
 
     function _deployYuzuUSDV3() internal returns (YuzuUSDV3 deployed) {

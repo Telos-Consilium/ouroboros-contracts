@@ -62,3 +62,7 @@ interface IVaultRestrictions {
 interface IRestrictedShares {
     function currentBlockRestrictedBalance(address account) external view returns (uint256);
 }
+
+interface IRedeemThrottle {
+    function redeemThrottleRemaining(address account) external view returns (uint256);
+}

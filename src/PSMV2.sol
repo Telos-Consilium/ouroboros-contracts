@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {IERC20Burnable, IRestrictedShares} from "./interfaces/IPSMDefinitions.sol";
+import {IERC20Burnable, IRedeemThrottle, IRestrictedShares} from "./interfaces/IPSMDefinitions.sol";
 import {PSM} from "./PSM.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
@@ -13,6 +13,7 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
  * @title PSMV2
  * @notice PSM with V2 limits and throttles
  * @dev Throttles and the same-block redeem restriction apply only to instant deposit and redeem paths.
+ * @dev Requires a V3 staked vault (vault1) exposing {redeemThrottleRemaining} and {currentBlockRestrictedBalance}.
  */
 contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
@@ -80,6 +81,14 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
             if (maxShares > mature) {
                 maxShares = mature;
             }
+        }
+        // The staked vault throttles the redeem the PSM performs while transiently holding the pulled
+        // shares, so bind the view by the inner remaining capacity. Read it against the PSM (the inner
+        // owner), not {IERC4626-maxRedeem}, which reads zero when the PSM holds no shares between
+        // operations. Compare in asset terms first so an unlimited budget skips the share conversion.
+        uint256 innerRemaining = IRedeemThrottle(vault1()).redeemThrottleRemaining(address(this));
+        if (_vault1.convertToAssets(maxShares) > innerRemaining) {
+            maxShares = _vault1.convertToShares(innerRemaining);
         }
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = _previewRedeemAssets(maxShares) <= remaining ? maxShares : _sharesForAssets(remaining);
