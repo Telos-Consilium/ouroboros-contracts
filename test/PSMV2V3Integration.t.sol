@@ -248,6 +248,43 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
         assertEq(psm.maxRedeem(user), 100e18);
     }
 
+    function test_MaxRedeem_ZeroWhenBelowInnerMinWithdraw() public {
+        vm.prank(user);
+        psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        // The inner throttle caps the redeem at 40 yzUSD, but the staked vault's minWithdraw floor is
+        // 60 yzUSD, so no redeem the PSM can perform clears the floor.
+        vm.startPrank(admin);
+        styz.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz.setRedeemThrottle(40e18, type(uint256).max);
+        styz.setMinWithdraw(60e18);
+        vm.stopPrank();
+
+        assertEq(psm.maxRedeem(user), 0);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxRedeem.selector, user, 40e18, 0));
+        psm.redeem(40e18, user, user);
+    }
+
+    function test_MaxRedeem_UnaffectedWhenAboveInnerMinWithdraw() public {
+        vm.prank(user);
+        psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        // An inner minWithdraw below the candidate yzUSD output leaves maxRedeem unchanged.
+        vm.startPrank(admin);
+        styz.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz.setMinWithdraw(50e18);
+        vm.stopPrank();
+
+        uint256 maxShares = psm.maxRedeem(user);
+        assertEq(maxShares, 100e18);
+        vm.prank(user);
+        assertEq(psm.redeem(maxShares, user, user), 100e6);
+    }
+
     function _deployYuzuUSDV3() internal returns (YuzuUSDV3 deployed) {
         address impl = address(new YuzuUSDV3(address(new YuzuUSDV3Facet())));
         bytes memory initData = abi.encodeWithSelector(

@@ -66,3 +66,7 @@ interface IRestrictedShares {
 interface IRedeemThrottle {
     function redeemThrottleRemaining(address account) external view returns (uint256);
 }
+
+interface IMinWithdraw {
+    function minWithdraw() external view returns (uint256);
+}

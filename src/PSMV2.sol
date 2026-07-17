@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {IERC20Burnable, IRedeemThrottle, IRestrictedShares} from "./interfaces/IPSMDefinitions.sol";
+import {IERC20Burnable, IMinWithdraw, IRedeemThrottle, IRestrictedShares} from "./interfaces/IPSMDefinitions.sol";
 import {PSM} from "./PSM.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
@@ -13,7 +13,7 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
  * @title PSMV2
  * @notice PSM with V2 limits and throttles
  * @dev Mint and redeem throttles apply to their instant paths; the same-block restriction applies to instant redemption.
- * @dev Requires vault1 to expose {redeemThrottleRemaining} and {currentBlockRestrictedBalance}.
+ * @dev Requires vault1 to expose {redeemThrottleRemaining}, {currentBlockRestrictedBalance}, and {minWithdraw}.
  */
 contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
@@ -92,6 +92,11 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         }
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = _previewRedeemAssets(maxShares) <= remaining ? maxShares : _sharesForAssets(remaining);
+        // The inner redeem releases yzUSD from vault1, which enforces its own minWithdraw, so an amount
+        // below that floor reverts; exclude it alongside the PSM's own minWithdraw.
+        if (_vault1.convertToAssets(shares) < IMinWithdraw(vault1()).minWithdraw()) {
+            return 0;
+        }
         return _previewRedeemAssets(shares) < minWithdraw() ? 0 : shares;
     }
 
