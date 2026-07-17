@@ -23,10 +23,10 @@ import {StakedYuzuUSDV3TestBase} from "./helpers/StakedYuzuUSDV3TestBase.sol";
 import {
     ADMIN_ROLE,
     DELAY_EXEMPT_ROLE,
+    DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     PAUSE_MANAGER_ROLE,
-    POOL_MANAGER_ROLE,
     PRICE_GUARD_MANAGER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEM_MANAGER_ROLE,
@@ -1141,7 +1141,7 @@ contract StakedYuzuUSDV3Test is
     function test_MaxMint_UnlimitedAboveParPrice() public {
         // Keep the mint throttle at its unlimited default.
         vm.startPrank(admin);
-        styz3.grantRole(POOL_MANAGER_ROLE, admin);
+        styz3.grantRole(DISTRIBUTOR_ROLE, admin);
         styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
         vm.stopPrank();
 
@@ -1211,7 +1211,7 @@ contract StakedYuzuUSDV3Test is
 
     function _setupDistribute() internal {
         vm.startPrank(admin);
-        styz3.grantRole(POOL_MANAGER_ROLE, owner);
+        styz3.grantRole(DISTRIBUTOR_ROLE, owner);
         styz3.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
         styz3.setMaxDistributionPpm(100_000);
         styz3.setMinDistributionPeriod(6 hours);

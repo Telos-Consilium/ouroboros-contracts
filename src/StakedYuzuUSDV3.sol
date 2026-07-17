@@ -17,10 +17,10 @@ import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinition
 import {
     ADMIN_ROLE,
     DELAY_EXEMPT_ROLE,
+    DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     PAUSE_MANAGER_ROLE,
-    POOL_MANAGER_ROLE,
     PRICE_GUARD_MANAGER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEM_MANAGER_ROLE,
@@ -62,7 +62,7 @@ contract StakedYuzuUSDV3 is
         _grantRole(ADMIN_ROLE, _admin);
         _setRoleAdmin(PAUSE_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_MANAGER_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(DISTRIBUTOR_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LIMIT_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
@@ -246,8 +246,8 @@ contract StakedYuzuUSDV3 is
         return (orderId, assets);
     }
 
-    // Pool operations
-    function distribute(uint256 assets, uint256 period) public virtual override onlyRole(POOL_MANAGER_ROLE) {
+    // Distribution operations
+    function distribute(uint256 assets, uint256 period) public virtual override onlyRole(DISTRIBUTOR_ROLE) {
         if (period < minDistributionPeriod) {
             revert DistributionPeriodTooLow(period, minDistributionPeriod);
         }
@@ -260,7 +260,7 @@ contract StakedYuzuUSDV3 is
         super.distribute(assets, period);
     }
 
-    function terminateDistribution(address receiver) public virtual override onlyRole(POOL_MANAGER_ROLE) {
+    function terminateDistribution(address receiver) public virtual override onlyRole(DISTRIBUTOR_ROLE) {
         super.terminateDistribution(receiver);
     }
 
