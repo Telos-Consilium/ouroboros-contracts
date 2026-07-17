@@ -30,6 +30,7 @@ import {
     PRICE_GUARD_MANAGER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEM_MANAGER_ROLE,
+    SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./helpers/TestRoles.sol";
 
@@ -302,6 +303,7 @@ contract StakedYuzuUSDV3Test is
 
         uint256 assets = 100e18;
         _deposit(user1, assets);
+        vm.roll(block.number + 1);
 
         uint256 user1AssetsBefore = yzusd.balanceOf(user1);
         uint256 feeReceiverBefore = yzusd.balanceOf(feeReceiver);
@@ -339,6 +341,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
 
         uint256 user1AssetsBefore = yzusd.balanceOf(user1);
         uint256 feeReceiverBefore = yzusd.balanceOf(feeReceiver);
@@ -362,6 +365,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
         vm.prank(user1);
         styz3.approve(user2, shares);
 
@@ -385,6 +389,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
         vm.prank(user1);
         styz3.approve(user2, shares);
 
@@ -409,6 +414,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
         vm.prank(user1);
         styz3.approve(user2, shares);
 
@@ -493,6 +499,7 @@ contract StakedYuzuUSDV3Test is
         // The exemption attaches to the owner, so any approved caller can redeem the exempt
         // owner's shares
         uint256 shares = _deposit(user2, 100e18);
+        vm.roll(block.number + 1);
         vm.prank(user2);
         styz3.approve(user1, shares);
 
@@ -576,6 +583,7 @@ contract StakedYuzuUSDV3Test is
         styz3.grantRole(REDEEM_MANAGER_ROLE, admin);
 
         uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
 
         vm.prank(admin);
         styz3.setIsInstantRedeemEnabled(true);
@@ -599,6 +607,7 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.maxDeposit(user1), type(uint256).max);
 
         uint256 shares = _deposit(user1, 1_000_000e18);
+        vm.roll(block.number + 1);
         vm.prank(user1);
         styz3.redeem(shares, user1, user1);
     }
@@ -793,6 +802,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         _deposit(user2, 500e18);
+        vm.roll(block.number + 1);
 
         // Delay exemption alone grants no throttle exemption; the throttle caps maxWithdraw
         assertEq(styz3.maxWithdraw(user2), 50e18);
@@ -877,6 +887,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         _deposit(user2, 1000e18);
+        vm.roll(block.number + 1);
         vm.prank(user2);
         styz3.approve(user1, type(uint256).max);
 
@@ -900,6 +911,8 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         _deposit(user1, 1000e18);
+        // Use the cheatcode getter so the optimizer cannot reuse the pre-roll block number for the later increment.
+        vm.roll(vm.getBlockNumber() + 1);
 
         vm.prank(admin);
         styz3.setRedeemThrottle(120e18, type(uint256).max);
@@ -928,6 +941,7 @@ contract StakedYuzuUSDV3Test is
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
 
         _deposit(user1, 1000e18);
+        vm.roll(block.number + 1);
 
         vm.prank(admin);
         styz3.setRedeemThrottle(120e18, type(uint256).max);
@@ -950,6 +964,8 @@ contract StakedYuzuUSDV3Test is
         styz3.grantRole(LIMIT_MANAGER_ROLE, admin);
 
         _deposit(user1, 1000e18);
+        // Use the cheatcode getter so the optimizer cannot reuse the pre-roll block number for the later increment.
+        vm.roll(vm.getBlockNumber() + 1);
 
         vm.prank(admin);
         styz3.setRedeemThrottle(type(uint256).max, 100e18);
@@ -982,6 +998,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         uint256 shares = _deposit(user2, 500e18);
+        vm.roll(block.number + 1);
 
         vm.prank(user2);
         styz3.redeem(shares, user2, user2);
@@ -998,6 +1015,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         _deposit(user2, 500e18);
+        vm.roll(block.number + 1);
         vm.prank(user2);
         styz3.approve(user1, type(uint256).max);
 
@@ -1018,6 +1036,7 @@ contract StakedYuzuUSDV3Test is
         vm.stopPrank();
 
         _deposit(user2, 500e18);
+        vm.roll(block.number + 1);
         vm.prank(user2);
         styz3.approve(user1, type(uint256).max);
 
@@ -1321,8 +1340,6 @@ contract StakedYuzuUSDV3Test is
     }
 
     // --- same-block restricted-share bookkeeping ---
-    // The staked vault records restricted shares for the PSM boundary but does not enforce them on its
-    // own instant redemption.
 
     function test_RestrictedShares_DepositRecordsMint() public {
         uint256 shares = _deposit(user1, 100e18);
@@ -1378,11 +1395,99 @@ contract StakedYuzuUSDV3Test is
 
     function test_RestrictedShares_BurnClampsRecord() public {
         _enableInstantRedeem();
+        vm.prank(admin);
+        styz3.grantRole(SAME_BLOCK_EXEMPT_ROLE, user1);
         uint256 shares = _deposit(user1, 100e18);
         assertEq(styz3.currentBlockRestrictedBalance(user1), shares);
 
         vm.prank(user1);
         styz3.redeem(shares, user1, user1);
         assertEq(styz3.currentBlockRestrictedBalance(user1), 0);
+    }
+
+    // --- same-block guard enforcement ---
+
+    function test_SameBlock_FreshDeposit_RestrictsInstantExit() public {
+        _enableInstantRedeem();
+        _deposit(user1, 100e18);
+        assertEq(styz3.maxRedeem(user1), 0);
+        assertEq(styz3.maxWithdraw(user1), 0);
+    }
+
+    function test_SameBlock_Redeem_Revert() public {
+        _enableInstantRedeem();
+        uint256 shares = _deposit(user1, 100e18);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
+        styz3.redeem(shares, user1, user1);
+    }
+
+    function test_SameBlock_Withdraw_Revert() public {
+        _enableInstantRedeem();
+        _deposit(user1, 100e18);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxWithdraw.selector, user1, 50e18, 0));
+        styz3.withdraw(50e18, user1, user1);
+    }
+
+    function test_SameBlock_MaturesNextBlock() public {
+        _enableInstantRedeem();
+        uint256 shares = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
+        assertEq(styz3.maxRedeem(user1), shares);
+        vm.prank(user1);
+        styz3.redeem(shares, user1, user1);
+    }
+
+    function test_SameBlock_DustReceipt_PreservesMatureRedeem() public {
+        _enableInstantRedeem();
+        uint256 mature = _deposit(user1, 100e18);
+        vm.roll(block.number + 1);
+        _deposit(user2, 100e18);
+
+        vm.prank(user2);
+        styz3.transfer(user1, 1);
+        assertEq(styz3.currentBlockRestrictedBalance(user1), 1);
+        assertEq(styz3.maxRedeem(user1), mature);
+
+        vm.prank(user1);
+        styz3.redeem(mature, user1, user1);
+
+        // The dust remains restricted for the rest of the block.
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, 1, 0));
+        styz3.redeem(1, user1, user1);
+    }
+
+    function test_SameBlock_ExemptOwner_Bypasses() public {
+        _enableInstantRedeem();
+        vm.prank(admin);
+        styz3.grantRole(SAME_BLOCK_EXEMPT_ROLE, user1);
+        uint256 shares = _deposit(user1, 100e18);
+
+        // Bookkeeping still records the fresh shares; enforcement is bypassed.
+        assertEq(styz3.currentBlockRestrictedBalance(user1), shares);
+        assertEq(styz3.maxRedeem(user1), shares);
+        vm.prank(user1);
+        styz3.redeem(shares, user1, user1);
+    }
+
+    // Throttle exemption alone does not bypass the same-block guard; the two are separate roles.
+    function test_SameBlock_ThrottleExemptOnly_StillRestricted() public {
+        _enableInstantRedeem();
+        vm.prank(admin);
+        styz3.grantRole(THROTTLE_EXEMPT_ROLE, user1);
+        uint256 shares = _deposit(user1, 100e18);
+
+        assertEq(styz3.maxRedeem(user1), 0);
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxRedeem.selector, user1, shares, 0));
+        styz3.redeem(shares, user1, user1);
+    }
+
+    // Order initiation burns the shares and fixes the payout, so current-block shares remain order-eligible.
+    function test_SameBlock_OrderPath_NotRestricted() public {
+        uint256 shares = _deposit(user1, 100e18);
+        assertEq(styz3.maxRedeemOrder(user1), shares);
     }
 }

@@ -27,6 +27,7 @@ import {
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEMER_ROLE,
     RESTRICTION_MANAGER_ROLE,
+    SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE,
     USER_ROLE
 } from "./helpers/TestRoles.sol";
@@ -66,10 +67,13 @@ contract PSMV2Test is PSMTest {
 
         vm.label(address(psmV2), "PSMV2 (proxy)");
 
-        // The PSM's inner syzUSD redemption must remain immediate and fee-free.
+        // The inner syzUSD redemption uses the PSM as owner: delay and fee exemptions keep it immediate
+        // and fee-free, while same-block exemption lets it redeem those freshly pulled shares.
+        // {PSMV2-maxRedeem} applies the same-block guard to the outer owner.
         vm.startPrank(admin);
         styzV3.grantRole(DELAY_EXEMPT_ROLE, address(psmV2));
         styzV3.grantRole(REDEEM_FEE_EXEMPT_ROLE, address(psmV2));
+        styzV3.grantRole(SAME_BLOCK_EXEMPT_ROLE, address(psmV2));
         yzusd.grantRole(MINTER_ROLE, address(psmV2));
         yzusd.grantRole(REDEEMER_ROLE, address(psmV2));
         yzusd.grantRole(BURNER_ROLE, address(psmV2));

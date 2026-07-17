@@ -24,6 +24,7 @@ import {
     PRICE_GUARD_MANAGER_ROLE,
     REDEEM_FEE_EXEMPT_ROLE,
     REDEEM_MANAGER_ROLE,
+    SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 
@@ -66,6 +67,7 @@ contract StakedYuzuUSDV3 is
         _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(SAME_BLOCK_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(DELAY_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(REDEEM_FEE_EXEMPT_ROLE, ADMIN_ROLE);
         _transferOwnership(address(0));
@@ -144,7 +146,8 @@ contract StakedYuzuUSDV3 is
     function maxWithdraw(address _owner) public view virtual override returns (uint256) {
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 throttleMax = remaining - _feeOnTotal(remaining, _redeemFeePpmFor(_owner));
-        uint256 maxAssets = Math.min(super.maxWithdraw(_owner), throttleMax);
+        (uint256 matureMax,) = _previewRedeemWithFee(_matureBalance(_owner), _redeemFeePpmFor(_owner));
+        uint256 maxAssets = Math.min(Math.min(super.maxWithdraw(_owner), throttleMax), matureMax);
         return maxAssets < minWithdraw() ? 0 : maxAssets;
     }
 
@@ -152,7 +155,7 @@ contract StakedYuzuUSDV3 is
     /// @dev convertToAssets(maxShares) is bounded by totalAssets, and convertToShares(remaining) is only
     /// reached when remaining is below that bound, so neither conversion can overflow
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
-        uint256 maxShares = super.maxRedeem(_owner);
+        uint256 maxShares = Math.min(super.maxRedeem(_owner), _matureBalance(_owner));
         uint256 remaining = _redeemThrottleRemaining(_owner);
         uint256 shares = convertToAssets(maxShares) <= remaining ? maxShares : convertToShares(remaining);
         (uint256 netAssets,) = _previewRedeemWithFee(shares, _redeemFeePpmFor(_owner));
@@ -383,6 +386,19 @@ contract StakedYuzuUSDV3 is
     /// @inheritdoc YuzuThrottle
     function _isThrottleExempt(address account) internal view virtual override returns (bool) {
         return hasRole(THROTTLE_EXEMPT_ROLE, account);
+    }
+
+    function _isSameBlockExempt(address account) private view returns (bool) {
+        return hasRole(SAME_BLOCK_EXEMPT_ROLE, account);
+    }
+
+    /// @dev Share balance eligible under the same-block guard; excludes shares received in the current
+    /// block unless the owner has SAME_BLOCK_EXEMPT_ROLE.
+    function _matureBalance(address _owner) private view returns (uint256) {
+        if (_isSameBlockExempt(_owner)) {
+            return balanceOf(_owner);
+        }
+        return balanceOf(_owner) - YuzuV3RestrictedShares.currentBlockRestrictedBalance(_owner);
     }
 
     function _maxRedeemOrderFor(address _owner) internal view returns (uint256) {
