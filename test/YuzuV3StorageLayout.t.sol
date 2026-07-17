@@ -7,6 +7,7 @@ import {YuzuMinAmounts} from "../src/proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "../src/proto/YuzuThrottle.sol";
 import {YuzuV3RestrictedShares} from "../src/libraries/YuzuV3RestrictedShares.sol";
 import {
+    YuzuILPDistributionV3Storage,
     YuzuILPFeesV3Storage,
     YuzuMinAmountsV3Storage,
     YuzuNavMarkdownV3Storage,
@@ -57,6 +58,10 @@ contract YuzuV3StorageLayoutTest is Test {
 
     function test_Location_IlpFees() public pure {
         assertEq(YuzuILPFeesV3Storage.LOCATION, _erc7201("yuzu.storage.ilpfees"));
+    }
+
+    function test_Location_IlpDistribution() public pure {
+        assertEq(YuzuILPDistributionV3Storage.LOCATION, _erc7201("yuzu.storage.ilpdistribution"));
     }
 
     // Proto mixins resolve the same namespace to the library slot. The mixin location is a private constant,

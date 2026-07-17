@@ -236,9 +236,9 @@ contract YuzuILPV3PoolEdgeTest is
         yzilp.startPoolUpdate();
         yzilp.updatePool(1000e6, 0, 0);
         yzilp.endPoolUpdate();
-        yzilp.distribute(2000e6, 1);
+        yzilp.distribute(2000e6, 1 days);
         vm.stopPrank();
-        vm.warp(block.timestamp + 2);
+        vm.warp(block.timestamp + 1 days + 1);
 
         assertEq(yzilp.poolSize(), 0);
         assertEq(yzilp.totalAssets(), 2000e6);

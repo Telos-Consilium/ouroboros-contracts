@@ -19,6 +19,7 @@ import {
     MINTER_ROLE,
     ORDER_FILLER_ROLE,
     POOL_MANAGER_ROLE,
+    PRICE_GUARD_MANAGER_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
@@ -26,7 +27,12 @@ import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuProtoV2Definitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuILPV3FacetPricing, IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
+import {
+    YuzuILPDistributionV3Storage,
+    YuzuILPFeesV3Storage,
+    YuzuMinAmountsV3Storage,
+    YuzuThrottleV3Storage
+} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuILPV3Facet
@@ -216,8 +222,9 @@ contract YuzuILPV3Facet is
     /// @notice Initiate a gradual increase in total assets.
     function distribute(uint256 assets, uint256 period) public {
         _checkRole(POOL_MANAGER_ROLE);
-        if (period < 1) {
-            revert DistributionPeriodTooLow(period, 1);
+        uint256 minPeriod = YuzuILPDistributionV3Storage.layout()._minDistributionPeriod;
+        if (period < minPeriod) {
+            revert DistributionPeriodTooLow(period, minPeriod);
         }
         if (period > 7 days) {
             revert DistributionPeriodTooHigh(period, 7 days);
@@ -320,6 +327,20 @@ contract YuzuILPV3Facet is
         uint256 oldRatePpm = $._pendingPerformanceFeeRatePpm;
         $._pendingPerformanceFeeRatePpm = newRatePpm;
         emit UpdatedPendingPerformanceFee(oldRatePpm, newRatePpm);
+    }
+
+    function setMinDistributionPeriod(uint256 newPeriod) external {
+        _checkRole(PRICE_GUARD_MANAGER_ROLE);
+        if (newPeriod < 1 hours) {
+            revert DistributionPeriodTooLow(newPeriod, 1 hours);
+        }
+        if (newPeriod > 7 days) {
+            revert DistributionPeriodTooHigh(newPeriod, 7 days);
+        }
+        YuzuILPDistributionV3Storage.Layout storage $ = YuzuILPDistributionV3Storage.layout();
+        uint256 oldPeriod = $._minDistributionPeriod;
+        $._minDistributionPeriod = newPeriod;
+        emit UpdatedMinDistributionPeriod(oldPeriod, newPeriod);
     }
 
     // State-machine internals

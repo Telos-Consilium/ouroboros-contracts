@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IYuzuILPDefinitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
-import {POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {
+    IYuzuILPDefinitions,
+    IYuzuILPV2Definitions,
+    IYuzuILPV3Definitions
+} from "../src/interfaces/IYuzuILPDefinitions.sol";
+import {POOL_MANAGER_ROLE, PRICE_GUARD_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
-contract YuzuILPV3PriceGuardTest is YuzuV3TestBase, IYuzuILPDefinitions, IYuzuILPV3Definitions {
+contract YuzuILPV3PriceGuardTest is
+    YuzuV3TestBase,
+    IYuzuILPDefinitions,
+    IYuzuILPV2Definitions,
+    IYuzuILPV3Definitions
+{
     uint256 internal constant MIN_PRICE = 950_000;
     uint256 internal constant MAX_PRICE = 1_200_000;
 
@@ -146,5 +156,60 @@ contract YuzuILPV3PriceGuardTest is YuzuV3TestBase, IYuzuILPDefinitions, IYuzuIL
         vm.prank(poolManager);
         yzilp.distribute(10e6, 1 days);
         assertEq(yzilp.lastDistributedAmount(), 10e6);
+    }
+
+    // --- minimum distribution period ---
+
+    function test_MinDistributionPeriod_Default() public view {
+        assertEq(yzilp.minDistributionPeriod(), 1 days);
+    }
+
+    function test_Distribute_Revert_BelowMinDistributionPeriod() public {
+        _seedPool();
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooLow.selector, 1 days - 1, 1 days));
+        yzilp.distribute(10e6, 1 days - 1);
+    }
+
+    function test_SetMinDistributionPeriod_Updates() public {
+        vm.startPrank(admin);
+        yzilp.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit UpdatedMinDistributionPeriod(1 days, 2 days);
+        yzilp.setMinDistributionPeriod(2 days);
+        vm.stopPrank();
+        assertEq(yzilp.minDistributionPeriod(), 2 days);
+
+        // The raised floor is enforced on distribute.
+        _seedPool();
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooLow.selector, 1 days, 2 days));
+        yzilp.distribute(10e6, 1 days);
+    }
+
+    function test_SetMinDistributionPeriod_Revert_TooLow() public {
+        vm.startPrank(admin);
+        yzilp.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooLow.selector, 1 hours - 1, 1 hours));
+        yzilp.setMinDistributionPeriod(1 hours - 1);
+        vm.stopPrank();
+    }
+
+    function test_SetMinDistributionPeriod_Revert_TooHigh() public {
+        vm.startPrank(admin);
+        yzilp.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
+        vm.expectRevert(abi.encodeWithSelector(DistributionPeriodTooHigh.selector, 7 days + 1, 7 days));
+        yzilp.setMinDistributionPeriod(7 days + 1);
+        vm.stopPrank();
+    }
+
+    function test_SetMinDistributionPeriod_Revert_NotPriceGuardManager() public {
+        vm.prank(poolManager);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, poolManager, PRICE_GUARD_MANAGER_ROLE
+            )
+        );
+        yzilp.setMinDistributionPeriod(2 days);
     }
 }

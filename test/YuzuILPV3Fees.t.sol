@@ -178,7 +178,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         _setupPool();
 
         vm.prank(admin);
-        yzilp.distribute(1, 2);
+        yzilp.distribute(1, 1 days);
         vm.warp(block.timestamp + 1);
 
         assertEq(yzilp.totalAssets(), 1000e6);
@@ -778,19 +778,19 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
 
         uint256 start = block.timestamp;
         vm.prank(admin);
-        yzilp.distribute(100e6, 10 hours);
+        yzilp.distribute(100e6, 5 days);
 
-        vm.warp(start + 1 hours); // 1/10 vested
-        assertEq(yzilp.totalAssets(), 1010e6);
+        vm.warp(start + 1 days); // 1/5 vested
+        assertEq(yzilp.totalAssets(), 1020e6);
 
         vm.expectEmit(false, false, false, true, address(yzilp));
-        emit TerminatedDistribution(90e6);
+        emit TerminatedDistribution(80e6);
         vm.prank(admin);
         yzilp.terminateDistribution();
 
-        assertEq(yzilp.totalAssets(), 1010e6);
-        vm.warp(start + 100 hours);
-        assertEq(yzilp.totalAssets(), 1010e6, "totalAssets kept rising after termination");
+        assertEq(yzilp.totalAssets(), 1020e6);
+        vm.warp(start + 100 days);
+        assertEq(yzilp.totalAssets(), 1020e6, "totalAssets kept rising after termination");
     }
 
     function test_TerminateDistribution_Revert_NotPoolManager() public {

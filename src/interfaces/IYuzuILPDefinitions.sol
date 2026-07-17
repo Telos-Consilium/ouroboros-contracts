@@ -17,6 +17,7 @@ interface IYuzuILPV2Definitions {
 
     event Distributed(uint256 assets, uint256 period);
     event TerminatedDistribution(uint256 undistributed);
+    event UpdatedMinDistributionPeriod(uint256 oldPeriod, uint256 newPeriod);
 }
 
 interface IYuzuILPV3Definitions {

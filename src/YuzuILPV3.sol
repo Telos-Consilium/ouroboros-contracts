@@ -13,11 +13,17 @@ import {
     FEE_MANAGER_ROLE,
     MAX_MANAGEMENT_FEE_PPM,
     MAX_PERFORMANCE_FEE_PPM,
+    PRICE_GUARD_MANAGER_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
-import {YuzuILPFeesV3Storage, YuzuMinAmountsV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
+import {
+    YuzuILPDistributionV3Storage,
+    YuzuILPFeesV3Storage,
+    YuzuMinAmountsV3Storage,
+    YuzuThrottleV3Storage
+} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuILPV3
@@ -90,11 +96,13 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         __EIP712_init(name(), "2");
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         YuzuThrottleV3Storage.Layout storage $ = YuzuThrottleV3Storage.layout();
         $._mintThrottle.blockLimit = type(uint256).max;
         $._mintThrottle.dailyLimit = type(uint256).max;
         $._redeemThrottle.blockLimit = type(uint256).max;
         $._redeemThrottle.dailyLimit = type(uint256).max;
+        YuzuILPDistributionV3Storage.layout()._minDistributionPeriod = 1 days;
     }
 
     // Disabled entrypoints
@@ -240,9 +248,18 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    function setMinDistributionPeriod(uint256) external virtual {
+        _delegateToFacet();
+    }
+
     // Native views
     function minDeposit() public view returns (uint256) {
         return YuzuMinAmountsV3Storage.layout()._minDeposit;
+    }
+
+    /// @notice Minimum permitted period for a new distribution
+    function minDistributionPeriod() public view returns (uint256) {
+        return YuzuILPDistributionV3Storage.layout()._minDistributionPeriod;
     }
 
     function getMintThrottle() external view returns (Throttle memory) {

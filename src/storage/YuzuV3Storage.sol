@@ -99,3 +99,19 @@ library YuzuILPFeesV3Storage {
         }
     }
 }
+
+library YuzuILPDistributionV3Storage {
+    struct Layout {
+        uint256 _minDistributionPeriod;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpdistribution")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 internal constant LOCATION = 0xccc7fd06b5788e0db3793892bce643728729c9af953b19ee368f760a9969e900;
+
+    function layout() internal pure returns (Layout storage $) {
+        // slither-disable-next-line assembly
+        assembly {
+            $.slot := LOCATION
+        }
+    }
+}
