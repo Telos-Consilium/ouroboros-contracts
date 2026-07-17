@@ -12,6 +12,7 @@ import {YuzuV3FacetBase} from "./YuzuV3FacetBase.sol";
 import {IYuzuILPDefinitions, IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {
     BURNER_ROLE,
+    DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     MAX_MANAGEMENT_FEE_PPM,
@@ -221,7 +222,7 @@ contract YuzuILPV3Facet is
 
     /// @notice Initiate a gradual increase in total assets.
     function distribute(uint256 assets, uint256 period) public {
-        _checkRole(POOL_MANAGER_ROLE);
+        _checkRole(DISTRIBUTOR_ROLE);
         uint256 minPeriod = YuzuILPDistributionV3Storage.layout()._minDistributionPeriod;
         if (period < minPeriod) {
             revert DistributionPeriodTooLow(period, minPeriod);
@@ -251,7 +252,7 @@ contract YuzuILPV3Facet is
 
     /// @notice Terminate an in-progress distribution.
     function terminateDistribution() external {
-        _checkRole(POOL_MANAGER_ROLE);
+        _checkRole(DISTRIBUTOR_ROLE);
         uint256 elapsedTime = block.timestamp - _lastDistributionTimestamp();
         if (_lastDistributionTimestamp() == 0 || elapsedTime >= _lastDistributionPeriod()) {
             revert NoDistributionInProgress();

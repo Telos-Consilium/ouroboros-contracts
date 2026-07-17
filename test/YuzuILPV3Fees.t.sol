@@ -9,6 +9,7 @@ import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinit
 import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {
     ADMIN_ROLE,
+    DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
@@ -151,8 +152,10 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     // --- management fee ---
 
     function _setupPool() internal {
-        vm.prank(admin);
+        vm.startPrank(admin);
         yzilp.grantRole(POOL_MANAGER_ROLE, admin);
+        yzilp.grantRole(DISTRIBUTOR_ROLE, admin);
+        vm.stopPrank();
         _setupIlpPool(1000e6);
     }
 
@@ -793,14 +796,14 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         assertEq(yzilp.totalAssets(), 1020e6, "totalAssets kept rising after termination");
     }
 
-    function test_TerminateDistribution_Revert_NotPoolManager() public {
+    function test_TerminateDistribution_Revert_NotDistributor() public {
         _setupPool();
         vm.prank(admin);
         yzilp.distribute(50e6, 1 days);
 
         vm.prank(user);
         vm.expectRevert(
-            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, POOL_MANAGER_ROLE)
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, DISTRIBUTOR_ROLE)
         );
         yzilp.terminateDistribution();
     }

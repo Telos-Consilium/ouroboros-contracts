@@ -10,6 +10,7 @@ import {IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
 import {IYuzuILPV3FacetPricing, IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {
+    DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
     MAX_MANAGEMENT_FEE_PPM,
     MAX_PERFORMANCE_FEE_PPM,
@@ -97,6 +98,7 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _setRoleAdmin(THROTTLE_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(DISTRIBUTOR_ROLE, ADMIN_ROLE);
         YuzuThrottleV3Storage.Layout storage $ = YuzuThrottleV3Storage.layout();
         $._mintThrottle.blockLimit = type(uint256).max;
         $._mintThrottle.dailyLimit = type(uint256).max;

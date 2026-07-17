@@ -7,7 +7,7 @@ import {
     IYuzuILPV2Definitions,
     IYuzuILPV3Definitions
 } from "../src/interfaces/IYuzuILPDefinitions.sol";
-import {POOL_MANAGER_ROLE, PRICE_GUARD_MANAGER_ROLE} from "./helpers/TestRoles.sol";
+import {DISTRIBUTOR_ROLE, POOL_MANAGER_ROLE, PRICE_GUARD_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3PriceGuardTest is
@@ -26,6 +26,7 @@ contract YuzuILPV3PriceGuardTest is
 
         vm.startPrank(admin);
         yzilp.grantRole(POOL_MANAGER_ROLE, poolManager);
+        yzilp.grantRole(DISTRIBUTOR_ROLE, poolManager);
         yzilp.setIsMintRestricted(false);
         yzilp.setIsRedeemRestricted(false);
         vm.stopPrank();
@@ -154,6 +155,34 @@ contract YuzuILPV3PriceGuardTest is
     function test_UnboundedDistribute_StillCallable() public {
         _seedPool();
         vm.prank(poolManager);
+        yzilp.distribute(10e6, 1 days);
+        assertEq(yzilp.lastDistributedAmount(), 10e6);
+    }
+
+    // --- distribute / updatePool role separation ---
+
+    function test_Distribute_Revert_PoolManagerWithoutDistributor() public {
+        // POOL_MANAGER governs updatePool, not distribution; distributing requires DISTRIBUTOR_ROLE.
+        address poolOnly = makeAddr("poolOnly");
+        vm.prank(admin);
+        yzilp.grantRole(POOL_MANAGER_ROLE, poolOnly);
+
+        _seedPool();
+        vm.prank(poolOnly);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, poolOnly, DISTRIBUTOR_ROLE)
+        );
+        yzilp.distribute(10e6, 1 days);
+    }
+
+    function test_Distribute_DistributorWithoutPoolManager() public {
+        // DISTRIBUTOR_ROLE alone authorizes distribution.
+        address distributorOnly = makeAddr("distributorOnly");
+        vm.prank(admin);
+        yzilp.grantRole(DISTRIBUTOR_ROLE, distributorOnly);
+
+        _seedPool();
+        vm.prank(distributorOnly);
         yzilp.distribute(10e6, 1 days);
         assertEq(yzilp.lastDistributedAmount(), 10e6);
     }

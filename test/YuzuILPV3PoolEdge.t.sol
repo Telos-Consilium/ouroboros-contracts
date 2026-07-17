@@ -5,7 +5,13 @@ import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinit
 import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
-import {BURNER_ROLE, FEE_MANAGER_ROLE, ORDER_FILLER_ROLE, POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
+import {
+    BURNER_ROLE,
+    DISTRIBUTOR_ROLE,
+    FEE_MANAGER_ROLE,
+    ORDER_FILLER_ROLE,
+    POOL_MANAGER_ROLE
+} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3PoolEdgeTest is
@@ -24,6 +30,7 @@ contract YuzuILPV3PoolEdgeTest is
         vm.startPrank(admin);
         yzilp.grantRole(FEE_MANAGER_ROLE, feeManager);
         yzilp.grantRole(POOL_MANAGER_ROLE, admin);
+        yzilp.grantRole(DISTRIBUTOR_ROLE, admin);
         yzilp.setIsMintRestricted(false);
         yzilp.setIsRedeemRestricted(false);
         vm.stopPrank();

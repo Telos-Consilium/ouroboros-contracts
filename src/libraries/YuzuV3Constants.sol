@@ -5,6 +5,7 @@ pragma solidity ^0.8.30;
 bytes32 constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 bytes32 constant BURNER_ROLE = keccak256("BURNER_ROLE");
 bytes32 constant DELAY_EXEMPT_ROLE = keccak256("DELAY_EXEMPT_ROLE");
+bytes32 constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
 bytes32 constant FEE_MANAGER_ROLE = keccak256("FEE_MANAGER_ROLE");
 bytes32 constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
 bytes32 constant MARKDOWN_STEP_EXEMPT_ROLE = keccak256("MARKDOWN_STEP_EXEMPT_ROLE");
