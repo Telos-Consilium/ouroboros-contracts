@@ -342,11 +342,12 @@ contract YuzuILPV3PoolEdgeTest is
         yzilp.deposit(100e6, user);
     }
 
-    // --- retroactive management fee on a deposit into an empty pool ---
+    // --- management fee on a deposit into an empty pool ---
 
-    // A deposit into an empty pool is credited without a management-fee gross-up, so once it
-    // lands in poolSize the fee formula charges it for the whole period since the last update,
-    // including time before the deposit existed. Seeding before the rate goes live avoids it.
+    // A deposit into an empty pool is credited in last-update pool units, so the management fee
+    // that the enlarged poolSize then accrues for the whole period since that update is already
+    // priced into the credit. At deposit time the shares are worth what was paid, whether the rate
+    // went live before or after the seed.
     function test_Bootstrap_SeedBeforeActivation_DepositIsFeeNeutral() public {
         vm.prank(feeManager);
         yzilp.setPendingManagementFee(100_000);
@@ -365,7 +366,7 @@ contract YuzuILPV3PoolEdgeTest is
         assertEq(yzilp.totalAssets(), 1000e6);
     }
 
-    function test_Bootstrap_ActivateBeforeSeed_FirstDepositBearsRetroactiveFee() public {
+    function test_Bootstrap_ActivateBeforeSeed_CreditCarriesFeePremium() public {
         vm.prank(feeManager);
         yzilp.setPendingManagementFee(100_000);
 
@@ -382,9 +383,83 @@ contract YuzuILPV3PoolEdgeTest is
         uint256 shares = yzilp.deposit(1000e6, user);
         assertEq(shares, 1000e18);
 
-        // A year of retroactive fee accrual lands on the deposit the moment it is credited
-        assertEq(yzilp.totalAssets(), 900e6);
-        assertEq(yzilp.convertToAssets(shares), 900e6);
+        // The credit carries the premium for a year of fee accrual, so at deposit time the fee
+        // does not reach the deposit
+        assertApproxEqAbs(yzilp.totalAssets(), 1000e6, 1);
+        assertApproxEqAbs(yzilp.convertToAssets(shares), 1000e6, 1);
+        assertEq(yzilp.poolSize(), 1_111_111_111);
+    }
+
+    // --- deposit pricing on a near-empty pool with an armed yield rate ---
+
+    // The credit divides the deposit by the accrual a pool unit carries over the elapsed period.
+    // That accrual is derived from the yield and management rates, so it holds even when the pool
+    // is small enough for its own accrued yield to floor to zero, and the deposit earns no yield
+    // for the period before it entered.
+    function test_Deposit_DustPoolWithArmedYield_CreatesNoValue() public {
+        vm.prank(user);
+        yzilp.deposit(1000, user);
+        _promoteIlpFees(10_000); // 1% per day, the protocol maximum
+
+        // Just under a tenth of a day: the dust pool's own accrued yield floors to zero
+        vm.warp(block.timestamp + 8639);
+        assertEq(yzilp.totalAssets(), 1000);
+
+        vm.prank(other);
+        uint256 shares = yzilp.deposit(1_000_000e6, other);
+
+        assertLe(yzilp.convertToAssets(shares), 1_000_000e6, "deposit created value against a dust pool");
+        assertApproxEqAbs(yzilp.convertToAssets(shares), 1_000_000e6, 1, "deposit lost material value");
+    }
+
+    // The pricing holds however long the pool is left near zero before the deposit arrives.
+    function test_Deposit_DustPoolLeftStaleForDays_CreatesNoValue() public {
+        vm.prank(user);
+        yzilp.deposit(10, user);
+        _promoteIlpFees(10_000);
+
+        vm.warp(block.timestamp + 7 days);
+        assertEq(yzilp.totalAssets(), 10);
+
+        vm.prank(other);
+        uint256 shares = yzilp.deposit(1_000_000e6, other);
+
+        assertLe(yzilp.convertToAssets(shares), 1_000_000e6, "deposit created value against a stale dust pool");
+        assertApproxEqAbs(yzilp.convertToAssets(shares), 1_000_000e6, 1, "deposit lost material value");
+    }
+
+    // --- deposit pricing when the pool is zero under a live management fee ---
+
+    // With poolSize zero the credit still carries the management premium: the units it adds begin
+    // accruing the fee for the whole period since the last update the moment they land.
+    function test_Deposit_PoolZeroUnderManagementFee_MintsAtUnchangedSharePrice() public {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10% per year, the protocol maximum
+        _promoteIlpFees(0);
+        _reportIlpPool(0); // the pool is marked to zero against live supply
+
+        vm.prank(admin);
+        yzilp.distribute(500e6, 7 days);
+        vm.warp(block.timestamp + 365 days);
+
+        assertEq(yzilp.poolSize(), 0);
+        assertEq(yzilp.totalAssets(), 500e6);
+        uint256 priceBefore = yzilp.convertToAssets(1e18);
+        uint256 holderValueBefore = yzilp.convertToAssets(yzilp.balanceOf(user));
+
+        vm.prank(other);
+        uint256 shares = yzilp.deposit(500e6, other);
+
+        assertEq(yzilp.poolSize(), 555_555_555, "credit omitted the management premium");
+        assertApproxEqAbs(yzilp.totalAssets(), 1000e6, 1, "management fee charged retroactively");
+        assertApproxEqAbs(yzilp.convertToAssets(1e18), priceBefore, 1, "share price moved");
+        assertApproxEqAbs(yzilp.convertToAssets(shares), 500e6, 1, "depositor lost value");
+        assertApproxEqAbs(
+            yzilp.convertToAssets(yzilp.balanceOf(user)), holderValueBefore, 1, "existing holder lost value"
+        );
     }
 
     // --- order filled across a pool update ---
