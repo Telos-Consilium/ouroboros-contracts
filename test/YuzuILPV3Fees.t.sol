@@ -171,6 +171,11 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         return Math.mulDiv(poolSize * yzilp.managementFeeRatePpm(), elapsed, 1e6 * 365 days, Math.Rounding.Ceil);
     }
 
+    // The performance benchmark is seeded at par by initialization, ahead of any pool update.
+    function test_HighWaterMark_StartsAtPar() public view {
+        assertEq(yzilp.highWaterMark(), 1e6);
+    }
+
     function test_ManagementFee_DefaultsToZero() public view {
         assertEq(yzilp.managementFeeRatePpm(), 0);
         assertEq(yzilp.pendingManagementFeeRatePpm(), 0);

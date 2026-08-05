@@ -861,4 +861,32 @@ contract YuzuILPV3PoolEdgeTest is
 
         assertEq(yzilp.cumulativeManagementFees(), 150e6, "shortfall carried into the next period");
     }
+
+    // --- performance benchmark floor ---
+
+    // A near-total loss marked before any benchmark-raising update cannot pull the benchmark
+    // to the wrecked price: it is seeded at par, so the surviving value and the recovery back
+    // to par bear no performance fee, and fee resumes only above par.
+    function test_PerformanceFee_WreckBeforeFirstUpdate_RecoveryToParIsFeeFree() public {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+        vm.prank(feeManager);
+        yzilp.setPendingPerformanceFee(200_000); // 20%
+
+        // The first update is the wreck; it also promotes the pending rate to live
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(1000e6, 100, 0);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+        assertEq(yzilp.highWaterMark(), 1e6, "wreck displaced the seeded benchmark");
+
+        _reportIlpPool(1000e6); // recovery to par
+        assertEq(yzilp.cumulativePerformanceFees(), 0, "recovery to par charged performance fee");
+        assertEq(yzilp.highWaterMark(), 1e6);
+
+        _reportIlpPool(1100e6); // the first genuine gain above par
+        assertEq(yzilp.cumulativePerformanceFees(), 20e6, "fee is not 20% of the gain above par");
+        assertEq(yzilp.highWaterMark(), 1_100_000);
+    }
 }

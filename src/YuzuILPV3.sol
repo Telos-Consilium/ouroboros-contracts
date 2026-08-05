@@ -53,6 +53,8 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         __YuzuILPV3_init_unchained();
         _applyConfig(config);
+        // The zero-supply deposit path mints at par, so the performance benchmark starts there.
+        YuzuILPFeesV3Storage.layout()._highWaterMark = 10 ** decimals() / 10 ** _decimalsOffset();
     }
 
     function _applyConfig(ConfigParams calldata config) internal {
@@ -89,6 +91,16 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     function reinitialize() external override reinitializer(3) {
         if (_asset == address(0)) revert NotMigrating();
         __YuzuILPV3_init_unchained();
+        // V3 performance fees begin at the migration price; V2 carries no benchmark to import.
+        // Ceil rounding and the floor of one keep the benchmark positive for any live supply.
+        // With no supply the next mint prices at par, the same benchmark a fresh vault starts with.
+        uint256 supply = totalSupply();
+        if (supply > 0) {
+            uint256 price = Math.mulDiv(totalAssets(), 10 ** decimals(), supply, Math.Rounding.Ceil);
+            YuzuILPFeesV3Storage.layout()._highWaterMark = price > 0 ? price : 1;
+        } else {
+            YuzuILPFeesV3Storage.layout()._highWaterMark = 10 ** decimals() / 10 ** _decimalsOffset();
+        }
     }
 
     // slither-disable-next-line pess-unprotected-initialize
