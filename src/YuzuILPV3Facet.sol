@@ -277,11 +277,14 @@ contract YuzuILPV3Facet is
     }
 
     /// @notice Distribute and revert if the projected end-of-distribution share price leaves the band.
+    /// The projection nets out the performance fee the distributed amount will bear; it excludes
+    /// management fee accruing over the vesting period and assumes supply and fee configuration do
+    /// not change before completion.
     function distribute(uint256 assets, uint256 period, uint256 minSharePrice, uint256 maxSharePrice) external {
         distribute(assets, period);
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         _checkSharePriceWithin(
-            router, _proxyTotalAssets(router, Math.Rounding.Floor) + assets, minSharePrice, maxSharePrice
+            router, _proxyTotalAssets(router, Math.Rounding.Floor, assets), minSharePrice, maxSharePrice
         );
     }
 
@@ -463,8 +466,18 @@ contract YuzuILPV3Facet is
     }
 
     function _proxyTotalAssets(IYuzuILPV3Router router, Math.Rounding rounding) private view returns (uint256) {
+        return _proxyTotalAssets(router, rounding, 0);
+    }
+
+    /// @dev Fee-net value with {addedAssets} joined to the gross total, so a projected amount runs
+    /// through the same management-net and performance-fee arithmetic as live pricing.
+    function _proxyTotalAssets(IYuzuILPV3Router router, Math.Rounding rounding, uint256 addedAssets)
+        private
+        view
+        returns (uint256)
+    {
         Math.Rounding feeRounding = Math.Rounding(1 - uint256(rounding));
-        uint256 total = _proxyGrossTotalAssets(router, rounding);
+        uint256 total = _proxyGrossTotalAssets(router, rounding) + addedAssets;
         uint256 managementFee = _proxyManagementFee(router, feeRounding);
         uint256 netOfManagementFee = managementFee >= total ? 0 : total - managementFee;
         uint256 performanceFee = _proxyPerformanceFee(router, netOfManagementFee, feeRounding);
