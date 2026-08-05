@@ -943,4 +943,87 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         vm.expectRevert(abi.encodeWithSelector(IYuzuMinAmountsDefinitions.UnderMinDeposit.selector, 110e6 - 1, 110e6));
         yzilp.deposit(110e6 - 1, user);
     }
+
+    // --- accrued fee getters ---
+
+    function _setupBothFees(uint256 yieldPpm) internal {
+        _setupPool();
+        vm.startPrank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10% per year
+        yzilp.setPendingPerformanceFee(200_000); // 20% above the benchmark
+        vm.stopPrank();
+        _promote(yieldPpm);
+    }
+
+    // Gross minus both accrued fees is the fee-net total: the getters decompose pricing exactly
+    // while no clamp binds.
+    function test_AccruedFeeGetters_DecomposeTotalAssets() public {
+        _setupBothFees(10_000); // 1% per day arms the benchmark crossing
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 100 days);
+
+        uint256 gross = yzilp.grossTotalAssets();
+        uint256 managementFee = yzilp.accruedManagementFee();
+        uint256 performanceFee = yzilp.accruedPerformanceFee();
+        assertGt(managementFee, 0, "fixture: no management accrual");
+        assertGt(performanceFee, 0, "fixture: benchmark not crossed");
+        assertEq(yzilp.totalAssets(), gross - managementFee - performanceFee, "getters do not decompose pricing");
+    }
+
+    // At a gross-neutral mark the getters report exactly what the update books.
+    function test_AccruedFeeGetters_MatchBookedAmountsAtGrossNeutralUpdate() public {
+        _setupBothFees(10_000);
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 100 days);
+
+        uint256 accruedManagement = yzilp.accruedManagementFee();
+        uint256 accruedPerformance = yzilp.accruedPerformanceFee();
+        assertGt(accruedPerformance, 0, "fixture: benchmark not crossed");
+
+        _reportPool(yzilp.grossTotalAssets());
+
+        assertEq(yzilp.cumulativeManagementFees(), accruedManagement, "management booking diverges from getter");
+        assertEq(yzilp.cumulativePerformanceFees(), accruedPerformance, "performance booking diverges from getter");
+    }
+
+    // Freshly updated and empty states accrue nothing; below the benchmark the performance
+    // getter reads zero while the management getter accrues.
+    function test_AccruedFeeGetters_ZeroOnFreshEmptyAndBelowBenchmarkStates() public {
+        _setupBothFees(0);
+
+        assertEq(yzilp.grossTotalAssets(), 1000e6);
+        assertEq(yzilp.accruedManagementFee(), 0);
+        assertEq(yzilp.accruedPerformanceFee(), 0);
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 365 days);
+        assertEq(yzilp.accruedManagementFee(), 100e6);
+        assertEq(yzilp.accruedPerformanceFee(), 0, "performance accrued below the benchmark");
+
+        // The mark realizes exactly the accrued fee, leaving an empty pool that accrues nothing
+        _reportPool(100e6);
+        assertEq(yzilp.grossTotalAssets(), 0);
+        vm.warp(start + 730 days);
+        assertEq(yzilp.accruedManagementFee(), 0);
+        assertEq(yzilp.accruedPerformanceFee(), 0);
+    }
+
+    // A dust pool consumed by its accrued fee reads as clamped: the fee getter covers the pool
+    // and pricing floors at zero.
+    function test_AccruedFeeGetters_DustPoolClampsPricingToZero() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000);
+        _promote(0);
+        _reportPool(1);
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 365 days);
+
+        assertEq(yzilp.grossTotalAssets(), 1);
+        assertEq(yzilp.accruedManagementFee(), 1);
+        assertEq(yzilp.totalAssets(), 0, "fee-consumed dust pool priced above zero");
+    }
 }

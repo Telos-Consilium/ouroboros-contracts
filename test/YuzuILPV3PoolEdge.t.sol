@@ -12,6 +12,8 @@ import {
     ORDER_FILLER_ROLE,
     POOL_MANAGER_ROLE
 } from "./helpers/TestRoles.sol";
+import {Vm} from "forge-std/Vm.sol";
+
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 contract YuzuILPV3PoolEdgeTest is
@@ -731,33 +733,132 @@ contract YuzuILPV3PoolEdgeTest is
 
     // --- cumulative fee counters ---
 
-    // The counters record the accrued formula amount at each update. In a loss mark below the
-    // accrued fee, the net pool floors at zero and the counter still books the full accrual,
-    // exceeding the value the haircut captured from holders.
-    function test_CumulativeManagementFees_DeepLossMark_BooksFormulaAmount() public {
+    function _seedPoolWithLiveFee() internal returns (uint256 start) {
         vm.prank(user);
         yzilp.deposit(1000e6, user);
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10% per year
+        _promoteIlpFees(0);
+        start = yzilp.lastPoolUpdateTimestamp();
+    }
+
+    function _assertNoShortfallLogged() internal {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != ManagementFeeShortfall.selector, "shortfall signalled on a covered fee");
+        }
+    }
+
+    // The counters record realized amounts. A loss mark below the accrued fee books only the
+    // reported value, floors the net pool at zero, and signals the unrealized remainder.
+    function test_CumulativeManagementFees_DeepLossMark_BooksOnlyRealized() public {
+        uint256 start = _seedPoolWithLiveFee();
+        vm.warp(start + 365 days); // 100e6 accrued
+
         vm.startPrank(admin);
         yzilp.startPoolUpdate();
-        yzilp.updatePool(1000e6, 1000e6, 0);
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit RealizedManagementFee(50e6, 50e6);
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit ManagementFeeShortfall(100e6, 50e6, 0);
+        yzilp.updatePool(1000e6, 50e6, 0); // marked below the accrued fee
         yzilp.endPoolUpdate();
         vm.stopPrank();
 
-        vm.prank(feeManager);
-        yzilp.setPendingManagementFee(100_000);
-        _promoteIlpFees(0);
-
-        vm.warp(block.timestamp + 365 days); // 100e6 accrued
-
-        _reportIlpPool(50e6); // marked below the accrued fee
-
-        assertEq(yzilp.cumulativeManagementFees(), 100e6);
+        assertEq(yzilp.cumulativeManagementFees(), 50e6, "booked more than the mark could realize");
         assertEq(yzilp.poolSize(), 0);
         assertEq(yzilp.totalAssets(), 0);
 
         // A further update with nothing accrued leaves the counters unchanged
         _reportIlpPool(0);
-        assertEq(yzilp.cumulativeManagementFees(), 100e6);
+        assertEq(yzilp.cumulativeManagementFees(), 50e6);
         assertEq(yzilp.cumulativePerformanceFees(), 0);
+    }
+
+    // Accrued fee within the reported value books in full and signals nothing.
+    function test_UpdatePool_AccruedFeeBelowMark_BooksAccruedWithoutShortfall() public {
+        uint256 start = _seedPoolWithLiveFee();
+        vm.warp(start + 365 days); // 100e6 accrued
+
+        vm.recordLogs();
+        _reportIlpPool(150e6);
+
+        assertEq(yzilp.cumulativeManagementFees(), 100e6);
+        assertEq(yzilp.poolSize(), 50e6);
+        _assertNoShortfallLogged();
+    }
+
+    // Accrued fee exactly at the reported value realizes completely, so nothing is signalled.
+    function test_UpdatePool_AccruedFeeAtMark_BooksAllWithoutShortfall() public {
+        uint256 start = _seedPoolWithLiveFee();
+        vm.warp(start + 365 days);
+
+        vm.recordLogs();
+        _reportIlpPool(100e6);
+
+        assertEq(yzilp.cumulativeManagementFees(), 100e6);
+        assertEq(yzilp.poolSize(), 0);
+        assertEq(yzilp.totalAssets(), 0);
+        _assertNoShortfallLogged();
+    }
+
+    // One unit below the accrued fee realizes all but that unit.
+    function test_UpdatePool_AccruedFeeJustAboveMark_SignalsOneUnitShortfall() public {
+        uint256 start = _seedPoolWithLiveFee();
+        vm.warp(start + 365 days);
+
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit ManagementFeeShortfall(100e6, 100e6 - 1, 0);
+        yzilp.updatePool(1000e6, 100e6 - 1, 0);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+
+        assertEq(yzilp.cumulativeManagementFees(), 100e6 - 1);
+        assertEq(yzilp.poolSize(), 0);
+    }
+
+    // A shortfall leaves nothing above the benchmark: no performance fee books and the
+    // high-water mark holds.
+    function test_UpdatePool_ShortfallWithActivePerformanceFee_BooksNoPerfAndKeepsHWM() public {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+        vm.startPrank(feeManager);
+        yzilp.setPendingManagementFee(100_000);
+        yzilp.setPendingPerformanceFee(200_000);
+        vm.stopPrank();
+        _promoteIlpFees(0);
+        uint256 hwmBefore = yzilp.highWaterMark();
+        assertGt(hwmBefore, 0, "fixture: no benchmark to hold");
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 365 days);
+        _reportIlpPool(50e6);
+
+        assertEq(yzilp.cumulativeManagementFees(), 50e6);
+        assertEq(yzilp.cumulativePerformanceFees(), 0);
+        assertEq(yzilp.highWaterMark(), hwmBefore, "loss mark moved the benchmark");
+    }
+
+    // The unrealized remainder is not a debt: after recapitalization the next period books only
+    // its own accrual.
+    function test_UpdatePool_ShortfallNotCarried_NextPeriodBooksOwnAccrual() public {
+        uint256 start = _seedPoolWithLiveFee();
+        vm.warp(start + 365 days);
+        _reportIlpPool(50e6); // accrued 100e6, realized 50e6
+        assertEq(yzilp.cumulativeManagementFees(), 50e6);
+
+        vm.startPrank(admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(0, 1000e6, 0);
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+
+        uint256 start2 = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start2 + 365 days);
+        _reportIlpPool(1000e6);
+
+        assertEq(yzilp.cumulativeManagementFees(), 150e6, "shortfall carried into the next period");
     }
 }

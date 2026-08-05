@@ -178,6 +178,26 @@ contract YuzuILPV3Facet is
         return _proxyTotalAssets(IYuzuILPV3Router(msg.sender), Math.Rounding(rounding));
     }
 
+    /// @dev Floor rounded, matching the pricing path.
+    function grossTotalAssets() external view returns (uint256) {
+        return _proxyGrossTotalAssets(IYuzuILPV3Router(msg.sender), Math.Rounding.Floor);
+    }
+
+    /// @dev Ceil rounded, matching what the next update books before capping to the reported pool.
+    function accruedManagementFee() external view returns (uint256) {
+        return _proxyManagementFee(IYuzuILPV3Router(msg.sender), Math.Rounding.Ceil);
+    }
+
+    /// @dev Ceil rounded, on the current fee-net-of-management value. The next update realizes
+    /// against the reported pool instead, so this is the live estimate.
+    function accruedPerformanceFee() external view returns (uint256) {
+        IYuzuILPV3Router router = IYuzuILPV3Router(msg.sender);
+        uint256 managementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
+        uint256 gross = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
+        uint256 netOfManagementFee = gross > managementFee ? gross - managementFee : 0;
+        return _proxyPerformanceFee(router, netOfManagementFee, Math.Rounding.Ceil);
+    }
+
     // Pool operations
     /// @dev Applies V3 fees, then runs the V2 pool-update state transition on the net pool.
     function updatePool(uint256 currentPoolSize, uint256 newPoolSize, uint256 newDailyLinearYieldRatePpm) public {
@@ -188,8 +208,9 @@ contract YuzuILPV3Facet is
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
 
-        uint256 managementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
-        uint256 netOfManagementFee = newPoolSize > managementFee ? newPoolSize - managementFee : 0;
+        uint256 accruedManagementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
+        uint256 managementFee = Math.min(accruedManagementFee, newPoolSize);
+        uint256 netOfManagementFee = newPoolSize - managementFee;
         uint256 performanceFee = _proxyPerformanceFee(router, netOfManagementFee, Math.Rounding.Ceil);
         uint256 netPool = netOfManagementFee > performanceFee ? netOfManagementFee - performanceFee : 0;
 
@@ -197,6 +218,9 @@ contract YuzuILPV3Facet is
             uint256 cumulative = $._cumulativeManagementFees + managementFee;
             $._cumulativeManagementFees = cumulative;
             emit RealizedManagementFee(managementFee, cumulative);
+        }
+        if (managementFee < accruedManagementFee) {
+            emit ManagementFeeShortfall(accruedManagementFee, managementFee, netPool);
         }
         if (performanceFee > 0) {
             uint256 cumulative = $._cumulativePerformanceFees + performanceFee;
@@ -615,7 +639,8 @@ contract YuzuILPV3Facet is
 
     /// @dev True when entry stays closed until the next pool update: accrued management fee has
     /// reached the pool bucket plus its yield, or accrued fees leave no fee-net value to price the
-    /// deposit against.
+    /// deposit against. The closure protects a depositor from entering a state where the next
+    /// update would realize the standing fee claim against value the deposit itself supplied.
     function _isPoolFeeEroded(IYuzuILPV3Router router) private view returns (bool) {
         uint256 pool = router.poolSize();
         if (pool > 0 && pool + _proxyYieldSinceUpdate(router, Math.Rounding.Floor) <= _proxyManagementFee(router, Math.Rounding.Ceil)) {

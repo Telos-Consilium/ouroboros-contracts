@@ -146,6 +146,23 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _staticcallFacet();
     }
 
+    // Facet routes: fee observability
+    /// @notice Total assets before V3 fee accrual: pool with linear yield plus net distributions
+    function grossTotalAssets() external view returns (uint256) {
+        _staticcallFacet();
+    }
+
+    /// @notice Management fee accrued since the last pool update and not yet booked
+    function accruedManagementFee() external view returns (uint256) {
+        _staticcallFacet();
+    }
+
+    /// @notice Performance fee accrued above the benchmark and not yet booked. A live estimate on
+    /// the current gross value; the next update realizes against the reported pool instead
+    function accruedPerformanceFee() external view returns (uint256) {
+        _staticcallFacet();
+    }
+
     // Facet routes: order lifecycle
     /// @dev Routed so the quote and the fill settlement derive from the facet's single valuation.
     function previewRedeemOrder(uint256) public view virtual override returns (uint256) {
