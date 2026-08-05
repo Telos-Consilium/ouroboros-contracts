@@ -127,6 +127,7 @@ contract YuzuV3UpgradeTest is UpgradeTestBase {
         assertEq(throttle.blockLimit, 100e6, "block limit");
         assertEq(throttle.dailyLimit, 1_000e6, "daily limit");
         assertEq(v3.highWaterMark(), 1e6, "empty vault seeds the par benchmark");
+        assertEq(v3.maxDistributionPpm(), type(uint256).max, "distribution cap starts disabled");
     }
 
     // Deploys a V1 vault, funds it at par, upgrades to V2 and marks the pool.

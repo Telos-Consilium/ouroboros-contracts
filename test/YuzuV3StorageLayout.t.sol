@@ -237,4 +237,12 @@ contract YuzuV3IlpFeesLayoutTest is YuzuV3TestBase {
         assertEq(yzilp.cumulativePerformanceFees(), 8, "_cumulativePerformanceFees at base + 7");
         assertEq(yzilp.creditSecondsSinceUpdate(), 9, "_creditSecondsSinceUpdate at base + 8");
     }
+
+    function test_IlpDistributionLayout_FieldOffsets() public {
+        bytes32 base = YuzuILPDistributionV3Storage.LOCATION;
+        vm.store(address(yzilp), base, bytes32(uint256(11)));
+        vm.store(address(yzilp), bytes32(uint256(base) + 1), bytes32(uint256(22)));
+        assertEq(yzilp.minDistributionPeriod(), 11, "_minDistributionPeriod at base");
+        assertEq(yzilp.maxDistributionPpm(), 22, "_maxDistributionPpm at base + 1");
+    }
 }

@@ -51,6 +51,7 @@ interface IYuzuILPV3Definitions {
     error NotMigrating();
     error PoolFeeEroded();
     error InitializationDisabled();
+    error DistributionAmountTooHigh(uint256 provided, uint256 max);
 
     event UpdatedMintFee(uint256 oldFee, uint256 newFee);
     event UpdatedPendingManagementFee(uint256 oldRatePpm, uint256 newRatePpm);
@@ -60,4 +61,5 @@ interface IYuzuILPV3Definitions {
     event ManagementFeeShortfall(uint256 accrued, uint256 realized, uint256 netPool);
     event UpdatedPendingPerformanceFee(uint256 oldRatePpm, uint256 newRatePpm);
     event RealizedPerformanceFee(uint256 assets, uint256 cumulative);
+    event UpdatedMaxDistributionPpm(uint256 oldMaxPpm, uint256 newMaxPpm);
 }

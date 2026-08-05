@@ -252,6 +252,84 @@ contract YuzuILPV3PriceGuardTest is
         assertEq(yzilp.totalAssets(), expectedNet, "realized end value diverged from the projection");
     }
 
+    // --- distribution magnitude cap ---
+
+    function _setMaxDistributionPpm(uint256 ppm) internal {
+        vm.startPrank(admin);
+        yzilp.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
+        yzilp.setMaxDistributionPpm(ppm);
+        vm.stopPrank();
+    }
+
+    function test_MaxDistributionPpm_DefaultDisabled() public view {
+        assertEq(yzilp.maxDistributionPpm(), type(uint256).max);
+    }
+
+    function test_SetMaxDistributionPpm_UpdatesAndEmits() public {
+        vm.startPrank(admin);
+        yzilp.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
+        vm.expectEmit(false, false, false, true, address(yzilp));
+        emit UpdatedMaxDistributionPpm(type(uint256).max, 50_000);
+        yzilp.setMaxDistributionPpm(50_000);
+        vm.stopPrank();
+        assertEq(yzilp.maxDistributionPpm(), 50_000);
+    }
+
+    function test_SetMaxDistributionPpm_Revert_NotPriceGuardManager() public {
+        vm.prank(poolManager);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, poolManager, PRICE_GUARD_MANAGER_ROLE
+            )
+        );
+        yzilp.setMaxDistributionPpm(50_000);
+    }
+
+    // A zero cap blocks any nonzero distribution.
+    function test_Distribute_Revert_ZeroCapBlocksAll() public {
+        _seedPool();
+        _setMaxDistributionPpm(0);
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(DistributionAmountTooHigh.selector, 1, 0));
+        yzilp.distribute(1, 1 days);
+    }
+
+    // A finite cap admits exactly its ppm of current total assets and nothing more.
+    function test_Distribute_CapBoundary_AcceptsExactMax() public {
+        _seedPool(); // totalAssets 100e6
+        _setMaxDistributionPpm(50_000); // 5%
+        vm.prank(poolManager);
+        yzilp.distribute(5e6, 1 days);
+        assertEq(yzilp.lastDistributedAmount(), 5e6);
+    }
+
+    function test_Distribute_Revert_OneAboveCap() public {
+        _seedPool();
+        _setMaxDistributionPpm(50_000);
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(DistributionAmountTooHigh.selector, 5e6 + 1, 5e6));
+        yzilp.distribute(5e6 + 1, 1 days);
+    }
+
+    // The cap is checked before the band, so an over-cap amount fails on the cap even when the
+    // projected price sits inside the band.
+    function test_BoundedDistribute_CapRevertPrecedesBand() public {
+        _seedPool();
+        _setMaxDistributionPpm(50_000);
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(DistributionAmountTooHigh.selector, 10e6, 5e6));
+        yzilp.distribute(10e6, 1 days, MIN_PRICE, MAX_PRICE);
+    }
+
+    // A within-cap amount still has to satisfy the band.
+    function test_BoundedDistribute_WithinCapStillBandChecked() public {
+        _seedPool();
+        _setMaxDistributionPpm(200_000); // cap 20e6, well above the amount
+        vm.prank(poolManager);
+        vm.expectRevert(abi.encodeWithSelector(SharePriceTooLow.selector, 1_020_000, 1_050_000));
+        yzilp.distribute(2e6, 1 days, 1_050_000, MAX_PRICE);
+    }
+
     // --- unbounded signatures stay callable ---
 
     function test_UnboundedUpdatePool_StillCallable() public {

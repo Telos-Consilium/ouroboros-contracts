@@ -258,12 +258,20 @@ contract YuzuILPV3Facet is
     /// @notice Initiate a gradual increase in total assets.
     function distribute(uint256 assets, uint256 period) public {
         _checkRole(DISTRIBUTOR_ROLE);
-        uint256 minPeriod = YuzuILPDistributionV3Storage.layout()._minDistributionPeriod;
+        YuzuILPDistributionV3Storage.Layout storage distribution = YuzuILPDistributionV3Storage.layout();
+        uint256 minPeriod = distribution._minDistributionPeriod;
         if (period < minPeriod) {
             revert DistributionPeriodTooLow(period, minPeriod);
         }
         if (period > 7 days) {
             revert DistributionPeriodTooHigh(period, 7 days);
+        }
+        uint256 maxPpm = distribution._maxDistributionPpm;
+        if (maxPpm != type(uint256).max) {
+            uint256 maxAssets = Math.mulDiv(IYuzuILPV3Router(address(this)).totalAssets(), maxPpm, 1e6);
+            if (assets > maxAssets) {
+                revert DistributionAmountTooHigh(assets, maxAssets);
+            }
         }
         if (_isDistributionInProgress()) {
             revert DistributionInProgress();
@@ -380,6 +388,15 @@ contract YuzuILPV3Facet is
         uint256 oldPeriod = $._minDistributionPeriod;
         $._minDistributionPeriod = newPeriod;
         emit UpdatedMinDistributionPeriod(oldPeriod, newPeriod);
+    }
+
+    /// @notice Cap on a single distribution, in ppm of current total assets; type(uint256).max disables it
+    function setMaxDistributionPpm(uint256 newMaxPpm) external {
+        _checkRole(PRICE_GUARD_MANAGER_ROLE);
+        YuzuILPDistributionV3Storage.Layout storage $ = YuzuILPDistributionV3Storage.layout();
+        uint256 oldMaxPpm = $._maxDistributionPpm;
+        $._maxDistributionPpm = newMaxPpm;
+        emit UpdatedMaxDistributionPpm(oldMaxPpm, newMaxPpm);
     }
 
     // State-machine internals

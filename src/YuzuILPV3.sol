@@ -117,6 +117,8 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         $._redeemThrottle.blockLimit = type(uint256).max;
         $._redeemThrottle.dailyLimit = type(uint256).max;
         YuzuILPDistributionV3Storage.layout()._minDistributionPeriod = 1 days;
+        // max uint disables the distribution amount cap; 0 would block all distributions.
+        YuzuILPDistributionV3Storage.layout()._maxDistributionPpm = type(uint256).max;
     }
 
     // Disabled entrypoints
@@ -283,9 +285,18 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    function setMaxDistributionPpm(uint256) external virtual {
+        _delegateToFacet();
+    }
+
     // Native views
     function minDeposit() public view returns (uint256) {
         return YuzuMinAmountsV3Storage.layout()._minDeposit;
+    }
+
+    /// @notice Cap on a single distribution, in ppm of current total assets; type(uint256).max disables it
+    function maxDistributionPpm() public view returns (uint256) {
+        return YuzuILPDistributionV3Storage.layout()._maxDistributionPpm;
     }
 
     /// @notice Minimum permitted period for a new distribution

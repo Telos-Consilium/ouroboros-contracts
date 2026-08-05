@@ -104,6 +104,7 @@ library YuzuILPFeesV3Storage {
 library YuzuILPDistributionV3Storage {
     struct Layout {
         uint256 _minDistributionPeriod;
+        uint256 _maxDistributionPpm;
     }
 
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpdistribution")) - 1)) & ~bytes32(uint256(0xff))
