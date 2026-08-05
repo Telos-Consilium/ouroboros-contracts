@@ -366,7 +366,7 @@ contract YuzuILPV3PoolEdgeTest is
         assertEq(yzilp.totalAssets(), 1000e6);
     }
 
-    function test_Bootstrap_ActivateBeforeSeed_CreditCarriesFeePremium() public {
+    function test_Bootstrap_ActivateBeforeSeed_DepositIsFeeNeutral() public {
         vm.prank(feeManager);
         yzilp.setPendingManagementFee(100_000);
 
@@ -383,11 +383,11 @@ contract YuzuILPV3PoolEdgeTest is
         uint256 shares = yzilp.deposit(1000e6, user);
         assertEq(shares, 1000e18);
 
-        // The credit carries the premium for a year of fee accrual, so at deposit time the fee
-        // does not reach the deposit
+        // The credited units bear fee only from now, so the year already elapsed does not reach
+        // the deposit
         assertApproxEqAbs(yzilp.totalAssets(), 1000e6, 1);
         assertApproxEqAbs(yzilp.convertToAssets(shares), 1000e6, 1);
-        assertEq(yzilp.poolSize(), 1_111_111_111);
+        assertEq(yzilp.poolSize(), 1000e6);
     }
 
     // --- deposit pricing on a near-empty pool with an armed yield rate ---
@@ -453,13 +453,229 @@ contract YuzuILPV3PoolEdgeTest is
         vm.prank(other);
         uint256 shares = yzilp.deposit(500e6, other);
 
-        assertEq(yzilp.poolSize(), 555_555_555, "credit omitted the management premium");
+        assertEq(yzilp.poolSize(), 500e6, "credit was not the deposited value");
         assertApproxEqAbs(yzilp.totalAssets(), 1000e6, 1, "management fee charged retroactively");
         assertApproxEqAbs(yzilp.convertToAssets(1e18), priceBefore, 1, "share price moved");
         assertApproxEqAbs(yzilp.convertToAssets(shares), 500e6, 1, "depositor lost value");
         assertApproxEqAbs(
             yzilp.convertToAssets(yzilp.balanceOf(user)), holderValueBefore, 1, "existing holder lost value"
         );
+    }
+
+    // --- deposit value survives the next pool update ---
+
+    // The management fee accrues over the time each pool unit was actually in the pool, so an
+    // update that reports the assets the pool truly holds settles only the fee the pre-existing
+    // pool owed. A deposit made part-way through the period keeps its value across that update.
+    function test_Deposit_ThenTruthfulUpdate_PreservesDepositorValue() public {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10% per year
+        _promoteIlpFees(0);
+
+        vm.warp(block.timestamp + 365 days);
+        assertEq(yzilp.totalAssets(), 900e6, "seed did not accrue a year of fee");
+
+        vm.prank(other);
+        uint256 shares = yzilp.deposit(1000e6, other);
+        assertApproxEqAbs(yzilp.convertToAssets(shares), 1000e6, 1, "deposit mispriced on entry");
+
+        // The pool truly holds the 1000e6 seed plus the 1000e6 just deposited
+        _reportIlpPool(2000e6);
+
+        assertApproxEqAbs(yzilp.convertToAssets(shares), 1000e6, 1, "update charged the deposit for time before entry");
+        assertApproxEqAbs(yzilp.totalAssets(), 1900e6, 1, "update moved total assets");
+        assertEq(yzilp.cumulativeManagementFees(), 100e6, "fee booked beyond the seed's own accrual");
+    }
+
+    // The same holds when the deposit is the pool's only content, where the whole period elapsed
+    // before it arrived.
+    function test_Bootstrap_DepositThenTruthfulUpdate_ChargesNoFee() public {
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000);
+        _reportIlpPool(0); // promote the rate against an empty pool
+
+        vm.warp(block.timestamp + 365 days);
+
+        vm.prank(user);
+        uint256 shares = yzilp.deposit(1000e6, user);
+        _reportIlpPool(1000e6);
+
+        assertApproxEqAbs(yzilp.convertToAssets(shares), 1000e6, 1, "deposit bore fee accrued before entry");
+        assertEq(yzilp.cumulativeManagementFees(), 0, "fee booked against an empty pool");
+    }
+
+    // --- management fee is proportional to time spent in the pool ---
+
+    // Credited units begin accruing management fee when they land, so the fee realized at the next
+    // update covers the pre-existing pool for the whole period and the deposit only for the part of
+    // the period that followed it.
+    function _assertProRataFee(uint256 daysBeforeDeposit, uint256 expectedFee) internal {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10% per year
+        _promoteIlpFees(0);
+        assertEq(yzilp.cumulativeManagementFees(), 0, "fee booked before the rate went live");
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + daysBeforeDeposit * 1 days);
+        vm.prank(other);
+        yzilp.deposit(1000e6, other);
+
+        vm.warp(start + 365 days);
+        _reportIlpPool(2000e6);
+
+        assertEq(yzilp.cumulativeManagementFees(), expectedFee, "fee not proportional to time in the pool");
+    }
+
+    // Present for the last 80% of the year: 10% of 1000e6 for the full year plus 80% of that again
+    function test_ManagementFee_DepositEarlyInPeriod_ChargedForMostOfIt() public {
+        _assertProRataFee(73, 180e6);
+    }
+
+    // Present for the last 60%
+    function test_ManagementFee_DepositMidPeriod_ChargedForRemainder() public {
+        _assertProRataFee(146, 160e6);
+    }
+
+    // Present for the last 20%
+    function test_ManagementFee_DepositLateInPeriod_ChargedForLittle() public {
+        _assertProRataFee(292, 120e6);
+    }
+
+    // Present for none of it: only the pre-existing pool is charged
+    function test_ManagementFee_DepositAtPeriodEnd_ChargedForNone() public {
+        _assertProRataFee(365, 100e6);
+    }
+
+    // Two deposits in one period each bear fee from their own arrival, so the accumulator sums
+    // rather than tracking only the most recent credit.
+    function test_ManagementFee_TwoDepositsInOnePeriod_EachChargedFromArrival() public {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000);
+        _promoteIlpFees(0);
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+
+        vm.warp(start + 146 days); // present for the last 60% of the year
+        vm.prank(other);
+        yzilp.deposit(1000e6, other);
+
+        vm.warp(start + 292 days); // present for the last 20%
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+
+        vm.warp(start + 365 days);
+        _reportIlpPool(3000e6);
+
+        // 10% of 1000e6 for the whole year, plus 60% and 20% of 1000e6 each
+        assertEq(yzilp.cumulativeManagementFees(), 180e6, "deposits did not each accrue from arrival");
+    }
+
+    // An order fill removes a uniform fraction of every pool unit's fee claim, so the credited
+    // fee-time it carries shrinks by that same fraction. A deposit either side of the fill keeps
+    // its value, and the fill itself leaves the share price untouched.
+    function test_ManagementFee_DepositFillDepositUpdate_KeepsBasisExact() public {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000);
+        _promoteIlpFees(0);
+        vm.prank(admin);
+        yzilp.grantRole(ORDER_FILLER_ROLE, filler);
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+
+        vm.warp(start + 146 days);
+        vm.prank(other);
+        uint256 otherShares = yzilp.deposit(1000e6, other);
+
+        vm.warp(start + 219 days);
+        uint256 poolBefore = yzilp.poolSize();
+        uint256 csBefore = yzilp.creditSecondsSinceUpdate();
+        uint256 priceBefore = yzilp.convertToAssets(1e18);
+        assertGt(csBefore, 0, "no credited fee-time to scale");
+
+        vm.prank(user);
+        uint256 orderId = yzilp.createRedeemOrder(400e18, user, user);
+        asset.mint(filler, 2_000e6);
+        _approve(filler, address(yzilp));
+        vm.prank(filler);
+        yzilp.fillRedeemOrder(orderId);
+
+        assertLt(yzilp.poolSize(), poolBefore, "fill did not reduce the pool");
+        assertEq(
+            yzilp.creditSecondsSinceUpdate(),
+            csBefore * yzilp.poolSize() / poolBefore,
+            "credited fee-time did not scale with the pool"
+        );
+        assertEq(yzilp.convertToAssets(1e18), priceBefore, "fill moved the share price");
+
+        vm.warp(start + 365 days);
+        vm.prank(other);
+        yzilp.deposit(500e6, other);
+        _reportIlpPool(yzilp.poolSize());
+
+        // The seed bears a full year on the units that survived the fill; the day-146 deposit bears
+        // the 219 days that followed it; the day-365 deposit bears nothing.
+        assertEq(yzilp.cumulativeManagementFees(), 128_653_062, "fee is not the time-weighted amount");
+        assertEq(yzilp.convertToAssets(otherShares), 938_775_509, "holder bore other than its own accrual");
+    }
+
+    // The fill floors the scaled credit, so division dust shrinks the credited claim and enlarges
+    // the fee basis: the booked fee can only round up from the exact rational amount, never down
+    // in the depositor's favour. The dust is under one pool-unit-second, so an upward shift needs
+    // a fee ceiling boundary inside that span; this fixture sits off any boundary and shows the
+    // common case, a booked fee identical whichever way the credit rounds.
+    function test_ManagementFee_FillCreditFloorDust_LeavesBookedFeeUnchanged() public {
+        vm.prank(user);
+        yzilp.deposit(1000e6, user);
+
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10% per year
+        _promoteIlpFees(0);
+        vm.prank(admin);
+        yzilp.grantRole(ORDER_FILLER_ROLE, filler);
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+
+        // An odd second count and a prime-sized deposit keep the credited fee-time from sharing a
+        // factor with the pool, so the scaling below truncates.
+        vm.warp(start + 100 days + 1);
+        vm.prank(other);
+        yzilp.deposit(999_999_937, other);
+
+        vm.warp(start + 200 days);
+        uint256 poolBefore = yzilp.poolSize();
+        uint256 csBefore = yzilp.creditSecondsSinceUpdate();
+
+        vm.prank(user);
+        uint256 orderId = yzilp.createRedeemOrder(400e18, user, user);
+        asset.mint(filler, 2_000e6);
+        _approve(filler, address(yzilp));
+        vm.prank(filler);
+        yzilp.fillRedeemOrder(orderId);
+
+        uint256 poolAfter = yzilp.poolSize();
+        assertGt(csBefore * poolAfter % poolBefore, 0, "fixture: scaling divides exactly, dust untested");
+        uint256 csFloor = csBefore * poolAfter / poolBefore;
+        assertEq(yzilp.creditSecondsSinceUpdate(), csFloor, "credit did not floor");
+
+        vm.warp(start + 365 days);
+        _reportIlpPool(yzilp.poolSize());
+
+        // The fee recomputed at the floored credit and one unit-second above it brackets the exact
+        // rational credit; both agree here, so the dust does not move the fee in this fixture.
+        uint256 denominator = 1e6 * 365 days;
+        uint256 feeAtFloor = ((poolAfter * 365 days - csFloor) * 100_000 + denominator - 1) / denominator;
+        uint256 feeAtCeil = ((poolAfter * 365 days - (csFloor + 1)) * 100_000 + denominator - 1) / denominator;
+        assertEq(feeAtFloor, feeAtCeil, "fixture: credit dust landed on a fee ceiling boundary");
+        assertEq(yzilp.cumulativeManagementFees(), feeAtFloor, "booked fee is not the bracketed amount");
     }
 
     // --- order filled across a pool update ---

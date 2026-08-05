@@ -54,9 +54,6 @@ contract YuzuILPV3Facet is
     /// @notice Maximum daily linear yield rate, in ppm (1% per day)
     uint256 internal constant MAX_DAILY_YIELD_PPM = 10_000;
 
-    /// @dev Fixed-point one for pool-unit accrual factors: a ppm-per-year rate accrued over one year.
-    uint256 private constant ACCRUAL_SCALE = 1e6 * 365 days;
-
     // Storage replicas
     uint256 private constant YUZU_ILP_POOL_SIZE_SLOT = 55;
     uint256 private constant YUZU_ILP_DAILY_LINEAR_YIELD_RATE_PPM_SLOT = 56;
@@ -148,7 +145,18 @@ contract YuzuILPV3Facet is
         $._totalPendingOrderSize -= order.tokens;
         $._totalUnfinalizedOrderValue += assets;
         _setRedeemedDistributionsSinceUpdate(_redeemedDistributionsSinceUpdate() + redeemFromDistributions);
-        _setPoolSize(router.poolSize() - _proxyDiscountYield(router, redeemedFromPool, Math.Rounding.Ceil));
+        // The payout is priced fee-net while the pool gives up fee-free units, so the fee on the
+        // redeemed units is already settled here. Shrink the credited fee-time claim by the same
+        // fraction so the remaining holders are not charged for it a second time.
+        uint256 poolUnitsRemoved = _proxyDiscountYield(router, redeemedFromPool, Math.Rounding.Ceil);
+        uint256 poolBefore = router.poolSize();
+        YuzuILPFeesV3Storage.Layout storage fees = YuzuILPFeesV3Storage.layout();
+        if (poolBefore > 0) {
+            fees._creditSecondsSinceUpdate = Math.mulDiv(
+                fees._creditSecondsSinceUpdate, poolBefore - poolUnitsRemoved, poolBefore, Math.Rounding.Floor
+            );
+        }
+        _setPoolSize(poolBefore - poolUnitsRemoved);
 
         router.__routerBurn(address(this), order.tokens);
         SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, address(this), assets);
@@ -368,6 +376,8 @@ contract YuzuILPV3Facet is
         _setFullyDistributedSinceUpdate(0);
         _setRedeemedDistributionsSinceUpdate(0);
 
+        YuzuILPFeesV3Storage.layout()._creditSecondsSinceUpdate = 0;
+
         _setLastDistributedAmount(0);
         _setLastDistributionPeriod(0);
         _setLastDistributionTimestamp(0);
@@ -399,26 +409,20 @@ contract YuzuILPV3Facet is
     }
 
     // Pricing internals
-    /// @dev Credits poolSize with an increment whose fee-net value equals {assets}. Tokens are priced
-    /// against fee-net total assets, while poolSize bears fee accrual for the full period since the
-    /// last update; the credit keeps the share price unchanged and spares the deposit from fees
-    /// accrued before it entered, until the next pool update reprices the pool.
+    /// @dev Credits poolSize with an increment whose fee-net value equals {assets}, and records the
+    /// credit against the fee-time basis so the deposit bears management fee only from now on.
     function _applyPoolSizeCredit(IYuzuILPV3Router router, uint256 assets) private {
-        _setPoolSize(router.poolSize() + _poolSizeCredit(router, assets));
+        uint256 credit = _poolSizeCredit(router, assets);
+        YuzuILPFeesV3Storage.layout()._creditSecondsSinceUpdate += credit * _proxyTimeSinceUpdate(router);
+        _setPoolSize(router.poolSize() + credit);
     }
 
     /// @dev Returns the poolSize increment whose fee-net value equals {assets} now. The deposit is
-    /// first restated gross of the performance fee, then divided by the accrual a pool unit carries
-    /// over the elapsed period so that the yield it will earn and the management fee it will pay for
-    /// time before the deposit cancel out. The accrual is derived from the yield and management
-    /// rates, so it holds at any pool size, including an empty pool. Reverts when no credit can match
-    /// the deposit, leaving deposits closed until the next pool update.
+    /// first restated gross of the performance fee it will bear, then discounted by the yield the
+    /// enlarged poolSize will earn over the period already elapsed. Management fee needs no term
+    /// here: the fee-time basis charges the credited units only from the moment they are credited.
+    /// Reverts when no credit can match the deposit, leaving deposits closed until the next update.
     function _poolSizeCredit(IYuzuILPV3Router router, uint256 assets) private view returns (uint256) {
-        uint256 accrual = _poolUnitAccrual(router);
-        // slither-disable-next-line incorrect-equality
-        if (accrual == 0) {
-            revert PoolFeeEroded();
-        }
         uint256 managementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
         uint256 grossTotalAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
         uint256 netOfManagementFee = grossTotalAssets > managementFee ? grossTotalAssets - managementFee : 0;
@@ -431,17 +435,7 @@ contract YuzuILPV3Facet is
             // Fees have consumed every asset backing the shares, so no credit prices the deposit.
             revert PoolFeeEroded();
         }
-        return Math.mulDiv(poolUnits, ACCRUAL_SCALE, accrual, Math.Rounding.Floor);
-    }
-
-    /// @dev Returns what one pool unit grows to over the period since the last update, scaled by
-    /// ACCRUAL_SCALE: the unit itself, plus linear yield, less the accrued management fee. Returns
-    /// zero when the management fee has consumed the unit outright.
-    function _poolUnitAccrual(IYuzuILPV3Router router) private view returns (uint256) {
-        uint256 elapsed = _proxyTimeSinceUpdate(router);
-        uint256 grown = ACCRUAL_SCALE + router.dailyLinearYieldRatePpm() * elapsed * 365;
-        uint256 managementFee = router.managementFeeRatePpm() * elapsed;
-        return grown > managementFee ? grown - managementFee : 0;
+        return _proxyDiscountYield(router, poolUnits, Math.Rounding.Floor);
     }
 
     function _proxyTotalAssets(IYuzuILPV3Router router, Math.Rounding rounding) private view returns (uint256) {
@@ -465,10 +459,18 @@ contract YuzuILPV3Facet is
         );
     }
 
+    /// @dev Accrues the management fee over the fee-time basis: the seconds each pool unit has spent
+    /// in the pool since the last update. Units credited or removed part-way through are weighted by
+    /// the time they were actually present, so a deposit is never charged for the period before it
+    /// arrived and a redemption is charged up to its departure.
     function _proxyManagementFee(IYuzuILPV3Router router, Math.Rounding rounding) private view returns (uint256) {
-        return Math.mulDiv(
-            router.poolSize() * router.managementFeeRatePpm(), _proxyTimeSinceUpdate(router), 1e6 * 365 days, rounding
-        );
+        return Math.mulDiv(_proxyFeeTimeBasis(router), router.managementFeeRatePpm(), 1e6 * 365 days, rounding);
+    }
+
+    function _proxyFeeTimeBasis(IYuzuILPV3Router router) private view returns (uint256) {
+        uint256 basis = router.poolSize() * _proxyTimeSinceUpdate(router);
+        uint256 credited = router.creditSecondsSinceUpdate();
+        return basis > credited ? basis - credited : 0;
     }
 
     /// @dev Restates {assets} in last-update pool units by discounting the linear yield accrued since.
@@ -611,12 +613,12 @@ contract YuzuILPV3Facet is
         return block.timestamp < router.lastDistributionTimestamp() + router.lastDistributionPeriod();
     }
 
-    /// @dev True when entry cannot be priced until the next pool update: either the management fee
-    /// has consumed a pool unit's accrual outright, or accrued fees leave no fee-net value to price
-    /// the deposit against. Mirrors the conditions under which {_poolSizeCredit} reverts.
+    /// @dev True when entry stays closed until the next pool update: accrued management fee has
+    /// reached the pool bucket plus its yield, or accrued fees leave no fee-net value to price the
+    /// deposit against.
     function _isPoolFeeEroded(IYuzuILPV3Router router) private view returns (bool) {
-        // slither-disable-next-line incorrect-equality
-        if (_poolUnitAccrual(router) == 0) {
+        uint256 pool = router.poolSize();
+        if (pool > 0 && pool + _proxyYieldSinceUpdate(router, Math.Rounding.Floor) <= _proxyManagementFee(router, Math.Rounding.Ceil)) {
             return true;
         }
         if (_proxyTotalAssets(router, Math.Rounding.Floor) > 0) {

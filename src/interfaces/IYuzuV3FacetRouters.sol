@@ -44,6 +44,7 @@ interface IYuzuILPV3Router is IYuzuV3RouterBase {
     function isUpdatingPool() external view returns (bool);
     function mintFeePpm() external view returns (uint256);
     function managementFeeRatePpm() external view returns (uint256);
+    function creditSecondsSinceUpdate() external view returns (uint256);
     function performanceFeeRatePpm() external view returns (uint256);
     function highWaterMark() external view returns (uint256);
     function minDeposit() external view returns (uint256);

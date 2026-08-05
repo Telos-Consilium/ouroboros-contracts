@@ -87,6 +87,7 @@ library YuzuILPFeesV3Storage {
         uint256 _pendingPerformanceFeeRatePpm;
         uint256 _highWaterMark;
         uint256 _cumulativePerformanceFees;
+        uint256 _creditSecondsSinceUpdate;
     }
 
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.ilpfees")) - 1)) & ~bytes32(uint256(0xff))

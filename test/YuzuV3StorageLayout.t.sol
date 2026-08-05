@@ -211,3 +211,30 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         assertEq(yzusd.getRedeemOrder(orderId).assets, 4242, "order.assets at orders mapping base + 5");
     }
 }
+
+/// @notice Pins the field offsets of the ilpfees namespace through the router getters. The router
+/// and, under delegatecall, the facet both address these fields by their position in the Layout
+/// struct, so inserting or reordering fields shifts every later slot and fails here. New fields
+/// must be appended and extend this pin.
+contract YuzuV3IlpFeesLayoutTest is YuzuV3TestBase {
+    function setUp() public {
+        asset = _newAsset();
+        yzilp = _deployYuzuILPV3(address(asset), "Token", "TKN", false);
+    }
+
+    function test_IlpFeesLayout_FieldOffsets() public {
+        bytes32 base = YuzuILPFeesV3Storage.LOCATION;
+        for (uint256 i = 0; i < 9; i++) {
+            vm.store(address(yzilp), bytes32(uint256(base) + i), bytes32(i + 1));
+        }
+        assertEq(yzilp.mintFeePpm(), 1, "_mintFeePpm at base");
+        assertEq(yzilp.managementFeeRatePpm(), 2, "_managementFeeRatePpm at base + 1");
+        assertEq(yzilp.cumulativeManagementFees(), 3, "_cumulativeManagementFees at base + 2");
+        assertEq(yzilp.pendingManagementFeeRatePpm(), 4, "_pendingManagementFeeRatePpm at base + 3");
+        assertEq(yzilp.performanceFeeRatePpm(), 5, "_performanceFeeRatePpm at base + 4");
+        assertEq(yzilp.pendingPerformanceFeeRatePpm(), 6, "_pendingPerformanceFeeRatePpm at base + 5");
+        assertEq(yzilp.highWaterMark(), 7, "_highWaterMark at base + 6");
+        assertEq(yzilp.cumulativePerformanceFees(), 8, "_cumulativePerformanceFees at base + 7");
+        assertEq(yzilp.creditSecondsSinceUpdate(), 9, "_creditSecondsSinceUpdate at base + 8");
+    }
+}

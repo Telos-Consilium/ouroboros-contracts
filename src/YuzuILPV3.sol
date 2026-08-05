@@ -288,6 +288,13 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         return YuzuILPFeesV3Storage.layout()._cumulativeManagementFees;
     }
 
+    /// @notice Pool units credited since the last update, each weighted by the time already elapsed
+    /// when it was credited. Subtracted from the fee-time basis so a deposit bears management fee
+    /// only from its own arrival.
+    function creditSecondsSinceUpdate() public view returns (uint256) {
+        return YuzuILPFeesV3Storage.layout()._creditSecondsSinceUpdate;
+    }
+
     /// @notice Active performance fee in ppm
     function performanceFeeRatePpm() public view returns (uint256) {
         return YuzuILPFeesV3Storage.layout()._performanceFeeRatePpm;
