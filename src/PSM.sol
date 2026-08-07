@@ -233,6 +233,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
+        if (shares == 0) {
+            revert InvalidZeroShares();
+        }
         uint256 maxShares = maxRedeemOrder(_owner);
         if (shares > maxShares) {
             revert ExceededMaxRedeemOrder(_owner, shares, maxShares);

@@ -22,6 +22,7 @@ struct Order {
 
 interface IPSMDefinitions {
     error InvalidZeroAddress();
+    error InvalidZeroShares();
     error VaultAssetMismatch(address expected, address underlying);
     error UnderMinRedeemOrder(uint256 shares, uint256 min);
     error OrderNotPending(uint256 orderId);

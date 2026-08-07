@@ -362,6 +362,24 @@ contract PSMTest is IPSMDefinitions, Test {
         psm.createRedeemOrder(shares1, address(0), user1);
     }
 
+    // A zero-share order once slipped past the zero-floor checks, recording a pending order for a non-USER_ROLE owner.
+    function test_CreateRedeemOrder_Revert_ZeroShares_Unauthorized() public {
+        address unauthorized = makeAddr("unauthorizedOrderer");
+        address receiver = makeAddr("orderReceiver");
+
+        assertEq(psm.maxRedeemOrder(unauthorized), 0, "unauthorized owner has order capacity");
+
+        vm.prank(unauthorized);
+        vm.expectRevert(InvalidZeroShares.selector);
+        psm.createRedeemOrder(0, receiver, unauthorized);
+    }
+
+    function test_CreateRedeemOrder_Revert_ZeroShares() public {
+        vm.prank(user1);
+        vm.expectRevert(InvalidZeroShares.selector);
+        psm.createRedeemOrder(0, user1, user1);
+    }
+
     function test_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
         uint256 assets = 10e6;
         uint256 minOrder = 5e18;
