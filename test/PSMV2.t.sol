@@ -225,8 +225,10 @@ contract PSMV2Test is PSMTest {
         vm.prank(limitManager);
         psmV2.setMinWithdraw(100e6);
 
+        // Fee-net proceeds (99_009_900) are below minWithdraw (100e6).
+        assertEq(psmV2.maxRedeem(user1), 0, "fee-net position is below minWithdraw");
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(IYuzuMinAmountsDefinitions.UnderMinWithdraw.selector, 99_009_900, 100e6));
+        vm.expectRevert(abi.encodeWithSelector(ExceededMaxRedeem.selector, user1, 100e18, 0));
         psmV2.redeem(100e18, user1, user1);
     }
 
