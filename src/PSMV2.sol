@@ -6,7 +6,8 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IERC20Burnable, IMinWithdraw, IRedeemThrottle, IRestrictedShares} from "./interfaces/IPSMDefinitions.sol";
-import {REDEEM_FEE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
+import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {REDEEM_FEE_EXEMPT_ROLE, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {PSM} from "./PSM.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
@@ -108,6 +109,29 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         return _netRedeemAssets(maxShares) < minWithdraw() ? 0 : maxShares;
     }
 
+    /// @inheritdoc PSM
+    /// @dev Bounds by the configured redeem limit, not the remaining: a single order above the limit
+    /// can never settle in any window.
+    function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
+        uint256 maxShares = super.maxRedeemOrder(_owner);
+
+        if (!_throttleExempt()) {
+            Throttle memory throttle = IRedeemThrottle(vault1()).getRedeemThrottle();
+            uint256 limit = Math.min(throttle.blockLimit, throttle.dailyLimit);
+            if (_vault1AssetsGross(maxShares) > limit) {
+                maxShares = _vault1.convertToShares(limit);
+            }
+        }
+
+        if (maxShares < minRedeemOrder) {
+            return 0;
+        }
+        if (_vault1AssetsNet(maxShares) < IMinWithdraw(vault1()).minWithdraw()) {
+            return 0;
+        }
+        return _netRedeemAssets(maxShares) < minWithdraw() ? 0 : maxShares;
+    }
+
     /// @dev Shares received by the owner in the current block, read from vault1. A vault without
     /// {currentBlockRestrictedBalance} reverts here, so the restriction fails closed.
     function _restrictedShares(address _owner) private view returns (uint256) {
@@ -189,6 +213,10 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
 
     function _redeemFeeExempt() private view returns (bool) {
         return IAccessControl(vault1()).hasRole(REDEEM_FEE_EXEMPT_ROLE, address(this));
+    }
+
+    function _throttleExempt() private view returns (bool) {
+        return IAccessControl(vault1()).hasRole(THROTTLE_EXEMPT_ROLE, address(this));
     }
 
     /// @dev Inner-vault assets, gross of the redeem fee.

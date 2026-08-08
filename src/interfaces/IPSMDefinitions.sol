@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Throttle} from "./proto/IYuzuThrottleDefinitions.sol";
+
 interface IERC20Burnable {
     function burn(uint256 value) external;
 }
@@ -66,6 +68,7 @@ interface IRestrictedShares {
 
 interface IRedeemThrottle {
     function redeemThrottleRemaining(address account) external view returns (uint256);
+    function getRedeemThrottle() external view returns (Throttle memory);
 }
 
 interface IMinWithdraw {

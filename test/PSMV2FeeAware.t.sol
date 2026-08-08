@@ -7,7 +7,9 @@ import {
     FEE_MANAGER_ROLE,
     LIMIT_MANAGER_ROLE,
     MINTER_ROLE,
-    REDEEM_FEE_EXEMPT_ROLE
+    REDEEM_FEE_EXEMPT_ROLE,
+    REDEEM_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE
 } from "./helpers/TestRoles.sol";
 
 /// @dev PSM redemption accounting must be correct whether or not the PSM holds syzUSD's
@@ -237,5 +239,143 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         assertLe(psmV2.previewRedeem(max), throttle, "reported max over-reports the net budget");
         uint256 out = _redeem(user1, max);
         assertLe(out, throttle, "redeeming the max exceeded the net budget");
+    }
+
+    // --- maxRedeemOrder limits ---
+
+    function _setStyzRedeemThrottle(uint256 blockLimit, uint256 dailyLimit) internal {
+        vm.startPrank(admin);
+        styzV3.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styzV3.setRedeemThrottle(blockLimit, dailyLimit);
+        vm.stopPrank();
+    }
+
+    function _grantPsmStyzThrottleExempt() internal {
+        vm.prank(admin);
+        styzV3.grantRole(THROTTLE_EXEMPT_ROLE, address(psmV2));
+    }
+
+    function _setPsmMinRedeemOrder(uint256 newMin) internal {
+        vm.startPrank(admin);
+        psmV2.grantRole(REDEEM_MANAGER_ROLE, admin);
+        psmV2.setMinRedeemOrder(newMin);
+        vm.stopPrank();
+    }
+
+    // A position that nets below the PSM minimum quotes 0; the reported max would revert at creation.
+    function test_MaxRedeemOrder_Zero_BelowPsmMinWithdraw() public {
+        _deposit(user1, 1e6);
+        vm.roll(block.number + 1);
+        vm.prank(limitManager);
+        psmV2.setMinWithdraw(2e6);
+        assertEq(psmV2.maxRedeemOrder(user1), 0, "below the PSM minWithdraw should quote 0");
+    }
+
+    // The inner syzUSD minimum (enforced at fill) binds even when the PSM minimum does not.
+    function test_MaxRedeemOrder_Zero_BelowInnerStyzMinWithdraw() public {
+        _deposit(user1, 100e6);
+        vm.roll(block.number + 1);
+        uint256 innerGross = styzV3.convertToAssets(styzV3.balanceOf(user1));
+        _setStyzMinWithdraw(innerGross + 1);
+        vm.prank(limitManager);
+        psmV2.setMinWithdraw(0);
+        assertEq(psmV2.maxRedeemOrder(user1), 0, "below the inner syzUSD minWithdraw should quote 0");
+    }
+
+    // An order minimum above the balance quotes 0.
+    function test_MaxRedeemOrder_Zero_BelowMinRedeemOrder() public {
+        _deposit(user1, 100e6);
+        vm.roll(block.number + 1);
+        _setPsmMinRedeemOrder(styzV3.balanceOf(user1) + 1);
+        assertEq(psmV2.maxRedeemOrder(user1), 0, "below minRedeemOrder should quote 0");
+    }
+
+    // The PSM-minimum floor is measured on the fee-net proceeds: a min between gross and net quotes 0
+    // only in the non-exempt mode.
+    function test_MaxRedeemOrder_Zero_WhenFeeNetBelowPsmMin_NonExempt() public {
+        _deposit(user1, 100e6);
+        vm.roll(block.number + 1);
+        vm.prank(limitManager);
+        psmV2.setMinWithdraw(99_500_000); // above the ~99e6 fee-net, below the 100e6 gross
+        assertGt(psmV2.maxRedeemOrder(user1), 0, "exempt quote should clear the minimum");
+        _nonExempt(FEE);
+        assertEq(psmV2.maxRedeemOrder(user1), 0, "fee-net below the PSM minimum should quote 0");
+    }
+
+    // A balance whose gross exceeds syzUSD's per-window redeem limit is capped to that limit; a single
+    // order above the limit could never settle in any window.
+    function test_MaxRedeemOrder_CappedByInnerThrottleLimit() public {
+        _deposit(user1, 1_000e6);
+        vm.roll(block.number + 1);
+        _setStyzRedeemThrottle(500e18, type(uint256).max);
+        uint256 max = psmV2.maxRedeemOrder(user1);
+        assertLt(max, styzV3.balanceOf(user1), "cap should bind below the balance");
+        assertLe(styzV3.convertToAssets(max), 500e18, "capped gross exceeds the throttle limit");
+    }
+
+    // Granting the PSM syzUSD's throttle exemption skips the cap: the full balance is quoted.
+    function test_MaxRedeemOrder_ThrottleExemptSkipsCap() public {
+        _deposit(user1, 1_000e6);
+        vm.roll(block.number + 1);
+        _setStyzRedeemThrottle(500e18, type(uint256).max);
+        _grantPsmStyzThrottleExempt();
+        assertEq(psmV2.maxRedeemOrder(user1), styzV3.balanceOf(user1), "exempt PSM should skip the cap");
+    }
+
+    // Clears every floor and the limit: the full balance is quoted and is orderable.
+    function test_MaxRedeemOrder_FullBalance_WhenClear() public {
+        _deposit(user1, 1_000e6);
+        vm.roll(block.number + 1);
+        uint256 max = psmV2.maxRedeemOrder(user1);
+        assertEq(max, styzV3.balanceOf(user1), "no floor or cap binds, so the full balance is orderable");
+        vm.prank(user1);
+        psmV2.createRedeemOrder(max, user1, user1);
+        assertEq(psmV2.pendingOrderCount(), 1, "the quoted maximum was not orderable");
+    }
+
+    // The cap's promise: a capped order actually fills under a finite inner throttle, not merely that
+    // its gross conversion is within the limit.
+    function test_MaxRedeemOrder_CappedOrderFills() public {
+        _deposit(user1, 1_000e6);
+        vm.roll(block.number + 1);
+        _setStyzRedeemThrottle(500e18, type(uint256).max);
+
+        uint256 max = psmV2.maxRedeemOrder(user1);
+        assertLt(max, styzV3.balanceOf(user1), "cap should bind below the balance");
+
+        vm.prank(user1);
+        uint256 orderId = psmV2.createRedeemOrder(max, user1, user1);
+
+        uint256 balanceBefore = asset.balanceOf(user1);
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = orderId;
+        vm.prank(orderFiller);
+        psmV2.fillRedeemOrders(0, ids);
+
+        assertEq(psmV2.pendingOrderCount(), 0, "the capped order was not filled");
+        assertGt(asset.balanceOf(user1), balanceBefore, "the filled order paid nothing");
+    }
+
+    // The inner floor uses the fee-net value, not the gross: a minimum between gross and fee-net quotes
+    // 0 only once the PSM stops being fee-exempt.
+    function test_MaxRedeemOrder_InnerFloorIsFeeAware_NonExempt() public {
+        _deposit(user1, 100e6);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        styzV3.grantRole(FEE_MANAGER_ROLE, admin);
+        styzV3.setInstantRedeemFee(FEE);
+        vm.stopPrank();
+
+        uint256 shares = styzV3.balanceOf(user1);
+        assertLt(styzV3.previewRedeem(shares), styzV3.convertToAssets(shares), "fixture: fee should reduce inner net");
+
+        _setStyzMinWithdraw(styzV3.convertToAssets(shares)); // at the gross boundary: above the fee-net value
+        vm.prank(limitManager);
+        psmV2.setMinWithdraw(0); // PSM minimum not binding
+
+        assertGt(psmV2.maxRedeemOrder(user1), 0, "exempt inner net equals gross and clears the floor");
+        _nonExempt(FEE);
+        assertEq(psmV2.maxRedeemOrder(user1), 0, "fee-aware inner floor should quote 0");
     }
 }
