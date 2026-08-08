@@ -465,7 +465,7 @@ contract YuzuILPV3Facet is
     /// first restated gross of the performance fee it will bear, then discounted by the yield the
     /// enlarged poolSize will earn over the period already elapsed. Management fee needs no term
     /// here: the fee-time basis charges the credited units only from the moment they are credited.
-    /// Reverts when no credit can match the deposit, leaving deposits closed until the next update.
+    /// Reverts when no credit can match the deposit, leaving deposits closed while that holds.
     function _poolSizeCredit(IYuzuILPV3Router router, uint256 assets) private view returns (uint256) {
         uint256 managementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
         uint256 grossTotalAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
@@ -645,9 +645,9 @@ contract YuzuILPV3Facet is
         return router.previewMint(shares) < min ? 0 : shares;
     }
 
-    /// @dev Fee-net asset backing of the full share headroom, saturating to uint256.max when the product
-    /// overflows so an unlimited throttle stays reachable. Ceil bounds a mint cost from above so the quote
-    /// never exceeds the throttle; Floor bounds a deposit from below so it never exceeds the supply cap.
+    /// @dev Fee-net asset backing of the full share headroom, saturating to uint256.max when the quotient is
+    /// unrepresentable so an unlimited throttle stays reachable. Ceil bounds a mint cost from above so the quote
+    /// never exceeds the throttle; Floor bounds a deposit from below.
     function _headroomBacking(IYuzuILPV3Router router, uint256 headroom, Math.Rounding rounding)
         private
         view
@@ -678,7 +678,7 @@ contract YuzuILPV3Facet is
         return block.timestamp < router.lastDistributionTimestamp() + router.lastDistributionPeriod();
     }
 
-    /// @dev True when entry stays closed until the next pool update: accrued management fee has
+    /// @dev True when entry stays closed while this condition holds: accrued management fee has
     /// reached the pool bucket plus its yield, or accrued fees leave no fee-net value to price the
     /// deposit against. The closure protects a depositor from entering a state where the next
     /// update would realize the standing fee claim against value the deposit itself supplied.

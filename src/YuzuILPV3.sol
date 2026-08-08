@@ -117,7 +117,7 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         $._redeemThrottle.blockLimit = type(uint256).max;
         $._redeemThrottle.dailyLimit = type(uint256).max;
         YuzuILPDistributionV3Storage.layout()._minDistributionPeriod = 1 days;
-        // max uint disables the distribution amount cap; 0 would block all distributions.
+        // max uint disables the distribution amount cap; 0 would block any positive-amount distribution.
         YuzuILPDistributionV3Storage.layout()._maxDistributionPpm = type(uint256).max;
     }
 

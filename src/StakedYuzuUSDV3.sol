@@ -76,7 +76,7 @@ contract StakedYuzuUSDV3 is
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
         minDistributionPeriod = 1 days;
-        // max uint disables the distribution amount cap; 0 would block all distributions.
+        // max uint disables the distribution amount cap; 0 would block any positive-amount distribution.
         maxDistributionPpm = type(uint256).max;
     }
 

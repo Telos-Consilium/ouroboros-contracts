@@ -75,9 +75,9 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         assertGt(_redeem(user1, max), 0, "redeeming the reported maximum produced no assets");
     }
 
-    // Throttle binds: the reported max nets within the budget and is one-share tight (max+1 reaches
-    // the budget). Exercises the fee-aware inverse and its clamp.
-    function test_MaxRedeem_ThrottleBound_TightNonExempt() public {
+    // Throttle binds: the reported max nets within the budget, and one more share's net reaches or
+    // exceeds the budget. Exercises the fee-aware inverse and its clamp.
+    function test_MaxRedeem_ThrottleBound_BoundedNonExempt() public {
         _deposit(user1, 1_000e6);
         vm.roll(block.number + 1);
         _nonExempt(FEE);
@@ -88,13 +88,13 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         assertGt(max, 0, "fixture: expected a throttle-bound maximum");
         assertLt(max, styzV3.balanceOf(user1), "fixture: throttle should bind below the balance");
         assertLe(psmV2.previewRedeem(max), 500e6, "reported max over-reports the net budget");
-        assertGe(psmV2.previewRedeem(max + 1), 500e6, "reported max under-reports by more than a share");
+        assertGe(psmV2.previewRedeem(max + 1), 500e6, "one more share's net does not reach the budget");
         assertLe(_redeem(user1, max), 500e6, "redeeming the max exceeded the budget");
     }
 
     // Maximum when PSM liquidity binds: proves the fee-free super.maxRedeem liquidity ceiling was
-    // replaced with a net one. Same no-over-report and one-share tightness as above.
-    function test_MaxRedeem_LiquidityBound_TightNonExempt() public {
+    // replaced with a net one. Same no-over-report and extra-share bound as above.
+    function test_MaxRedeem_LiquidityBound_BoundedNonExempt() public {
         _deposit(user1, 1_000e6);
         vm.roll(block.number + 1);
         _nonExempt(FEE);
@@ -108,7 +108,7 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         assertGt(max, 0, "fixture: expected a liquidity-bound maximum");
         assertLt(max, styzV3.balanceOf(user1), "fixture: liquidity should bind below the balance");
         assertLe(psmV2.previewRedeem(max), 500e6, "reported max over-reports the liquidity");
-        assertGe(psmV2.previewRedeem(max + 1), 500e6, "reported max under-reports liquidity by more than a share");
+        assertGe(psmV2.previewRedeem(max + 1), 500e6, "one more share's net does not reach the liquidity budget");
         assertGt(_redeem(user1, max), 0, "redeeming the liquidity-bound max failed");
     }
 
@@ -212,7 +212,7 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         assertGt(max, 0, "fixture: expected a throttle-bound maximum at a non-par rate");
         assertLt(max, styzV3.balanceOf(user1), "fixture: throttle should bind below the balance");
         assertLe(psmV2.previewRedeem(max), 500e6, "reported max over-reports at a non-par rate");
-        assertGe(psmV2.previewRedeem(max + 1), 500e6, "reported max under-reports by more than a share");
+        assertGe(psmV2.previewRedeem(max + 1), 500e6, "one more share's net does not reach the budget at a non-par rate");
         assertLe(_redeem(user1, max), 500e6, "redeeming the max exceeded the budget at a non-par rate");
     }
 

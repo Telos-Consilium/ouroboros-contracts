@@ -78,7 +78,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     }
 
     /// @inheritdoc PSM
-    /// @dev Never over-reports; may under-report by at most one share.
+    /// @dev Never over-reports; may under-report by a small rounding amount.
     function maxRedeem(address _owner) public view virtual override returns (uint256) {
         if (!_canRedeem() || !hasRole(USER_ROLE, _owner)) {
             return 0;
@@ -259,8 +259,8 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         return _vault1SharesForNet(_vault0.convertToShares(assets));
     }
 
-    /// @dev Net stays within budget, under-reporting by at most one share; previewWithdraw is the only
-    /// up-rounding step, so one decrement removes any overshoot.
+    /// @dev Keeps the net within budget: previewWithdraw is the only up-rounding step, and the single
+    /// decrement below undoes the overshoot it can introduce.
     function _netSharesWithinBudget(uint256 budget) private view returns (uint256 shares) {
         shares = _netSharesForAssets(budget);
         if (shares > 0 && _netRedeemAssets(shares) > budget) {
