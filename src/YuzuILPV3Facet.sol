@@ -614,18 +614,7 @@ contract YuzuILPV3Facet is
         if (_isPoolFeeEroded(router)) {
             return 0;
         }
-        uint256 headroom = _supplyHeadroom(proxy);
-        uint256 supply = router.totalSupply();
-        uint256 baseMax;
-        if (supply == 0) {
-            baseMax = Math.ceilDiv(headroom, 1e12);
-        } else {
-            uint256 totalAssets_ = router.totalAssets();
-            // Only the high word matters here: it signals that the product overflows 256 bits
-            // slither-disable-next-line unused-return
-            (uint256 high,) = Math.mul512(totalAssets_, headroom);
-            baseMax = high >= supply ? type(uint256).max : Math.mulDiv(totalAssets_, headroom, supply);
-        }
+        uint256 baseMax = _headroomBacking(router, _supplyHeadroom(proxy), Math.Rounding.Floor);
         uint256 netMax = Math.min(baseMax, _mintThrottleRemaining(proxy, receiver));
         uint256 fee = YuzuV3Fees.feeOnRaw(netMax, router.mintFeePpm());
         uint256 maxAssets = type(uint256).max - fee < netMax ? type(uint256).max : netMax + fee;
@@ -649,10 +638,32 @@ contract YuzuILPV3Facet is
         }
         uint256 headroom = _supplyHeadroom(proxy);
         uint256 remaining = _mintThrottleRemaining(proxy, receiver);
-        uint256 shares =
-            remaining >= type(uint128).max ? headroom : Math.min(headroom, router.convertToShares(remaining));
+        uint256 shares = _headroomBacking(router, headroom, Math.Rounding.Ceil) <= remaining
+            ? headroom
+            : router.convertToShares(remaining);
         uint256 min = router.minDeposit();
         return router.previewMint(shares) < min ? 0 : shares;
+    }
+
+    /// @dev Fee-net asset backing of the full share headroom, saturating to uint256.max when the product
+    /// overflows so an unlimited throttle stays reachable. Ceil bounds a mint cost from above so the quote
+    /// never exceeds the throttle; Floor bounds a deposit from below so it never exceeds the supply cap.
+    function _headroomBacking(IYuzuILPV3Router router, uint256 headroom, Math.Rounding rounding)
+        private
+        view
+        returns (uint256)
+    {
+        uint256 supply = router.totalSupply();
+        if (supply == 0) {
+            return Math.ceilDiv(headroom, 1e12);
+        }
+        // Source total assets at the conversion's own rounding, not the floor-only totalAssets(), so the
+        // estimate matches the mint or deposit it bounds.
+        uint256 totalAssets_ = _proxyTotalAssets(router, rounding);
+        // high >= supply means totalAssets_ * headroom overflows the uint256 quotient
+        // slither-disable-next-line unused-return
+        (uint256 high,) = Math.mul512(totalAssets_, headroom);
+        return high >= supply ? type(uint256).max : Math.mulDiv(totalAssets_, headroom, supply, rounding);
     }
 
     /// @dev With zero supply, entry remains closed while assets or an active distribution are unresolved;

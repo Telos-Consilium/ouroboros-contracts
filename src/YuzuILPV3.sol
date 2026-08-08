@@ -154,8 +154,8 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _staticcallFacet();
     }
 
-    /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
-    /// keeps convertToShares from overflowing (ILP share price is admin-set and unbounded).
+    /// @dev Gates on the fee-net backing, not the raw capacity, so an unlimited throttle returns the
+    /// headroom without converting an unbounded capacity to shares.
     function maxMint(address) public view virtual override returns (uint256) {
         _staticcallFacet();
     }

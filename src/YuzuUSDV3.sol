@@ -208,17 +208,16 @@ contract YuzuUSDV3 is
         return maxAssets < minDeposit() ? 0 : maxAssets;
     }
 
-    /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
-    /// keeps convertToShares from overflowing (proto share price is not bounded below 1).
+    /// @dev Gates on the mint cost, not the raw capacity, so an unlimited throttle returns the headroom
+    /// without converting an unbounded capacity to shares.
     function maxMint(address receiver) public view virtual override returns (uint256) {
         if (!canMint(receiver)) {
             return 0;
         }
         uint256 headroom = _supplyHeadroom();
         uint256 remaining = _mintThrottleRemaining(receiver);
-        uint256 shares = remaining >= type(uint128).max
-            ? headroom
-            : Math.min(headroom, _convertToShares(remaining, Math.Rounding.Floor));
+        uint256 shares =
+            previewMint(headroom) <= remaining ? headroom : _convertToShares(remaining, Math.Rounding.Floor);
         return previewMint(shares) < minDeposit() ? 0 : shares;
     }
 
