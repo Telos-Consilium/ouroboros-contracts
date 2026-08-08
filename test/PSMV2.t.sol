@@ -9,6 +9,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {PSM} from "../src/PSM.sol";
 import {PSMV2} from "../src/PSMV2.sol";
+import {IPSMV2} from "../src/interfaces/IPSM.sol";
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {YuzuUSD} from "../src/YuzuUSD.sol";
@@ -190,6 +191,29 @@ contract PSMV2Test is PSMTest {
     }
 
     // --- reinitialize ---
+
+    // The published IPSMV2 interface exposes the full V2 surface, and the deployed PSMV2 satisfies it.
+    function test_IPSMV2_PublishesV2Surface() public {
+        IPSMV2 i = IPSMV2(address(psmV2));
+        i.getMintThrottle();
+        i.getRedeemThrottle();
+        i.maxDeposit(user1);
+        i.minRedeemOrder();
+
+        vm.startPrank(limitManager);
+        i.setMinDeposit(1e6);
+        i.setMinWithdraw(2e6);
+        i.setMintThrottle(3e6, 4e6);
+        i.setRedeemThrottle(5e6, 6e6);
+        vm.stopPrank();
+
+        assertEq(i.minDeposit(), 1e6);
+        assertEq(i.minWithdraw(), 2e6);
+        assertEq(i.getMintThrottle().blockLimit, 3e6);
+        assertEq(i.getRedeemThrottle().dailyLimit, 6e6);
+        // reinitialize cannot be called again; assert the interface declares it.
+        assertEq(IPSMV2.reinitialize.selector, PSMV2.reinitialize.selector, "reinitialize missing from IPSMV2");
+    }
 
     function test_Reinitialize_SeedsThrottleAndRoles() public {
         assertEq(psmV2.getMintThrottle().blockLimit, type(uint256).max);

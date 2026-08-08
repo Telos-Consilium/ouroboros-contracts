@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {PSMV2Test} from "./PSMV2.t.sol";
+import {IPSMV2} from "../src/interfaces/IPSM.sol";
 import {
     DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
@@ -37,7 +38,7 @@ contract PSMV2FeeAwareTest is PSMV2Test {
     function test_PreviewRedeem_MatchesExecution_Exempt() public {
         uint256 shares = _deposit(user1, 1_000e6);
         vm.roll(block.number + 1);
-        uint256 preview = psmV2.previewRedeem(shares);
+        uint256 preview = IPSMV2(address(psmV2)).previewRedeem(shares);
         uint256 actual = _redeem(user1, shares);
         assertEq(preview, actual, "exempt preview diverged from execution");
     }
@@ -47,7 +48,7 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         vm.roll(block.number + 1);
         _nonExempt(FEE);
 
-        uint256 preview = psmV2.previewRedeem(shares);
+        uint256 preview = IPSMV2(address(psmV2)).previewRedeem(shares);
         uint256 actual = _redeem(user1, shares);
         assertEq(preview, actual, "non-exempt preview diverged from execution");
         assertApproxEqAbs(actual, 990e6, 1e6, "fee not applied to the net");
