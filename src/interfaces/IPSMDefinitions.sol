@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+
 import {Throttle} from "./proto/IYuzuThrottleDefinitions.sol";
 
 interface IERC20Burnable {
@@ -62,15 +65,16 @@ interface IVaultRestrictions {
     function canBurn(address owner) external view returns (bool);
 }
 
-interface IRestrictedShares {
-    function currentBlockRestrictedBalance(address account) external view returns (uint256);
+/// @dev The V3 surface PSMV2 requires of vault0 (yzUSD) beyond ERC-4626.
+interface IPSMVault0 is IERC4626, IERC20Burnable {
+    function minDeposit() external view returns (uint256);
 }
 
-interface IRedeemThrottle {
+/// @dev The V3 surface PSMV2 requires of vault1 (syzUSD) beyond ERC-4626.
+interface IPSMVault1 is IERC4626, IAccessControl {
+    function minDeposit() external view returns (uint256);
+    function minWithdraw() external view returns (uint256);
+    function currentBlockRestrictedBalance(address account) external view returns (uint256);
     function redeemThrottleRemaining(address account) external view returns (uint256);
     function getRedeemThrottle() external view returns (Throttle memory);
-}
-
-interface IMinWithdraw {
-    function minWithdraw() external view returns (uint256);
 }

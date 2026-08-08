@@ -11,6 +11,9 @@ import {PSM} from "../src/PSM.sol";
 import {PSMV2} from "../src/PSMV2.sol";
 import {StakedYuzuUSD} from "../src/StakedYuzuUSD.sol";
 import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
+import {YuzuUSD} from "../src/YuzuUSD.sol";
+import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
+import {YuzuUSDV3Facet} from "../src/YuzuUSDV3Facet.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 
@@ -36,9 +39,9 @@ import {PSMTest} from "./PSM.t.sol";
 contract PSMV2Test is PSMTest {
     PSMV2 public psmV2;
 
-    // PSMV2 requires vault1 to expose currentBlockRestrictedBalance(address) and
-    // redeemThrottleRemaining(address). The parent fixture uses V2 syzUSD, so this suite deploys
-    // V3 syzUSD and a separate PSMV2 while inherited PSM tests keep the parent vaults.
+    // PSMV2 requires V3 inner vaults, so this suite deploys V3 yzUSD and V3 syzUSD for its PSMV2
+    // while the inherited base-PSM tests keep the parent V2 vaults.
+    YuzuUSDV3 public yzusdV3;
     StakedYuzuUSDV3 public styzV3;
 
     address public limitManager;
@@ -54,13 +57,15 @@ contract PSMV2Test is PSMTest {
         throttleExempt = makeAddr("throttleExempt");
         styzOwner = makeAddr("styzOwner");
 
-        // Deploy V3 syzUSD so vault1 exposes both views required by PSMV2
+        // Deploy V3 yzUSD (vault0) so it exposes minDeposit(), then V3 syzUSD (vault1) staking it
+        yzusdV3 = _deployYuzuUSDV3();
+        vm.label(address(yzusdV3), "Yuzu USD V3 (proxy)");
         styzV3 = _deployStakedYuzuUSDV3();
         vm.label(address(styzV3), "Staked Yuzu USD V3 (proxy)");
 
-        // Deploy PSMV2 with yzUSD as vault0 and V3 syzUSD as vault1
+        // Deploy PSMV2 with V3 yzUSD as vault0 and V3 syzUSD as vault1
         PSMV2 implementation = new PSMV2();
-        bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusd, styzV3, admin, 0);
+        bytes memory initData = abi.encodeWithSelector(PSM.initialize.selector, asset, yzusdV3, styzV3, admin, 0);
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         psmV2 = PSMV2(address(proxy));
         psmV2.reinitialize();
@@ -74,9 +79,10 @@ contract PSMV2Test is PSMTest {
         styzV3.grantRole(DELAY_EXEMPT_ROLE, address(psmV2));
         styzV3.grantRole(REDEEM_FEE_EXEMPT_ROLE, address(psmV2));
         styzV3.grantRole(SAME_BLOCK_EXEMPT_ROLE, address(psmV2));
-        yzusd.grantRole(MINTER_ROLE, address(psmV2));
-        yzusd.grantRole(REDEEMER_ROLE, address(psmV2));
-        yzusd.grantRole(BURNER_ROLE, address(psmV2));
+        yzusdV3.grantRole(RESTRICTION_MANAGER_ROLE, admin); // admin of MINTER_ROLE and REDEEMER_ROLE
+        yzusdV3.grantRole(MINTER_ROLE, address(psmV2));
+        yzusdV3.grantRole(REDEEMER_ROLE, address(psmV2));
+        yzusdV3.grantRole(BURNER_ROLE, address(psmV2));
         psmV2.grantRole(ORDER_FILLER_ROLE, orderFiller);
         psmV2.grantRole(LIQUIDITY_MANAGER_ROLE, liquidityManager);
         psmV2.grantRole(RESTRICTION_MANAGER_ROLE, restrictionManager);
@@ -107,13 +113,32 @@ contract PSMV2Test is PSMTest {
         psmV2.depositLiquidity(LIQUIDITY);
     }
 
+    // Deploys YuzuUSD behind an ERC1967 proxy, initializes at V1, then reinitializes to V3.
+    function _deployYuzuUSDV3() internal returns (YuzuUSDV3 deployed) {
+        address impl = address(new YuzuUSDV3(address(new YuzuUSDV3Facet())));
+        bytes memory initData = abi.encodeWithSelector(
+            YuzuUSD.initialize.selector,
+            address(asset),
+            "Yuzu USD",
+            "yzUSD",
+            admin,
+            treasury,
+            feeReceiver,
+            type(uint256).max,
+            1 days,
+            0
+        );
+        deployed = YuzuUSDV3(address(new ERC1967Proxy(impl, initData)));
+        deployed.reinitialize();
+    }
+
     // Deploys StakedYuzuUSD at V1 behind a transparent proxy, pauses, upgrades to V3 through the
     // proxy-admin-gated reinitializer, then unpauses.
     function _deployStakedYuzuUSDV3() internal returns (StakedYuzuUSDV3 deployed) {
         address v1Impl = address(new StakedYuzuUSD());
         bytes memory initData = abi.encodeWithSelector(
             StakedYuzuUSD.initialize.selector,
-            IERC20(address(yzusd)),
+            IERC20(address(yzusdV3)),
             "Staked Yuzu USD",
             "syzUSD",
             styzOwner,

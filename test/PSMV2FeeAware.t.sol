@@ -193,11 +193,11 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         // Mint yzUSD to the distributor and stream a completed distribution so syzUSD is above par.
         asset.mint(admin, 50e6);
         vm.startPrank(admin);
-        yzusd.grantRole(MINTER_ROLE, admin); // minting is gated on the receiver holding MINTER_ROLE
-        asset.approve(address(yzusd), 50e6);
-        uint256 yzMinted = yzusd.deposit(50e6, admin);
+        yzusdV3.grantRole(MINTER_ROLE, admin); // minting is gated on the receiver holding MINTER_ROLE
+        asset.approve(address(yzusdV3), 50e6);
+        uint256 yzMinted = yzusdV3.deposit(50e6, admin);
         styzV3.grantRole(DISTRIBUTOR_ROLE, admin);
-        yzusd.approve(address(styzV3), yzMinted);
+        yzusdV3.approve(address(styzV3), yzMinted);
         styzV3.distribute(yzMinted, 1 days);
         vm.stopPrank();
         vm.warp(block.timestamp + 1 days + 1);

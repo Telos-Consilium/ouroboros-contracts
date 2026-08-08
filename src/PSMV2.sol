@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {IERC20Burnable, IMinWithdraw, IRedeemThrottle, IRestrictedShares} from "./interfaces/IPSMDefinitions.sol";
+import {IPSMVault0, IPSMVault1} from "./interfaces/IPSMDefinitions.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {REDEEM_FEE_EXEMPT_ROLE, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {PSM} from "./PSM.sol";
@@ -16,7 +15,7 @@ import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
  * @title PSMV2
  * @notice PSM with V2 limits and throttles
  * @dev Mint and redeem throttles apply to their instant paths; the same-block restriction applies to instant redemption.
- * @dev Requires vault1 to expose {redeemThrottleRemaining}, {currentBlockRestrictedBalance}, and {minWithdraw}.
+ * @dev Requires V3 inner vaults: a V3 yzUSD as vault0 and a V3 syzUSD as vault1.
  */
 contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
@@ -69,7 +68,13 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     /// @inheritdoc PSM
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
         uint256 maxAssets = Math.min(super.maxDeposit(receiver), _mintThrottleRemaining(receiver));
-        return maxAssets < minDeposit() ? 0 : maxAssets;
+        if (maxAssets < minDeposit()) {
+            return 0;
+        }
+        if (maxAssets < _v0().minDeposit()) {
+            return 0;
+        }
+        return _vault0.previewDeposit(maxAssets) < _v1().minDeposit() ? 0 : maxAssets;
     }
 
     /// @inheritdoc PSM
@@ -88,7 +93,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
             }
         }
 
-        uint256 innerRemaining = IRedeemThrottle(vault1()).redeemThrottleRemaining(address(this));
+        uint256 innerRemaining = _v1().redeemThrottleRemaining(address(this));
         if (_vault1AssetsGross(maxShares) > innerRemaining) {
             maxShares = _vault1.convertToShares(innerRemaining);
         }
@@ -103,7 +108,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
             maxShares = Math.min(maxShares, _netSharesWithinBudget(outerRemaining));
         }
 
-        if (_vault1AssetsNet(maxShares) < IMinWithdraw(vault1()).minWithdraw()) {
+        if (_vault1AssetsNet(maxShares) < _v1().minWithdraw()) {
             return 0;
         }
         return _netRedeemAssets(maxShares) < minWithdraw() ? 0 : maxShares;
@@ -116,7 +121,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         uint256 maxShares = super.maxRedeemOrder(_owner);
 
         if (!_throttleExempt()) {
-            Throttle memory throttle = IRedeemThrottle(vault1()).getRedeemThrottle();
+            Throttle memory throttle = _v1().getRedeemThrottle();
             uint256 limit = Math.min(throttle.blockLimit, throttle.dailyLimit);
             if (_vault1AssetsGross(maxShares) > limit) {
                 maxShares = _vault1.convertToShares(limit);
@@ -126,7 +131,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         if (maxShares < minRedeemOrder) {
             return 0;
         }
-        if (_vault1AssetsNet(maxShares) < IMinWithdraw(vault1()).minWithdraw()) {
+        if (_vault1AssetsNet(maxShares) < _v1().minWithdraw()) {
             return 0;
         }
         return _netRedeemAssets(maxShares) < minWithdraw() ? 0 : maxShares;
@@ -135,7 +140,7 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     /// @dev Shares received by the owner in the current block, read from vault1. A vault without
     /// {currentBlockRestrictedBalance} reverts here, so the restriction fails closed.
     function _restrictedShares(address _owner) private view returns (uint256) {
-        return IRestrictedShares(vault1()).currentBlockRestrictedBalance(_owner);
+        return _v1().currentBlockRestrictedBalance(_owner);
     }
 
     /// @inheritdoc PSM
@@ -204,19 +209,27 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
         }
         uint256 assets1 = _vault1.redeem(shares, address(this), address(this));
         uint256 assets0 = _vault0.convertToAssets(assets1);
-        IERC20Burnable(address(_vault0)).burn(assets1);
+        _v0().burn(assets1);
         SafeERC20.safeTransfer(IERC20(asset()), receiver, assets0);
         // slither-disable-next-line reentrancy-events
         emit Withdraw(caller, receiver, _owner, assets0, shares);
         return assets0;
     }
 
+    function _v0() private view returns (IPSMVault0) {
+        return IPSMVault0(vault0());
+    }
+
+    function _v1() private view returns (IPSMVault1) {
+        return IPSMVault1(vault1());
+    }
+
     function _redeemFeeExempt() private view returns (bool) {
-        return IAccessControl(vault1()).hasRole(REDEEM_FEE_EXEMPT_ROLE, address(this));
+        return _v1().hasRole(REDEEM_FEE_EXEMPT_ROLE, address(this));
     }
 
     function _throttleExempt() private view returns (bool) {
-        return IAccessControl(vault1()).hasRole(THROTTLE_EXEMPT_ROLE, address(this));
+        return _v1().hasRole(THROTTLE_EXEMPT_ROLE, address(this));
     }
 
     /// @dev Inner-vault assets, gross of the redeem fee.
