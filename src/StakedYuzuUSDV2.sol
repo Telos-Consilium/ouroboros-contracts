@@ -201,7 +201,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         emit UpdatedIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
-    function getIntegration(address integration) external view returns (IntegrationConfig memory) {
+    function getIntegration(address integration) external view virtual returns (IntegrationConfig memory) {
         return integrations[integration];
     }
 

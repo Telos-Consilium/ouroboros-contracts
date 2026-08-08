@@ -13,7 +13,7 @@ import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
 import {YuzuV3RestrictedShares} from "./libraries/YuzuV3RestrictedShares.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
-import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
+import {IntegrationConfig, IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 import {
     ADMIN_ROLE,
     DELAY_EXEMPT_ROLE,
@@ -290,6 +290,10 @@ contract StakedYuzuUSDV3 is
     /// so writes are disabled. The override also seals the inherited onlyOwner entry point,
     /// which the disabled _checkOwner would otherwise leave open.
     function setIntegration(address, bool, bool) public pure override {
+        revert IntegrationsMigratedToRoles();
+    }
+
+    function getIntegration(address) external pure override returns (IntegrationConfig memory) {
         revert IntegrationsMigratedToRoles();
     }
 

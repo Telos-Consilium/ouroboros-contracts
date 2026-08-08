@@ -12,7 +12,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {StakedYuzuUSDV3Recovery} from "../src/StakedYuzuUSDV3Recovery.sol";
 import {
-    IntegrationConfig,
     IStakedYuzuUSDDefinitions,
     IStakedYuzuUSDV3Definitions
 } from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
@@ -209,6 +208,11 @@ contract StakedYuzuUSDV3Test is
         vm.prank(user1);
         vm.expectRevert(IntegrationsMigratedToRoles.selector);
         styz3.setIntegration(user1, true, true);
+    }
+
+    function test_GetIntegration_Revert_MigratedToRoles() public {
+        vm.expectRevert(IntegrationsMigratedToRoles.selector);
+        styz3.getIntegration(user1);
     }
 
     // Min mint/redeem
@@ -544,10 +548,9 @@ contract StakedYuzuUSDV3Test is
         vault.unpause();
         vm.stopPrank();
 
-        // The stale entries survive in storage
-        IntegrationConfig memory cfg = vault.getIntegration(user2);
-        assertTrue(cfg.canSkipRedeemDelay);
-        assertTrue(cfg.waiveRedeemFee);
+        // The getter reverts; the stale entries remain in storage
+        vm.expectRevert(IntegrationsMigratedToRoles.selector);
+        vault.getIntegration(user2);
 
         _approveAssets(user1, address(vault), type(uint256).max);
         vm.prank(user1);
