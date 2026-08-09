@@ -72,6 +72,26 @@ abstract contract StakedYuzuUSDV3TestBase is UpgradeTestBase {
         yzusd.mint(user2, 10_000_000e18);
     }
 
+    /// @dev A fresh V3 vault with zero supply, skipping recovery, for empty-vault inflation tests.
+    function _deployFreshEmptyV3() internal returns (StakedYuzuUSDV3 fresh) {
+        TransparentUpgradeableProxy proxy = _deployV1Proxy(owner);
+        ProxyAdmin freshProxyAdmin = _proxyAdmin(address(proxy));
+
+        vm.prank(owner);
+        StakedYuzuUSD(address(proxy)).pause();
+
+        _upgradeToParkedV3(freshProxyAdmin, proxy, owner, admin);
+
+        fresh = StakedYuzuUSDV3(address(proxy));
+        vm.prank(admin);
+        fresh.grantRole(PAUSE_MANAGER_ROLE, pauseManager);
+        vm.prank(pauseManager);
+        fresh.unpause();
+
+        _approveAssets(user1, address(fresh), type(uint256).max);
+        _approveAssets(user2, address(fresh), type(uint256).max);
+    }
+
     function _deploySeededV1Proxy(address proxyOwner)
         internal
         returns (TransparentUpgradeableProxy proxy, ProxyAdmin deployedProxyAdmin, StakedYuzuUSD staked)

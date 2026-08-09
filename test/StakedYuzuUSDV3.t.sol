@@ -65,6 +65,33 @@ contract StakedYuzuUSDV3Test is
         assertEq(styz3.balanceOf(RECOVERY_RECEIVER), RECOVERY_AMOUNT);
     }
 
+    // On an inflated empty vault a victim deposit rounds to zero shares; the guard reverts before
+    // any assets move.
+    function test_Deposit_Revert_ZeroShares_OnInflatedVault() public {
+        StakedYuzuUSDV3 fresh = _deployFreshEmptyV3();
+
+        vm.prank(user1);
+        fresh.deposit(1, user1); // attacker seed: 1 share
+
+        vm.prank(user1);
+        yzusd.transfer(address(fresh), 1_000e18); // inflate the share price
+
+        uint256 victimBalBefore = yzusd.balanceOf(user2);
+        vm.prank(user2);
+        vm.expectRevert(InvalidZeroShares.selector);
+        fresh.deposit(100e18, user2);
+
+        assertEq(yzusd.balanceOf(user2), victimBalBefore, "victim assets untouched by the reverted deposit");
+    }
+
+    // A zero-value deposit stays a no-op; the zero-share guard targets only nonzero deposits.
+    function test_Deposit_Zero_IsNoOp() public {
+        uint256 supplyBefore = styz3.totalSupply();
+        uint256 shares = _deposit(user1, 0);
+        assertEq(shares, 0, "zero deposit mints zero shares");
+        assertEq(styz3.totalSupply(), supplyBefore, "supply unchanged");
+    }
+
     function test_Reinitialize_BumpsPermitDomainToV2() public {
         address freshOwner = makeAddr("freshOwner");
         address freshAdmin = makeAddr("freshAdmin");

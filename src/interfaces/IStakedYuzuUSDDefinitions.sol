@@ -78,6 +78,7 @@ interface IStakedYuzuUSDV3Definitions {
     error DistributionAmountTooHigh(uint256 provided, uint256 max);
     error InitializationDisabled();
     error UnderMinRedeemOrder(uint256 shares, uint256 min);
+    error InvalidZeroShares();
 
     event Recovered(address indexed from, address indexed to, uint256 amount);
     event UpdatedInstantRedeemFee(uint256 oldFee, uint256 newFee);

@@ -178,6 +178,10 @@ contract StakedYuzuUSDV3 is
             revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
         }
         uint256 mintedShares = super.deposit(assets, receiver);
+        // Reject a nonzero deposit that rounds down to zero shares.
+        if (assets > 0 && mintedShares == 0) {
+            revert InvalidZeroShares();
+        }
         _consumeMintThrottle(receiver, assets);
         return mintedShares;
     }
