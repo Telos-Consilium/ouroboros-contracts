@@ -30,6 +30,7 @@ import {
  * @title YuzuILPV3
  * @notice YuzuILP with V3 limits, throttles, pool guards, and fees
  */
+// slither-disable-next-line missing-inheritance
 contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     // Construction and initialization
     constructor(address facet_) YuzuV3FacetRouting(facet_) {}

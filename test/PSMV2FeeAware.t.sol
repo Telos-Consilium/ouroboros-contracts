@@ -212,7 +212,9 @@ contract PSMV2FeeAwareTest is PSMV2Test {
         assertGt(max, 0, "fixture: expected a throttle-bound maximum at a non-par rate");
         assertLt(max, styzV3.balanceOf(user1), "fixture: throttle should bind below the balance");
         assertLe(psmV2.previewRedeem(max), 500e6, "reported max over-reports at a non-par rate");
-        assertGe(psmV2.previewRedeem(max + 1), 500e6, "one more share's net does not reach the budget at a non-par rate");
+        assertGe(
+            psmV2.previewRedeem(max + 1), 500e6, "one more share's net does not reach the budget at a non-par rate"
+        );
         assertLe(_redeem(user1, max), 500e6, "redeeming the max exceeded the budget at a non-par rate");
     }
 
@@ -222,9 +224,7 @@ contract PSMV2FeeAwareTest is PSMV2Test {
     // over-reports (its net stays within budget) and executes here. This exercises the single-step
     // clamp in _netSharesWithinBudget across the par-rate conversion and fee rounding; the non-par
     // conversion case is covered deterministically by test_MaxRedeem_BoundedMax_NonParRate_NonExempt.
-    function testFuzz_MaxRedeem_ExecutableAndWithinBudget(uint256 deposit, uint256 throttle, uint256 feePpm)
-        public
-    {
+    function testFuzz_MaxRedeem_ExecutableAndWithinBudget(uint256 deposit, uint256 throttle, uint256 feePpm) public {
         deposit = bound(deposit, 1e6, 1_000_000e6);
         throttle = bound(throttle, 1e6, 2_000_000e6);
         feePpm = bound(feePpm, 0, 100_000); // up to 10%

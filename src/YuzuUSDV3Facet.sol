@@ -143,5 +143,4 @@ contract YuzuUSDV3Facet is
         YuzuNavMarkdownV3Storage.layout()._isUpdatingNav = inProgress;
         emit NavUpdateInProgressSet(inProgress);
     }
-
 }

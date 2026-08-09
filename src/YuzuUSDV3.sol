@@ -186,8 +186,8 @@ contract YuzuUSDV3 is
         return !_isUpdatingNav() && super.canMint(receiver);
     }
 
-    function canRedeem(address owner) public view virtual override returns (bool) {
-        return !_isUpdatingNav() && super.canRedeem(owner);
+    function canRedeem(address _owner) public view virtual override returns (bool) {
+        return !_isUpdatingNav() && super.canRedeem(_owner);
     }
 
     function maxDeposit(address receiver) public view virtual override returns (uint256) {

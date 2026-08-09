@@ -137,15 +137,15 @@ contract YuzuILPV3Facet is
         }
         (uint256 assets, uint256 fee) = _orderValue(router, order.tokens, order.feePpm);
 
-        uint256 grossTotalAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
+        uint256 grossAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
         uint256 grossRedeemed = assets + fee;
         uint256 netTotalAssets = _proxyTotalAssets(router, Math.Rounding.Floor);
         if (netTotalAssets > 0) {
-            grossRedeemed = Math.mulDiv(assets + fee, grossTotalAssets, netTotalAssets, Math.Rounding.Ceil);
+            grossRedeemed = Math.mulDiv(assets + fee, grossAssets, netTotalAssets, Math.Rounding.Ceil);
         }
         uint256 totalAssetsFromDistributions = router.netDistributedSinceUpdate();
         uint256 redeemFromDistributions =
-            grossTotalAssets > 0 ? Math.mulDiv(grossRedeemed, totalAssetsFromDistributions, grossTotalAssets) : 0;
+            grossAssets > 0 ? Math.mulDiv(grossRedeemed, totalAssetsFromDistributions, grossAssets) : 0;
         uint256 redeemedFromPool = grossRedeemed - redeemFromDistributions;
 
         order.status = OrderStatus.Filled;
@@ -217,8 +217,8 @@ contract YuzuILPV3Facet is
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
         YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
 
-        uint256 accruedManagementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
-        uint256 managementFee = Math.min(accruedManagementFee, newPoolSize);
+        uint256 accruedMgmtFee = _proxyManagementFee(router, Math.Rounding.Ceil);
+        uint256 managementFee = Math.min(accruedMgmtFee, newPoolSize);
         uint256 netOfManagementFee = newPoolSize - managementFee;
         uint256 performanceFee = _proxyPerformanceFee(router, netOfManagementFee, Math.Rounding.Ceil);
         uint256 netPool = netOfManagementFee > performanceFee ? netOfManagementFee - performanceFee : 0;
@@ -228,8 +228,8 @@ contract YuzuILPV3Facet is
             $._cumulativeManagementFees = cumulative;
             emit RealizedManagementFee(managementFee, cumulative);
         }
-        if (managementFee < accruedManagementFee) {
-            emit ManagementFeeShortfall(accruedManagementFee, managementFee, netPool);
+        if (managementFee < accruedMgmtFee) {
+            emit ManagementFeeShortfall(accruedMgmtFee, managementFee, netPool);
         }
         if (performanceFee > 0) {
             uint256 cumulative = $._cumulativePerformanceFees + performanceFee;
@@ -477,8 +477,8 @@ contract YuzuILPV3Facet is
     /// Reverts when no credit can match the deposit, leaving deposits closed while that holds.
     function _poolSizeCredit(IYuzuILPV3Router router, uint256 assets) private view returns (uint256) {
         uint256 managementFee = _proxyManagementFee(router, Math.Rounding.Ceil);
-        uint256 grossTotalAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
-        uint256 netOfManagementFee = grossTotalAssets > managementFee ? grossTotalAssets - managementFee : 0;
+        uint256 grossAssets = _proxyGrossTotalAssets(router, Math.Rounding.Floor);
+        uint256 netOfManagementFee = grossAssets > managementFee ? grossAssets - managementFee : 0;
         uint256 netTotalAssets = _proxyTotalAssets(router, Math.Rounding.Floor);
 
         uint256 poolUnits = assets;
@@ -695,7 +695,11 @@ contract YuzuILPV3Facet is
     /// update would realize the standing fee claim against value the deposit itself supplied.
     function _isPoolFeeEroded(IYuzuILPV3Router router) private view returns (bool) {
         uint256 pool = router.poolSize();
-        if (pool > 0 && pool + _proxyYieldSinceUpdate(router, Math.Rounding.Floor) <= _proxyManagementFee(router, Math.Rounding.Ceil)) {
+        if (
+            pool > 0
+                && pool + _proxyYieldSinceUpdate(router, Math.Rounding.Floor)
+                    <= _proxyManagementFee(router, Math.Rounding.Ceil)
+        ) {
             return true;
         }
         if (_proxyTotalAssets(router, Math.Rounding.Floor) > 0) {

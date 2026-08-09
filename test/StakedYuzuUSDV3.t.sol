@@ -11,10 +11,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 
 import {StakedYuzuUSDV3} from "../src/StakedYuzuUSDV3.sol";
 import {StakedYuzuUSDV3Recovery} from "../src/StakedYuzuUSDV3Recovery.sol";
-import {
-    IStakedYuzuUSDDefinitions,
-    IStakedYuzuUSDV3Definitions
-} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
+import {IStakedYuzuUSDDefinitions, IStakedYuzuUSDV3Definitions} from "../src/interfaces/IStakedYuzuUSDDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {IYuzuMinAmountsDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {LOST_ADDRESS, RECOVERY_AMOUNT, RECOVERY_RECEIVER} from "./helpers/RecoveryConstants.sol";

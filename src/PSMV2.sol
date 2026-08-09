@@ -18,6 +18,7 @@ import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
  * @dev Mint and redeem throttles apply to their instant paths; the same-block restriction applies to instant redemption.
  * @dev Requires V3 inner vaults: a V3 yzUSD as vault0 and a V3 syzUSD as vault1.
  */
+// slither-disable-next-line missing-inheritance
 contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
     bytes32 internal constant SAME_BLOCK_EXEMPT_ROLE = keccak256("SAME_BLOCK_EXEMPT_ROLE");

@@ -179,6 +179,7 @@ contract StakedYuzuUSDV3 is
         }
         uint256 mintedShares = super.deposit(assets, receiver);
         // Reject a nonzero deposit that rounds down to zero shares.
+        // slither-disable-next-line incorrect-equality
         if (assets > 0 && mintedShares == 0) {
             revert InvalidZeroShares();
         }
