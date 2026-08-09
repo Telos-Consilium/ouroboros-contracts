@@ -419,6 +419,57 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(asset.balanceOf(user1), balanceBefore + expectedAssets);
     }
 
+    // A revoked owner's pending order cannot be filled.
+    function test_FillRedeemOrders_Revert_OwnerRoleRevoked() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+        _approveStaked(user1, address(psm), shares1);
+
+        vm.prank(user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
+
+        _depositLiquidity(expectedAssets);
+
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderOwnerNotUser.selector, orderId, user1));
+        psm.fillRedeemOrders(expectedAssets, _asArray(orderId));
+    }
+
+    // After a revoked owner's fill reverts, a filler cancels the still-pending order and the escrowed shares return.
+    function test_FillRedeemOrders_RevokedOwner_Cancel_ReturnsShares() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+        _approveStaked(user1, address(psm), shares1);
+        uint256 stakedBefore = styz.balanceOf(user1);
+
+        vm.prank(user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
+
+        _depositLiquidity(expectedAssets);
+
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderOwnerNotUser.selector, orderId, user1));
+        psm.fillRedeemOrders(expectedAssets, _asArray(orderId));
+        assertEq(uint256(psm.getRedeemOrder(orderId).status), uint256(OrderStatus.Pending));
+
+        vm.prank(orderFiller);
+        psm.cancelRedeemOrders(_asArray(orderId));
+        assertEq(uint256(psm.getRedeemOrder(orderId).status), uint256(OrderStatus.Cancelled));
+        assertEq(styz.balanceOf(user1), stakedBefore);
+    }
+
     function test_FillRedeemOrders_Revert_OrderNotPending() public {
         uint256 shares1 = 1e18;
         uint256 expectedAssets = 1e6;

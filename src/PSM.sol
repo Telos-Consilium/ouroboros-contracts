@@ -359,6 +359,10 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
         }
+        // The order owner must still hold USER_ROLE at fill.
+        if (!hasRole(USER_ROLE, order.owner)) {
+            revert OrderOwnerNotUser(orderId, order.owner);
+        }
 
         order.status = OrderStatus.Filled;
         // slither-disable-next-line unused-return

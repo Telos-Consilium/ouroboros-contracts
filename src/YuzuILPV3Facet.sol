@@ -10,6 +10,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {YuzuV3FacetBase} from "./YuzuV3FacetBase.sol";
 import {IYuzuILPDefinitions, IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
+import {IYuzuProto} from "./interfaces/proto/IYuzuProto.sol";
 import {
     BURNER_ROLE,
     DISTRIBUTOR_ROLE,
@@ -21,6 +22,7 @@ import {
     ORDER_FILLER_ROLE,
     POOL_MANAGER_ROLE,
     PRICE_GUARD_MANAGER_ROLE,
+    REDEEMER_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
@@ -125,6 +127,13 @@ contract YuzuILPV3Facet is
         Order storage order = _getYuzuOrderBookStorage()._orders[orderId];
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
+        }
+        // The order owner must still be an allowed redeemer at fill; pause is checked in finalizeRedeemOrder, not here.
+        if (
+            IYuzuProto(address(this)).isRedeemRestricted()
+                && !IAccessControl(address(this)).hasRole(REDEEMER_ROLE, order.owner)
+        ) {
+            revert OrderOwnerNotRedeemer(orderId, order.owner);
         }
         (uint256 assets, uint256 fee) = _orderValue(router, order.tokens, order.feePpm);
 

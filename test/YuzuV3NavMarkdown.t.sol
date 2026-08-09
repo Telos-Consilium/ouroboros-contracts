@@ -4,13 +4,16 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IYuzuNavMarkdownDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuOrderBookDefinitions} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {
     ADMIN_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
     PRICE_GUARD_MANAGER_ROLE,
-    REDEEM_MANAGER_ROLE
+    REDEEM_MANAGER_ROLE,
+    REDEEMER_ROLE,
+    RESTRICTION_MANAGER_ROLE
 } from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
@@ -342,5 +345,27 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.prank(user);
         yzusd.finalizeRedeemOrder(orderId);
         assertEq(asset.balanceOf(user) - balBefore, 90e6);
+    }
+
+    // A pending order cannot be filled after the owner's REDEEMER_ROLE is revoked under redeem restriction.
+    function test_FillRedeemOrder_Revert_OwnerRedeemerRevoked() public {
+        uint256 shares = _deposit(user, 100e6);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        yzusd.grantRole(RESTRICTION_MANAGER_ROLE, admin);
+        yzusd.setIsRedeemRestricted(true);
+        yzusd.grantRole(REDEEMER_ROLE, user);
+        vm.stopPrank();
+
+        vm.prank(user);
+        uint256 orderId = yzusd.createRedeemOrder(shares, user, user);
+
+        vm.prank(admin);
+        yzusd.revokeRole(REDEEMER_ROLE, user);
+
+        vm.prank(filler);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuOrderBookDefinitions.OrderOwnerNotRedeemer.selector, orderId, user));
+        yzusd.fillRedeemOrder(orderId);
     }
 }

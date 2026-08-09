@@ -12,10 +12,12 @@ import {
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
-    PRICE_GUARD_MANAGER_ROLE
+    PRICE_GUARD_MANAGER_ROLE,
+    REDEEMER_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuProto} from "./interfaces/proto/IYuzuProto.sol";
 import {IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuMinAmountsV3Storage, YuzuNavMarkdownV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
@@ -39,6 +41,13 @@ contract YuzuUSDV3Facet is
         Order storage order = $._orders[orderId];
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
+        }
+        // The order owner must still be an allowed redeemer at fill; pause is checked in finalizeRedeemOrder, not here.
+        if (
+            IYuzuProto(address(this)).isRedeemRestricted()
+                && !IAccessControl(address(this)).hasRole(REDEEMER_ROLE, order.owner)
+        ) {
+            revert OrderOwnerNotRedeemer(orderId, order.owner);
         }
         (uint256 assets, uint256 fee) = _orderValue(router, order.tokens, order.feePpm);
 

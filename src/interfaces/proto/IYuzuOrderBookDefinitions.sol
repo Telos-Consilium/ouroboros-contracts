@@ -29,6 +29,7 @@ interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error UnauthorizedOrderManager(address account, address owner, address controller);
     error UnauthorizedOrderFinalizer(address account, address owner, address controller);
     error OrderNotPending(uint256 orderId);
+    error OrderOwnerNotRedeemer(uint256 orderId, address owner);
     error OrderNotFilled(uint256 orderId);
     error OrderNotDue(uint256 orderId);
     error ExceededMaxRedeemOrder(address owner, uint256 tokens, uint256 max);

@@ -31,6 +31,7 @@ interface IPSMDefinitions {
     error VaultAssetMismatch(address expected, address underlying);
     error UnderMinRedeemOrder(uint256 shares, uint256 min);
     error OrderNotPending(uint256 orderId);
+    error OrderOwnerNotUser(uint256 orderId, address owner);
     error WithdrewLessThanMinAssets(uint256 assets, uint256 min);
     error RedeemFromOtherOwnerNotAllowed(address caller, address owner);
     error ExceededMaxDeposit(address receiver, uint256 assets, uint256 max);

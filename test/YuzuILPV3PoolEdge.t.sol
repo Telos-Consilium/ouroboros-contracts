@@ -2,7 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
-import {Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
+import {IYuzuOrderBookDefinitions, Order} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {IYuzuProtoDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuILPV2Definitions, IYuzuILPV3Definitions} from "../src/interfaces/IYuzuILPDefinitions.sol";
 import {
@@ -10,7 +10,9 @@ import {
     DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
-    POOL_MANAGER_ROLE
+    POOL_MANAGER_ROLE,
+    REDEEMER_ROLE,
+    RESTRICTION_MANAGER_ROLE
 } from "./helpers/TestRoles.sol";
 import {Vm} from "forge-std/Vm.sol";
 
@@ -39,6 +41,31 @@ contract YuzuILPV3PoolEdgeTest is
 
         _approve(user, address(yzilp));
         _approve(other, address(yzilp));
+    }
+
+    // A pending order cannot be filled after the owner's REDEEMER_ROLE is revoked under redeem restriction.
+    function test_FillRedeemOrder_Revert_OwnerRedeemerRevoked() public {
+        vm.prank(user);
+        uint256 shares = yzilp.deposit(1_000e6, user);
+
+        vm.startPrank(admin);
+        yzilp.grantRole(ORDER_FILLER_ROLE, filler);
+        yzilp.grantRole(RESTRICTION_MANAGER_ROLE, admin);
+        yzilp.setIsRedeemRestricted(true);
+        yzilp.grantRole(REDEEMER_ROLE, user);
+        vm.stopPrank();
+
+        vm.prank(user);
+        uint256 orderId = yzilp.createRedeemOrder(shares, user, user);
+
+        vm.prank(admin);
+        yzilp.revokeRole(REDEEMER_ROLE, user);
+
+        asset.mint(filler, 1_000e6);
+        _approve(filler, address(yzilp));
+        vm.prank(filler);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuOrderBookDefinitions.OrderOwnerNotRedeemer.selector, orderId, user));
+        yzilp.fillRedeemOrder(orderId);
     }
 
     // --- entry closure with unresolved zero-supply accounting ---
