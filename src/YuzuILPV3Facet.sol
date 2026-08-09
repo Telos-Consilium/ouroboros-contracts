@@ -31,10 +31,10 @@ import {IYuzuMinAmountsDefinitions, IYuzuProtoV2Definitions} from "./interfaces/
 import {IYuzuILPV3FacetPricing, IYuzuILPV3Router} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {
-    YuzuILPDistributionV3Storage,
-    YuzuILPFeesV3Storage,
-    YuzuMinAmountsV3Storage,
-    YuzuThrottleV3Storage
+    YuzuV3ILPDistributionStorage,
+    YuzuV3ILPFeesStorage,
+    YuzuV3MinAmountsStorage,
+    YuzuV3ThrottleStorage
 } from "./storage/YuzuV3Storage.sol";
 
 /**
@@ -76,7 +76,7 @@ contract YuzuILPV3Facet is
             revert ExceededMaxDeposit(receiver, assets, maxAssets);
         }
         uint256 tokens = router.previewDeposit(assets);
-        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuV3ILPFeesStorage.layout()._mintFeePpm);
         uint256 netAssets = assets - fee;
         _consumeMintThrottle(receiver, netAssets);
         _applyPoolSizeCredit(router, netAssets);
@@ -98,7 +98,7 @@ contract YuzuILPV3Facet is
         if (tokens > maxTokens) {
             revert ExceededMaxMint(receiver, tokens, maxTokens);
         }
-        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuV3ILPFeesStorage.layout()._mintFeePpm);
         uint256 netAssets = assets - fee;
         _consumeMintThrottle(receiver, netAssets);
         _applyPoolSizeCredit(router, netAssets);
@@ -159,7 +159,7 @@ contract YuzuILPV3Facet is
         // fraction so the remaining holders are not charged for it a second time.
         uint256 poolUnitsRemoved = _proxyDiscountYield(router, redeemedFromPool, Math.Rounding.Ceil);
         uint256 poolBefore = router.poolSize();
-        YuzuILPFeesV3Storage.Layout storage fees = YuzuILPFeesV3Storage.layout();
+        YuzuV3ILPFeesStorage.Layout storage fees = YuzuV3ILPFeesStorage.layout();
         if (poolBefore > 0) {
             fees._creditSecondsSinceUpdate = Math.mulDiv(
                 fees._creditSecondsSinceUpdate, poolBefore - poolUnitsRemoved, poolBefore, Math.Rounding.Floor
@@ -215,7 +215,7 @@ contract YuzuILPV3Facet is
             revert InvalidYield(newDailyLinearYieldRatePpm);
         }
         IYuzuILPV3Router router = IYuzuILPV3Router(address(this));
-        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
+        YuzuV3ILPFeesStorage.Layout storage $ = YuzuV3ILPFeesStorage.layout();
 
         uint256 accruedMgmtFee = _proxyManagementFee(router, Math.Rounding.Ceil);
         uint256 managementFee = Math.min(accruedMgmtFee, newPoolSize);
@@ -267,7 +267,7 @@ contract YuzuILPV3Facet is
     /// @notice Initiate a gradual increase in total assets.
     function distribute(uint256 assets, uint256 period) public {
         _checkRole(DISTRIBUTOR_ROLE);
-        YuzuILPDistributionV3Storage.Layout storage distribution = YuzuILPDistributionV3Storage.layout();
+        YuzuV3ILPDistributionStorage.Layout storage distribution = YuzuV3ILPDistributionStorage.layout();
         uint256 minPeriod = distribution._minDistributionPeriod;
         if (period < minPeriod) {
             revert DistributionPeriodTooLow(period, minPeriod);
@@ -336,7 +336,7 @@ contract YuzuILPV3Facet is
     // Config setters
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
+        Throttle storage throttle = YuzuV3ThrottleStorage.layout()._mintThrottle;
         uint256 oldBlockLimit = throttle.blockLimit;
         uint256 oldDailyLimit = throttle.dailyLimit;
         throttle.blockLimit = newBlockLimit;
@@ -346,7 +346,7 @@ contract YuzuILPV3Facet is
 
     function setMinDeposit(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
+        YuzuV3MinAmountsStorage.Layout storage $ = YuzuV3MinAmountsStorage.layout();
         uint256 oldMin = $._minDeposit;
         $._minDeposit = newMin;
         emit UpdatedMinDeposit(oldMin, newMin);
@@ -357,7 +357,7 @@ contract YuzuILPV3Facet is
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
-        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
+        YuzuV3ILPFeesStorage.Layout storage $ = YuzuV3ILPFeesStorage.layout();
         uint256 oldFee = $._mintFeePpm;
         $._mintFeePpm = newFeePpm;
         emit UpdatedMintFee(oldFee, newFeePpm);
@@ -368,7 +368,7 @@ contract YuzuILPV3Facet is
         if (newRatePpm > MAX_MANAGEMENT_FEE_PPM) {
             revert FeeTooHigh(newRatePpm, MAX_MANAGEMENT_FEE_PPM);
         }
-        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
+        YuzuV3ILPFeesStorage.Layout storage $ = YuzuV3ILPFeesStorage.layout();
         uint256 oldRatePpm = $._pendingManagementFeeRatePpm;
         $._pendingManagementFeeRatePpm = newRatePpm;
         emit UpdatedPendingManagementFee(oldRatePpm, newRatePpm);
@@ -379,7 +379,7 @@ contract YuzuILPV3Facet is
         if (newRatePpm > MAX_PERFORMANCE_FEE_PPM) {
             revert FeeTooHigh(newRatePpm, MAX_PERFORMANCE_FEE_PPM);
         }
-        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
+        YuzuV3ILPFeesStorage.Layout storage $ = YuzuV3ILPFeesStorage.layout();
         uint256 oldRatePpm = $._pendingPerformanceFeeRatePpm;
         $._pendingPerformanceFeeRatePpm = newRatePpm;
         emit UpdatedPendingPerformanceFee(oldRatePpm, newRatePpm);
@@ -393,7 +393,7 @@ contract YuzuILPV3Facet is
         if (newPeriod > 7 days) {
             revert DistributionPeriodTooHigh(newPeriod, 7 days);
         }
-        YuzuILPDistributionV3Storage.Layout storage $ = YuzuILPDistributionV3Storage.layout();
+        YuzuV3ILPDistributionStorage.Layout storage $ = YuzuV3ILPDistributionStorage.layout();
         uint256 oldPeriod = $._minDistributionPeriod;
         $._minDistributionPeriod = newPeriod;
         emit UpdatedMinDistributionPeriod(oldPeriod, newPeriod);
@@ -402,7 +402,7 @@ contract YuzuILPV3Facet is
     /// @notice Cap on a single distribution, in ppm of current total assets; type(uint256).max disables it
     function setMaxDistributionPpm(uint256 newMaxPpm) external {
         _checkRole(PRICE_GUARD_MANAGER_ROLE);
-        YuzuILPDistributionV3Storage.Layout storage $ = YuzuILPDistributionV3Storage.layout();
+        YuzuV3ILPDistributionStorage.Layout storage $ = YuzuV3ILPDistributionStorage.layout();
         uint256 oldMaxPpm = $._maxDistributionPpm;
         $._maxDistributionPpm = newMaxPpm;
         emit UpdatedMaxDistributionPpm(oldMaxPpm, newMaxPpm);
@@ -429,7 +429,7 @@ contract YuzuILPV3Facet is
         _setFullyDistributedSinceUpdate(0);
         _setRedeemedDistributionsSinceUpdate(0);
 
-        YuzuILPFeesV3Storage.layout()._creditSecondsSinceUpdate = 0;
+        YuzuV3ILPFeesStorage.layout()._creditSecondsSinceUpdate = 0;
 
         _setLastDistributedAmount(0);
         _setLastDistributionPeriod(0);
@@ -466,7 +466,7 @@ contract YuzuILPV3Facet is
     /// credit against the fee-time basis so the deposit bears management fee only from now on.
     function _applyPoolSizeCredit(IYuzuILPV3Router router, uint256 assets) private {
         uint256 credit = _poolSizeCredit(router, assets);
-        YuzuILPFeesV3Storage.layout()._creditSecondsSinceUpdate += credit * _proxyTimeSinceUpdate(router);
+        YuzuV3ILPFeesStorage.layout()._creditSecondsSinceUpdate += credit * _proxyTimeSinceUpdate(router);
         _setPoolSize(router.poolSize() + credit);
     }
 
@@ -734,7 +734,7 @@ contract YuzuILPV3Facet is
         if (_isThrottleExempt(account)) {
             return;
         }
-        YuzuV3Throttle.consumeMintChecked(YuzuThrottleV3Storage.layout()._mintThrottle, assets);
+        YuzuV3Throttle.consumeMintChecked(YuzuV3ThrottleStorage.layout()._mintThrottle, assets);
     }
 
     function _checkMinDeposit(IYuzuILPV3Router router, uint256 assets) private view {

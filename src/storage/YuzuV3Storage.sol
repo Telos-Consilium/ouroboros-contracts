@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Throttle} from "../interfaces/proto/IYuzuThrottleDefinitions.sol";
 
-library YuzuMinAmountsV3Storage {
+library YuzuV3MinAmountsStorage {
     struct Layout {
         uint256 _minDeposit;
         uint256 _minWithdraw;
@@ -20,7 +20,7 @@ library YuzuMinAmountsV3Storage {
     }
 }
 
-library YuzuThrottleV3Storage {
+library YuzuV3ThrottleStorage {
     struct Layout {
         Throttle _mintThrottle;
         Throttle _redeemThrottle;
@@ -37,7 +37,7 @@ library YuzuThrottleV3Storage {
     }
 }
 
-library YuzuRestrictedSharesV3Storage {
+library YuzuV3RestrictedSharesStorage {
     struct Restriction {
         uint256 blockNumber;
         uint256 amount;
@@ -58,7 +58,7 @@ library YuzuRestrictedSharesV3Storage {
     }
 }
 
-library YuzuNavMarkdownV3Storage {
+library YuzuV3NavMarkdownStorage {
     struct Layout {
         uint256 _nav;
         uint256 _lastUpdate;
@@ -76,7 +76,7 @@ library YuzuNavMarkdownV3Storage {
     }
 }
 
-library YuzuILPFeesV3Storage {
+library YuzuV3ILPFeesStorage {
     struct Layout {
         uint256 _mintFeePpm;
         uint256 _managementFeeRatePpm;
@@ -100,7 +100,7 @@ library YuzuILPFeesV3Storage {
     }
 }
 
-library YuzuILPDistributionV3Storage {
+library YuzuV3ILPDistributionStorage {
     struct Layout {
         uint256 _minDistributionPeriod;
         uint256 _maxDistributionPpm;

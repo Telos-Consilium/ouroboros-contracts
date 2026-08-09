@@ -21,7 +21,7 @@ import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfa
 import {IYuzuProto} from "./interfaces/proto/IYuzuProto.sol";
 import {IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {YuzuMinAmountsV3Storage, YuzuNavMarkdownV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
+import {YuzuV3MinAmountsStorage, YuzuV3NavMarkdownStorage, YuzuV3ThrottleStorage} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuUSDV3Facet
@@ -67,7 +67,7 @@ contract YuzuUSDV3Facet is
     // Config setters
     function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        Throttle storage throttle = YuzuThrottleV3Storage.layout()._mintThrottle;
+        Throttle storage throttle = YuzuV3ThrottleStorage.layout()._mintThrottle;
         uint256 oldBlockLimit = throttle.blockLimit;
         uint256 oldDailyLimit = throttle.dailyLimit;
         throttle.blockLimit = newBlockLimit;
@@ -77,7 +77,7 @@ contract YuzuUSDV3Facet is
 
     function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        Throttle storage throttle = YuzuThrottleV3Storage.layout()._redeemThrottle;
+        Throttle storage throttle = YuzuV3ThrottleStorage.layout()._redeemThrottle;
         uint256 oldBlockLimit = throttle.blockLimit;
         uint256 oldDailyLimit = throttle.dailyLimit;
         throttle.blockLimit = newBlockLimit;
@@ -87,7 +87,7 @@ contract YuzuUSDV3Facet is
 
     function setMinDeposit(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
+        YuzuV3MinAmountsStorage.Layout storage $ = YuzuV3MinAmountsStorage.layout();
         uint256 oldMin = $._minDeposit;
         $._minDeposit = newMin;
         emit UpdatedMinDeposit(oldMin, newMin);
@@ -95,7 +95,7 @@ contract YuzuUSDV3Facet is
 
     function setMinWithdraw(uint256 newMin) external {
         _checkRole(LIMIT_MANAGER_ROLE);
-        YuzuMinAmountsV3Storage.Layout storage $ = YuzuMinAmountsV3Storage.layout();
+        YuzuV3MinAmountsStorage.Layout storage $ = YuzuV3MinAmountsStorage.layout();
         uint256 oldMin = $._minWithdraw;
         $._minWithdraw = newMin;
         emit UpdatedMinWithdraw(oldMin, newMin);
@@ -103,7 +103,7 @@ contract YuzuUSDV3Facet is
 
     function setNav(uint256 newNav) external {
         _checkRole(NAV_MANAGER_ROLE);
-        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
+        YuzuV3NavMarkdownStorage.Layout storage $ = YuzuV3NavMarkdownStorage.layout();
         if (!$._isUpdatingNav) {
             revert NoNavUpdateInProgress();
         }
@@ -140,7 +140,7 @@ contract YuzuUSDV3Facet is
 
     function setNavUpdateInProgress(bool inProgress) external {
         _checkRole(NAV_MANAGER_ROLE);
-        YuzuNavMarkdownV3Storage.layout()._isUpdatingNav = inProgress;
+        YuzuV3NavMarkdownStorage.layout()._isUpdatingNav = inProgress;
         emit NavUpdateInProgressSet(inProgress);
     }
 }

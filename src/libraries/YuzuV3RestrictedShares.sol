@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {YuzuRestrictedSharesV3Storage} from "../storage/YuzuV3Storage.sol";
+import {YuzuV3RestrictedSharesStorage} from "../storage/YuzuV3Storage.sol";
 
 library YuzuV3RestrictedShares {
     function currentBlockRestrictedBalance(address account) internal view returns (uint256) {
-        YuzuRestrictedSharesV3Storage.Restriction storage restriction =
-            YuzuRestrictedSharesV3Storage.layout()._restrictions[account];
+        YuzuV3RestrictedSharesStorage.Restriction storage restriction =
+            YuzuV3RestrictedSharesStorage.layout()._restrictions[account];
         // slither-disable-next-line incorrect-equality
         return restriction.blockNumber == block.number ? restriction.amount : 0;
     }
@@ -16,9 +16,9 @@ library YuzuV3RestrictedShares {
             return;
         }
 
-        YuzuRestrictedSharesV3Storage.Layout storage $ = YuzuRestrictedSharesV3Storage.layout();
+        YuzuV3RestrictedSharesStorage.Layout storage $ = YuzuV3RestrictedSharesStorage.layout();
         if (from != address(0)) {
-            YuzuRestrictedSharesV3Storage.Restriction storage restriction = $._restrictions[from];
+            YuzuV3RestrictedSharesStorage.Restriction storage restriction = $._restrictions[from];
             // slither-disable-next-line incorrect-equality
             if (restriction.blockNumber == block.number && restriction.amount > fromBalance) {
                 restriction.amount = fromBalance;
@@ -26,7 +26,7 @@ library YuzuV3RestrictedShares {
         }
 
         if (to != address(0)) {
-            YuzuRestrictedSharesV3Storage.Restriction storage restriction = $._restrictions[to];
+            YuzuV3RestrictedSharesStorage.Restriction storage restriction = $._restrictions[to];
             // slither-disable-next-line incorrect-equality
             if (restriction.blockNumber == block.number) {
                 restriction.amount += amount;

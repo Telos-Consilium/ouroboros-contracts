@@ -18,7 +18,7 @@ import {YuzuUSDV2} from "./YuzuUSDV2.sol";
 import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {YuzuMinAmountsV3Storage, YuzuNavMarkdownV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
+import {YuzuV3MinAmountsStorage, YuzuV3NavMarkdownStorage, YuzuV3ThrottleStorage} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuUSDV3
@@ -50,7 +50,7 @@ contract YuzuUSDV3 is
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(MARKDOWN_STEP_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
-        YuzuThrottleV3Storage.Layout storage throttleStorage = YuzuThrottleV3Storage.layout();
+        YuzuV3ThrottleStorage.Layout storage throttleStorage = YuzuV3ThrottleStorage.layout();
         Throttle storage mintThrottle_ = throttleStorage._mintThrottle;
         mintThrottle_.blockLimit = type(uint256).max;
         mintThrottle_.dailyLimit = type(uint256).max;
@@ -59,7 +59,7 @@ contract YuzuUSDV3 is
         redeemThrottle_.blockLimit = type(uint256).max;
         redeemThrottle_.dailyLimit = type(uint256).max;
 
-        YuzuNavMarkdownV3Storage.Layout storage navStorage = YuzuNavMarkdownV3Storage.layout();
+        YuzuV3NavMarkdownStorage.Layout storage navStorage = YuzuV3NavMarkdownStorage.layout();
         navStorage._nav = NAV_PRECISION;
     }
 
@@ -142,20 +142,20 @@ contract YuzuUSDV3 is
     // Native views
     /// @notice Returns the mint throttle limits and usage
     function getMintThrottle() external view returns (Throttle memory) {
-        return YuzuThrottleV3Storage.layout()._mintThrottle;
+        return YuzuV3ThrottleStorage.layout()._mintThrottle;
     }
 
     /// @notice Returns the redeem throttle limits and usage
     function getRedeemThrottle() external view returns (Throttle memory) {
-        return YuzuThrottleV3Storage.layout()._redeemThrottle;
+        return YuzuV3ThrottleStorage.layout()._redeemThrottle;
     }
 
     function minDeposit() public view returns (uint256) {
-        return YuzuMinAmountsV3Storage.layout()._minDeposit;
+        return YuzuV3MinAmountsStorage.layout()._minDeposit;
     }
 
     function minWithdraw() public view returns (uint256) {
-        return YuzuMinAmountsV3Storage.layout()._minWithdraw;
+        return YuzuV3MinAmountsStorage.layout()._minWithdraw;
     }
 
     /// @notice Shares received this block and excluded from instant redemption unless the owner has SAME_BLOCK_EXEMPT_ROLE
@@ -165,21 +165,21 @@ contract YuzuUSDV3 is
 
     /// @notice Backing value of one share; NAV_PRECISION is par
     function nav() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._nav;
+        return YuzuV3NavMarkdownStorage.layout()._nav;
     }
 
     /// @notice Timestamp of the last nav update
     function navLastUpdate() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._lastUpdate;
+        return YuzuV3NavMarkdownStorage.layout()._lastUpdate;
     }
 
     function _isUpdatingNav() private view returns (bool) {
-        return YuzuNavMarkdownV3Storage.layout()._isUpdatingNav;
+        return YuzuV3NavMarkdownStorage.layout()._isUpdatingNav;
     }
 
     /// @notice Whether nav is below par
     function isMarkedDown() public view returns (bool) {
-        return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
+        return YuzuV3NavMarkdownStorage.layout()._nav < NAV_PRECISION;
     }
 
     function canMint(address receiver) public view virtual override returns (bool) {
@@ -312,7 +312,7 @@ contract YuzuUSDV3 is
     }
 
     function _effectiveNav() private view returns (uint256) {
-        return Math.min(YuzuNavMarkdownV3Storage.layout()._nav, NAV_PRECISION);
+        return Math.min(YuzuV3NavMarkdownStorage.layout()._nav, NAV_PRECISION);
     }
 
     // Router callbacks
@@ -347,7 +347,7 @@ contract YuzuUSDV3 is
             return type(uint256).max;
         }
         (uint256 blockRemaining, uint256 dailyRemaining) =
-            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._mintThrottle);
+            YuzuV3Throttle.remaining(YuzuV3ThrottleStorage.layout()._mintThrottle);
         return Math.min(blockRemaining, dailyRemaining);
     }
 
@@ -356,7 +356,7 @@ contract YuzuUSDV3 is
             return type(uint256).max;
         }
         (uint256 blockRemaining, uint256 dailyRemaining) =
-            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._redeemThrottle);
+            YuzuV3Throttle.remaining(YuzuV3ThrottleStorage.layout()._redeemThrottle);
         return Math.min(blockRemaining, dailyRemaining);
     }
 
@@ -364,14 +364,14 @@ contract YuzuUSDV3 is
         if (_isThrottleExempt(account)) {
             return;
         }
-        YuzuV3Throttle.consumeMintChecked(YuzuThrottleV3Storage.layout()._mintThrottle, assets);
+        YuzuV3Throttle.consumeMintChecked(YuzuV3ThrottleStorage.layout()._mintThrottle, assets);
     }
 
     function _consumeRedeemThrottle(address account, uint256 assets) private {
         if (_isThrottleExempt(account)) {
             return;
         }
-        YuzuV3Throttle.consumeRedeemChecked(YuzuThrottleV3Storage.layout()._redeemThrottle, assets);
+        YuzuV3Throttle.consumeRedeemChecked(YuzuV3ThrottleStorage.layout()._redeemThrottle, assets);
     }
 
     function _isSameBlockExempt(address account) private view returns (bool) {
@@ -393,12 +393,12 @@ contract YuzuUSDV3 is
     }
 
     function _checkMinDeposit(uint256 assets) private view {
-        uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
+        uint256 min = YuzuV3MinAmountsStorage.layout()._minDeposit;
         if (assets < min) revert UnderMinDeposit(assets, min);
     }
 
     function _checkMinWithdraw(uint256 assets) private view {
-        uint256 min = YuzuMinAmountsV3Storage.layout()._minWithdraw;
+        uint256 min = YuzuV3MinAmountsStorage.layout()._minWithdraw;
         if (assets < min) revert UnderMinWithdraw(assets, min);
     }
 
