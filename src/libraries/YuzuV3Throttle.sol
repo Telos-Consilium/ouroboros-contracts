@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 import {IYuzuThrottleDefinitions, Throttle} from "../interfaces/proto/IYuzuThrottleDefinitions.sol";
 
 library YuzuV3Throttle {
@@ -24,6 +26,11 @@ library YuzuV3Throttle {
             revert IYuzuThrottleDefinitions.ExceededRedeemDailyLimit(assets, dailyRemaining);
         }
         consume(throttle, assets);
+    }
+
+    function remainingCapacity(Throttle memory throttle) internal view returns (uint256) {
+        (uint256 blockRemaining, uint256 dailyRemaining) = remaining(throttle);
+        return Math.min(blockRemaining, dailyRemaining);
     }
 
     function remaining(Throttle memory throttle)

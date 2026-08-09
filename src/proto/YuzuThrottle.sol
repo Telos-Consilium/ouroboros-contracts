@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
 import {IYuzuThrottleDefinitions, Throttle} from "../interfaces/proto/IYuzuThrottleDefinitions.sol";
 import {YuzuV3Throttle} from "../libraries/YuzuV3Throttle.sol";
 import {YuzuThrottleV3Storage} from "../storage/YuzuV3Storage.sol";
@@ -33,9 +31,7 @@ abstract contract YuzuThrottle is IYuzuThrottleDefinitions {
         if (_isThrottleExempt(account)) {
             return type(uint256).max;
         }
-        (uint256 blockRemaining, uint256 dailyRemaining) =
-            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._mintThrottle);
-        return Math.min(blockRemaining, dailyRemaining);
+        return YuzuV3Throttle.remainingCapacity(YuzuThrottleV3Storage.layout()._mintThrottle);
     }
 
     /// @dev Returns the remaining redeem throttle capacity for account in the current block and day, in assets
@@ -43,9 +39,7 @@ abstract contract YuzuThrottle is IYuzuThrottleDefinitions {
         if (_isThrottleExempt(account)) {
             return type(uint256).max;
         }
-        (uint256 blockRemaining, uint256 dailyRemaining) =
-            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._redeemThrottle);
-        return Math.min(blockRemaining, dailyRemaining);
+        return YuzuV3Throttle.remainingCapacity(YuzuThrottleV3Storage.layout()._redeemThrottle);
     }
 
     function _consumeMintThrottle(address account, uint256 assets) internal {

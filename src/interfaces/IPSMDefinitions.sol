@@ -76,6 +76,5 @@ interface IPSMVault1 is IERC4626, IAccessControl, IVaultRestrictions {
     function minDeposit() external view returns (uint256);
     function minWithdraw() external view returns (uint256);
     function currentBlockRestrictedBalance(address account) external view returns (uint256);
-    function redeemThrottleRemaining(address account) external view returns (uint256);
     function getRedeemThrottle() external view returns (Throttle memory);
 }

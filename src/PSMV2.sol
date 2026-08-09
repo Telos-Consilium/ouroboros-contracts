@@ -6,10 +6,11 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IPSMVault0, IPSMVault1} from "./interfaces/IPSMDefinitions.sol";
 import {Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {REDEEM_FEE_EXEMPT_ROLE, THROTTLE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
+import {REDEEM_FEE_EXEMPT_ROLE} from "./libraries/YuzuV3Constants.sol";
 import {PSM} from "./PSM.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
+import {YuzuV3Throttle} from "./libraries/YuzuV3Throttle.sol";
 
 /**
  * @title PSMV2
@@ -93,7 +94,9 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
             }
         }
 
-        uint256 innerRemaining = _v1().redeemThrottleRemaining(address(this));
+        uint256 innerRemaining = _v1().hasRole(THROTTLE_EXEMPT_ROLE, address(this))
+            ? type(uint256).max
+            : YuzuV3Throttle.remainingCapacity(_v1().getRedeemThrottle());
         if (_vault1AssetsGross(maxShares) > innerRemaining) {
             maxShares = _vault1.convertToShares(innerRemaining);
         }
