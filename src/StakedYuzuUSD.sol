@@ -171,13 +171,13 @@ contract StakedYuzuUSD is
     }
 
     /// @notice Instant withdrawals are not supported
-    /// @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
+    /// @dev Use {initiateRedeem} and {finalizeRedeem} for delayed redemptions instead
     function withdraw(uint256, address, address) public virtual override returns (uint256) {
         revert WithdrawNotSupported();
     }
 
     /// @notice Instant redemptions are not supported
-    /// @dev Use initiateRedeem() and finalizeRedeem() for delayed redemptions instead
+    /// @dev Use {initiateRedeem} and {finalizeRedeem} for delayed redemptions instead
     function redeem(uint256, address, address) public virtual override returns (uint256) {
         revert RedeemNotSupported();
     }
