@@ -62,6 +62,9 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
+        if (tokens == 0) {
+            revert InvalidZeroShares();
+        }
         uint256 maxTokens = router.maxRedeemOrder(owner);
         if (tokens > maxTokens) {
             revert ExceededMaxRedeemOrder(owner, tokens, maxTokens);

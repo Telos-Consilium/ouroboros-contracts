@@ -24,6 +24,7 @@ struct Order {
 
 interface IYuzuOrderBookDefinitions is IYuzuDefinitions {
     error InvalidZeroAddress();
+    error InvalidZeroShares();
     error FillWindowTooHigh(uint256 provided, uint256 max);
     error UnderMinRedeemOrder(uint256 tokens, uint256 min);
     error UnauthorizedOrderManager(address account, address owner, address controller);
