@@ -172,6 +172,51 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
         assertEq(styz.balanceOf(user), shares);
     }
 
+    function test_NavUpdate_ClosesPsmInstantPaths() public {
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        yzusd.grantRole(NAV_MANAGER_ROLE, admin);
+        yzusd.setNavUpdateInProgress(true);
+        vm.stopPrank();
+
+        assertEq(psm.maxDeposit(user), 0);
+        assertEq(psm.maxRedeem(user), 0);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxDeposit.selector, user, 1e6, 0));
+        psm.deposit(1e6, user);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxRedeem.selector, user, shares, 0));
+        psm.redeem(shares, user, user);
+    }
+
+    function test_NavUpdate_LeavesPsmOrderPathOpen() public {
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        yzusd.grantRole(NAV_MANAGER_ROLE, admin);
+        yzusd.setNavUpdateInProgress(true);
+        psm.grantRole(ORDER_FILLER_ROLE, liquidityManager);
+        vm.stopPrank();
+
+        assertEq(psm.maxRedeemOrder(user), shares);
+        vm.prank(user);
+        uint256 orderId = psm.createRedeemOrder(shares, user, user);
+
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = orderId;
+        vm.prank(liquidityManager);
+        psm.fillRedeemOrders(0, ids);
+
+        assertEq(asset.balanceOf(user), 10_000_000e6);
+    }
+
     function test_SameBlock_TransferHopBypass_Closed() public {
         address user2 = makeAddr("user2");
         vm.prank(restrictionManager);
@@ -349,7 +394,9 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
     function test_MaxDeposit_NonParVault0_UsesPreviewDeposit() public {
         vm.startPrank(admin);
         yzusd.grantRole(NAV_MANAGER_ROLE, admin);
+        yzusd.setNavUpdateInProgress(true);
         yzusd.setNav(9e17); // mark yzUSD down 10%
+        yzusd.setNavUpdateInProgress(false);
         yzusd.grantRole(LIMIT_MANAGER_ROLE, admin);
         styz.grantRole(LIMIT_MANAGER_ROLE, admin);
         psm.grantRole(LIMIT_MANAGER_ROLE, admin);

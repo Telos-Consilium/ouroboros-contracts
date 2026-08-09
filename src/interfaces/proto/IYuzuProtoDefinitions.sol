@@ -29,11 +29,10 @@ interface IYuzuMinAmountsDefinitions {
 
 interface IYuzuNavMarkdownDefinitions {
     error InvalidNav(uint256 nav);
+    error NoNavUpdateInProgress();
     error NavStepTooHigh(uint256 requestedNav, uint256 currentNav, uint256 maxDelta);
     error NavCooldownActive(uint256 nowTimestamp, uint256 readyTimestamp);
-    error InvalidNavStepCap(uint256 stepCapPpm, uint256 max);
 
     event UpdatedNav(uint256 oldNav, uint256 newNav);
-    event UpdatedNavStepCap(uint256 oldStepCapPpm, uint256 newStepCapPpm);
-    event UpdatedNavCooldown(uint256 oldCooldown, uint256 newCooldown);
+    event NavUpdateInProgressSet(bool inProgress);
 }

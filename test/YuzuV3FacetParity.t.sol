@@ -47,7 +47,11 @@ contract YuzuV3FacetParityTest is YuzuV3TestBase {
         yzusd.setRedeemFee(feePpm);
         if (nav_ != PAR) {
             vm.prank(navManager);
+            yzusd.setNavUpdateInProgress(true);
+            vm.prank(navManager);
             yzusd.setNav(nav_);
+            vm.prank(navManager);
+            yzusd.setNavUpdateInProgress(false);
         }
         vm.roll(block.number + 1);
     }

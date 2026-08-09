@@ -67,12 +67,12 @@ interface IVaultRestrictions {
 }
 
 /// @dev The V3 surface PSMV2 requires of vault0 (yzUSD) beyond ERC-4626.
-interface IPSMVault0 is IERC4626, IERC20Burnable {
+interface IPSMVault0 is IERC4626, IERC20Burnable, IVaultRestrictions {
     function minDeposit() external view returns (uint256);
 }
 
 /// @dev The V3 surface PSMV2 requires of vault1 (syzUSD) beyond ERC-4626.
-interface IPSMVault1 is IERC4626, IAccessControl {
+interface IPSMVault1 is IERC4626, IAccessControl, IVaultRestrictions {
     function minDeposit() external view returns (uint256);
     function minWithdraw() external view returns (uint256);
     function currentBlockRestrictedBalance(address account) external view returns (uint256);

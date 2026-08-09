@@ -7,7 +7,6 @@ import {
     FEE_MANAGER_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
-    PRICE_GUARD_MANAGER_ROLE,
     SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
@@ -38,9 +37,6 @@ contract YuzuUSDV3 is
     uint256 internal constant NAV_PRECISION = 1e18;
     uint256 private constant NAV_SHARE_SCALE = 1e30;
 
-    uint256 internal constant DEFAULT_NAV_STEP_CAP_PPM = 100_000;
-    uint256 internal constant DEFAULT_NAV_COOLDOWN = 1 days;
-
     // Construction and initialization
     constructor(address facet_) YuzuV3FacetRouting(facet_) {}
 
@@ -53,7 +49,6 @@ contract YuzuUSDV3 is
         _setRoleAdmin(SAME_BLOCK_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(MARKDOWN_STEP_EXEMPT_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         YuzuThrottleV3Storage.Layout storage throttleStorage = YuzuThrottleV3Storage.layout();
         Throttle storage mintThrottle_ = throttleStorage._mintThrottle;
@@ -66,8 +61,6 @@ contract YuzuUSDV3 is
 
         YuzuNavMarkdownV3Storage.Layout storage navStorage = YuzuNavMarkdownV3Storage.layout();
         navStorage._nav = NAV_PRECISION;
-        navStorage._stepCapPpm = DEFAULT_NAV_STEP_CAP_PPM;
-        navStorage._cooldown = DEFAULT_NAV_COOLDOWN;
     }
 
     // Facet routes: order lifecycle
@@ -142,11 +135,7 @@ contract YuzuUSDV3 is
         _delegateToFacet();
     }
 
-    function setNavStepCap(uint256) external virtual {
-        _delegateToFacet();
-    }
-
-    function setNavCooldown(uint256) external virtual {
+    function setNavUpdateInProgress(bool) external virtual {
         _delegateToFacet();
     }
 
@@ -179,24 +168,26 @@ contract YuzuUSDV3 is
         return YuzuNavMarkdownV3Storage.layout()._nav;
     }
 
-    /// @notice Maximum relative change per nav update, in ppm of the current nav
-    function navStepCapPpm() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._stepCapPpm;
-    }
-
-    /// @notice Minimum seconds between nav updates
-    function navCooldown() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._cooldown;
-    }
-
     /// @notice Timestamp of the last nav update
     function navLastUpdate() public view returns (uint256) {
         return YuzuNavMarkdownV3Storage.layout()._lastUpdate;
     }
 
+    function _isUpdatingNav() private view returns (bool) {
+        return YuzuNavMarkdownV3Storage.layout()._isUpdatingNav;
+    }
+
     /// @notice Whether nav is below par
     function isMarkedDown() public view returns (bool) {
         return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
+    }
+
+    function canMint(address receiver) public view virtual override returns (bool) {
+        return !_isUpdatingNav() && super.canMint(receiver);
+    }
+
+    function canRedeem(address owner) public view virtual override returns (bool) {
+        return !_isUpdatingNav() && super.canRedeem(owner);
     }
 
     function maxDeposit(address receiver) public view virtual override returns (uint256) {

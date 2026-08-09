@@ -26,3 +26,5 @@ bytes32 constant THROTTLE_EXEMPT_ROLE = keccak256("THROTTLE_EXEMPT_ROLE");
 uint256 constant MAX_MANAGEMENT_FEE_PPM = 100_000;
 /// @dev Maximum performance fee, in ppm (50%)
 uint256 constant MAX_PERFORMANCE_FEE_PPM = 500_000;
+uint256 constant NAV_STEP_CAP_PPM = 100_000;
+uint256 constant NAV_COOLDOWN = 1 days;

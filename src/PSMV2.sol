@@ -118,7 +118,13 @@ contract PSMV2 is PSM, YuzuMinAmounts, YuzuThrottle {
     /// @dev Bounds by the configured redeem limit, not the remaining: a single order above the limit
     /// can never settle in any window.
     function maxRedeemOrder(address _owner) public view virtual override returns (uint256) {
-        uint256 maxShares = super.maxRedeemOrder(_owner);
+        if (
+            !_v0().canCreateRedeemOrder(address(this)) || !_v1().canRedeem(address(this))
+                || !_v0().canBurn(address(this)) || !hasRole(USER_ROLE, _owner)
+        ) {
+            return 0;
+        }
+        uint256 maxShares = _vault1.balanceOf(_owner);
 
         if (!_throttleExempt()) {
             Throttle memory throttle = _v1().getRedeemThrottle();

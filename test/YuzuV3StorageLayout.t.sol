@@ -14,7 +14,7 @@ import {
     YuzuRestrictedSharesV3Storage,
     YuzuThrottleV3Storage
 } from "../src/storage/YuzuV3Storage.sol";
-import {LIMIT_MANAGER_ROLE, REDEEM_MANAGER_ROLE} from "./helpers/TestRoles.sol";
+import {LIMIT_MANAGER_ROLE, NAV_MANAGER_ROLE, REDEEM_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 /// @dev ERC-7201: keccak256(abi.encode(uint256(keccak256(id)) - 1)) & ~bytes32(uint256(0xff))
@@ -215,7 +215,7 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
 /// @notice Pins the field offsets of the ilpfees namespace through the router getters. The router
 /// and, under delegatecall, the facet both address these fields by their position in the Layout
 /// struct, so inserting or reordering fields shifts every later slot and fails here. New fields
-/// must be appended and extend this pin.
+/// must extend this pin; after deployment, existing offsets must remain stable.
 contract YuzuV3IlpFeesLayoutTest is YuzuV3TestBase {
     function setUp() public {
         asset = _newAsset();
@@ -244,5 +244,35 @@ contract YuzuV3IlpFeesLayoutTest is YuzuV3TestBase {
         vm.store(address(yzilp), bytes32(uint256(base) + 1), bytes32(uint256(22)));
         assertEq(yzilp.minDistributionPeriod(), 11, "_minDistributionPeriod at base");
         assertEq(yzilp.maxDistributionPpm(), 22, "_maxDistributionPpm at base + 1");
+    }
+}
+
+/// @notice Pins the navmarkdown field offsets so an insert or reorder that shifts `_lastUpdate` or
+/// `_isUpdatingNav` fails here.
+contract YuzuV3NavMarkdownLayoutTest is YuzuV3TestBase {
+    function setUp() public {
+        asset = _newAsset();
+        yzusd = _deployYuzuUSDV3(address(asset));
+        vm.prank(admin);
+        yzusd.grantRole(NAV_MANAGER_ROLE, navManager);
+    }
+
+    // navmarkdown: _nav (0), _lastUpdate (1), _isUpdatingNav (2)
+    function test_NavMarkdownLayout_FieldOffsets() public {
+        bytes32 base = YuzuNavMarkdownV3Storage.LOCATION;
+
+        vm.store(address(yzusd), base, bytes32(uint256(111)));
+        assertEq(yzusd.nav(), 111, "_nav at offset 0");
+
+        vm.store(address(yzusd), bytes32(uint256(base) + 1), bytes32(uint256(333)));
+        assertEq(yzusd.navLastUpdate(), 333, "_lastUpdate at offset 1");
+
+        vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(true);
+        assertEq(uint256(vm.load(address(yzusd), bytes32(uint256(base) + 2))), 1, "_isUpdatingNav at offset 2");
+
+        vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(false);
+        assertEq(uint256(vm.load(address(yzusd), bytes32(uint256(base) + 2))), 0, "_isUpdatingNav cleared at offset 2");
     }
 }

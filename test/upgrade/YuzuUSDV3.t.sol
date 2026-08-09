@@ -76,8 +76,6 @@ contract YuzuUSDV3UpgradeForkTest is UpgradeTestBase {
         assertEq(v3.getRoleAdmin(THROTTLE_EXEMPT_ROLE), ADMIN_ROLE, "THROTTLE_EXEMPT_ROLE admin");
         assertEq(v3.getRoleAdmin(NAV_MANAGER_ROLE), ADMIN_ROLE, "NAV_MANAGER_ROLE admin");
         assertEq(v3.nav(), 1e18, "nav");
-        assertEq(v3.navStepCapPpm(), 100_000, "navStepCapPpm");
-        assertEq(v3.navCooldown(), 1 days, "navCooldown");
 
         Throttle memory mintThrottle = v3.getMintThrottle();
         Throttle memory redeemThrottle = v3.getRedeemThrottle();

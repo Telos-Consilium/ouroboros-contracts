@@ -61,9 +61,8 @@ library YuzuRestrictedSharesV3Storage {
 library YuzuNavMarkdownV3Storage {
     struct Layout {
         uint256 _nav;
-        uint256 _stepCapPpm;
-        uint256 _cooldown;
         uint256 _lastUpdate;
+        bool _isUpdatingNav;
     }
 
     // keccak256(abi.encode(uint256(keccak256("yuzu.storage.navmarkdown")) - 1)) & ~bytes32(uint256(0xff))

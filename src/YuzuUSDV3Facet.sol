@@ -11,8 +11,9 @@ import {
     LIMIT_MANAGER_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
+    NAV_COOLDOWN,
+    NAV_STEP_CAP_PPM,
     ORDER_FILLER_ROLE,
-    PRICE_GUARD_MANAGER_ROLE,
     REDEEMER_ROLE
 } from "./libraries/YuzuV3Constants.sol";
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
@@ -102,23 +103,25 @@ contract YuzuUSDV3Facet is
 
     function setNav(uint256 newNav) external {
         _checkRole(NAV_MANAGER_ROLE);
+        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
+        if (!$._isUpdatingNav) {
+            revert NoNavUpdateInProgress();
+        }
         if (newNav == 0) {
             revert InvalidNav(newNav);
         }
-        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
         uint256 currentNav = $._nav;
 
         uint256 lastUpdate = $._lastUpdate;
         if (lastUpdate != 0) {
-            uint256 readyAt = lastUpdate + $._cooldown;
-            if (block.timestamp < readyAt) {
-                revert NavCooldownActive(block.timestamp, readyAt);
+            if (block.timestamp - lastUpdate < NAV_COOLDOWN) {
+                revert NavCooldownActive(block.timestamp, lastUpdate + NAV_COOLDOWN);
             }
         }
 
         // The step cap binds both directions; markdowns beyond the cap require
         // MARKDOWN_STEP_EXEMPT_ROLE so a major loss can be marked in one call.
-        uint256 maxDelta = Math.mulDiv(currentNav, $._stepCapPpm, 1e6);
+        uint256 maxDelta = Math.mulDiv(currentNav, NAV_STEP_CAP_PPM, 1e6);
         if (newNav > currentNav) {
             if (newNav - currentNav > maxDelta) {
                 revert NavStepTooHigh(newNav, currentNav, maxDelta);
@@ -135,22 +138,10 @@ contract YuzuUSDV3Facet is
         emit UpdatedNav(currentNav, newNav);
     }
 
-    function setNavStepCap(uint256 newStepCapPpm) external {
-        _checkRole(PRICE_GUARD_MANAGER_ROLE);
-        if (newStepCapPpm > 1e6) {
-            revert InvalidNavStepCap(newStepCapPpm, 1e6);
-        }
-        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
-        uint256 oldStepCapPpm = $._stepCapPpm;
-        $._stepCapPpm = newStepCapPpm;
-        emit UpdatedNavStepCap(oldStepCapPpm, newStepCapPpm);
+    function setNavUpdateInProgress(bool inProgress) external {
+        _checkRole(NAV_MANAGER_ROLE);
+        YuzuNavMarkdownV3Storage.layout()._isUpdatingNav = inProgress;
+        emit NavUpdateInProgressSet(inProgress);
     }
 
-    function setNavCooldown(uint256 newCooldown) external {
-        _checkRole(PRICE_GUARD_MANAGER_ROLE);
-        YuzuNavMarkdownV3Storage.Layout storage $ = YuzuNavMarkdownV3Storage.layout();
-        uint256 oldCooldown = $._cooldown;
-        $._cooldown = newCooldown;
-        emit UpdatedNavCooldown(oldCooldown, newCooldown);
-    }
 }
