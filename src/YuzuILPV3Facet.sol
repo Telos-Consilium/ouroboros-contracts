@@ -664,7 +664,9 @@ contract YuzuILPV3Facet is
     {
         uint256 supply = router.totalSupply();
         if (supply == 0) {
-            return Math.ceilDiv(headroom, 1e12);
+            // convertToShares(1) is the zero-supply share-per-asset rate (10 ** decimalsOffset).
+            uint256 rate = router.convertToShares(1);
+            return rounding == Math.Rounding.Ceil ? Math.ceilDiv(headroom, rate) : headroom / rate;
         }
         // Source total assets at the conversion's own rounding, not the floor-only totalAssets(), so the
         // estimate matches the mint or deposit it bounds.

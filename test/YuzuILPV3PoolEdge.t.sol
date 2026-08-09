@@ -9,6 +9,7 @@ import {
     BURNER_ROLE,
     DISTRIBUTOR_ROLE,
     FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
     POOL_MANAGER_ROLE,
     REDEEMER_ROLE,
@@ -190,6 +191,25 @@ contract YuzuILPV3PoolEdgeTest is
         assertEq(yzilp.totalAssets(), 0);
         assertGt(yzilp.maxDeposit(other), 0);
         assertGt(yzilp.maxMint(other), 0);
+    }
+
+    // At zero supply, depositing the reported maximum must not mint past a cap that is not aligned
+    // to the share-per-asset rate; the maximum rounds down.
+    function test_MaxDeposit_ZeroSupply_DoesNotExceedNonAlignedCap() public {
+        uint256 cap = 1e18 + 7e11; // not a multiple of the 1e12 share-per-asset rate
+        vm.startPrank(admin);
+        yzilp.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzilp.setSupplyCap(cap);
+        vm.stopPrank();
+
+        assertEq(yzilp.totalSupply(), 0);
+        uint256 maxAssets = yzilp.maxDeposit(user);
+        assertGt(maxAssets, 0);
+        assertLe(yzilp.previewDeposit(maxAssets), cap, "zero-supply maxDeposit must not breach the cap");
+
+        vm.prank(user);
+        yzilp.deposit(maxAssets, user);
+        assertLe(yzilp.totalSupply(), cap, "depositing the maximum must not breach the cap");
     }
 
     function test_PartialBurn_PreservesDistribution() public {
