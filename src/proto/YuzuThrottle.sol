@@ -11,12 +11,14 @@ import {YuzuV3ThrottleStorage} from "../storage/YuzuV3Storage.sol";
  * @dev Uses ERC-7201 namespaced storage. A limit of 0 halts the flow; max uint never binds.
  */
 abstract contract YuzuThrottle is IYuzuThrottleDefinitions {
-    /// @notice Returns the mint throttle limits and usage
+    /// @notice Returns stored mint throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getMintThrottle() external view returns (Throttle memory) {
         return YuzuV3ThrottleStorage.layout()._mintThrottle;
     }
 
-    /// @notice Returns the redeem throttle limits and usage
+    /// @notice Returns stored redeem throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getRedeemThrottle() external view returns (Throttle memory) {
         return YuzuV3ThrottleStorage.layout()._redeemThrottle;
     }

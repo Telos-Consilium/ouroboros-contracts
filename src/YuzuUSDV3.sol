@@ -140,12 +140,14 @@ contract YuzuUSDV3 is
     }
 
     // Native views
-    /// @notice Returns the mint throttle limits and usage
+    /// @notice Returns stored mint throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getMintThrottle() external view returns (Throttle memory) {
         return YuzuV3ThrottleStorage.layout()._mintThrottle;
     }
 
-    /// @notice Returns the redeem throttle limits and usage
+    /// @notice Returns stored redeem throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getRedeemThrottle() external view returns (Throttle memory) {
         return YuzuV3ThrottleStorage.layout()._redeemThrottle;
     }

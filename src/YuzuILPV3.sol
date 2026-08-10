@@ -305,6 +305,8 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         return YuzuV3ILPDistributionStorage.layout()._minDistributionPeriod;
     }
 
+    /// @notice Returns stored mint throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getMintThrottle() external view returns (Throttle memory) {
         return YuzuV3ThrottleStorage.layout()._mintThrottle;
     }
