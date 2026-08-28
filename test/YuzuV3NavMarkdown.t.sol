@@ -4,13 +4,17 @@ pragma solidity ^0.8.30;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {IYuzuNavMarkdownDefinitions} from "../src/interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
+import {IYuzuOrderBookDefinitions} from "../src/interfaces/proto/IYuzuOrderBookDefinitions.sol";
 import {
     ADMIN_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
+    MINTER_ROLE,
     NAV_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
-    PRICE_GUARD_MANAGER_ROLE,
-    REDEEM_MANAGER_ROLE
+    REDEEM_MANAGER_ROLE,
+    REDEEMER_ROLE,
+    RESTRICTION_MANAGER_ROLE
 } from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
@@ -27,7 +31,6 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.startPrank(admin);
         yzusd.grantRole(NAV_MANAGER_ROLE, navManager);
         yzusd.grantRole(REDEEM_MANAGER_ROLE, admin);
-        yzusd.grantRole(PRICE_GUARD_MANAGER_ROLE, admin);
         yzusd.grantRole(ORDER_FILLER_ROLE, filler);
         yzusd.setIsMintRestricted(false);
         yzusd.setIsRedeemRestricted(false);
@@ -47,15 +50,22 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
 
     function _setNav(uint256 newNav) internal {
         vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(true);
+        vm.prank(navManager);
         yzusd.setNav(newNav);
+        vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(false);
+    }
+
+    function _beginNavUpdate() internal {
+        vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(true);
     }
 
     // --- seeding ---
 
     function test_ReinitializeV3_SeedsNavAtPar() public view {
         assertEq(yzusd.nav(), PAR);
-        assertEq(yzusd.navStepCapPpm(), 100_000);
-        assertEq(yzusd.navCooldown(), 1 days);
         assertEq(yzusd.navLastUpdate(), 0);
         assertFalse(yzusd.isMarkedDown());
         assertEq(yzusd.getRoleAdmin(NAV_MANAGER_ROLE), ADMIN_ROLE);
@@ -157,6 +167,84 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
 
     // --- step cap ---
 
+    function test_SetNav_Revert_NoNavUpdateInProgress() public {
+        vm.prank(navManager);
+        vm.expectRevert(NoNavUpdateInProgress.selector);
+        yzusd.setNav(9e17);
+    }
+
+    function test_NavUpdate_OpensAndCloses() public {
+        vm.expectEmit(false, false, false, true, address(yzusd));
+        emit NavUpdateInProgressSet(true);
+        _beginNavUpdate();
+        vm.prank(navManager);
+        vm.expectEmit(false, false, false, true, address(yzusd));
+        emit NavUpdateInProgressSet(false);
+        yzusd.setNavUpdateInProgress(false);
+    }
+
+    function test_NavUpdate_Revert_NotNavManager() public {
+        vm.prank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, NAV_MANAGER_ROLE)
+        );
+        yzusd.setNavUpdateInProgress(true);
+    }
+
+    function test_NavUpdate_ClosesImmediatePathsDespiteRoles() public {
+        vm.startPrank(admin);
+        yzusd.grantRole(RESTRICTION_MANAGER_ROLE, admin);
+        yzusd.setIsMintRestricted(true);
+        yzusd.setIsRedeemRestricted(true);
+        yzusd.grantRole(MINTER_ROLE, user);
+        yzusd.grantRole(REDEEMER_ROLE, user);
+        vm.stopPrank();
+
+        uint256 shares = _deposit(user, 100e6);
+        vm.roll(block.number + 1);
+
+        _beginNavUpdate();
+
+        assertFalse(yzusd.canMint(user));
+        assertFalse(yzusd.canRedeem(user));
+        assertEq(yzusd.maxDeposit(user), 0);
+        assertEq(yzusd.maxMint(user), 0);
+        assertEq(yzusd.maxWithdraw(user), 0);
+        assertEq(yzusd.maxRedeem(user), 0);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuIssuerDefinitions.ExceededMaxDeposit.selector, user, 1e6, 0));
+        yzusd.deposit(1e6, user);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuIssuerDefinitions.ExceededMaxRedeem.selector, user, shares, 0));
+        yzusd.redeem(shares, user, user);
+
+        vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(false);
+        assertTrue(yzusd.canMint(user));
+        assertTrue(yzusd.canRedeem(user));
+    }
+
+    function test_NavUpdate_LeavesOrderLifecycleOpen() public {
+        uint256 shares = _deposit(user, 100e6);
+        vm.roll(block.number + 1);
+
+        _beginNavUpdate();
+        assertTrue(yzusd.canCreateRedeemOrder(user));
+
+        vm.prank(user);
+        uint256 orderId = yzusd.createRedeemOrder(shares, user, user);
+
+        vm.prank(filler);
+        yzusd.fillRedeemOrder(orderId);
+
+        uint256 balanceBefore = asset.balanceOf(user);
+        vm.prank(user);
+        yzusd.finalizeRedeemOrder(orderId);
+        assertEq(asset.balanceOf(user) - balanceBefore, 100e6);
+    }
+
     function test_SetNav_FirstUpdateSkipsCooldown() public {
         _setNav(9e17);
         assertEq(yzusd.nav(), 9e17);
@@ -164,6 +252,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
     }
 
     function test_SetNav_Revert_StepTooHighDown() public {
+        _beginNavUpdate();
         vm.prank(navManager);
         vm.expectRevert(abi.encodeWithSelector(NavStepTooHigh.selector, 8e17, PAR, 1e17));
         yzusd.setNav(8e17); // -20% exceeds the 10% cap
@@ -173,8 +262,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.prank(admin);
         yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
 
-        vm.prank(navManager);
-        yzusd.setNav(8e17); // -20%
+        _setNav(8e17); // -20%
         assertEq(yzusd.nav(), 8e17);
     }
 
@@ -182,6 +270,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.prank(admin);
         yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
 
+        _beginNavUpdate();
         vm.prank(navManager);
         vm.expectRevert(abi.encodeWithSelector(NavStepTooHigh.selector, 12e17, PAR, 1e17));
         yzusd.setNav(12e17); // +20% exceeds the 10% cap regardless of the exemption
@@ -191,8 +280,9 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.prank(admin);
         yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, navManager);
         _setNav(8e17);
-        uint256 readyAt = yzusd.navLastUpdate() + yzusd.navCooldown();
+        uint256 readyAt = yzusd.navLastUpdate() + 1 days;
 
+        _beginNavUpdate();
         vm.prank(navManager);
         vm.expectRevert(abi.encodeWithSelector(NavCooldownActive.selector, block.timestamp, readyAt));
         yzusd.setNav(6e17);
@@ -202,6 +292,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.prank(admin);
         yzusd.grantRole(MARKDOWN_STEP_EXEMPT_ROLE, other);
 
+        _beginNavUpdate();
         vm.prank(other);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, other, NAV_MANAGER_ROLE)
@@ -210,12 +301,14 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
     }
 
     function test_SetNav_Revert_Zero() public {
+        _beginNavUpdate();
         vm.prank(navManager);
         vm.expectRevert(abi.encodeWithSelector(InvalidNav.selector, 0));
         yzusd.setNav(0);
     }
 
     function test_SetNav_Revert_StepTooHighUp() public {
+        _beginNavUpdate();
         vm.prank(navManager);
         vm.expectRevert(abi.encodeWithSelector(NavStepTooHigh.selector, 12e17, PAR, 1e17));
         yzusd.setNav(12e17); // +20% exceeds the 10% cap
@@ -235,8 +328,9 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
 
     function test_SetNav_Revert_CooldownActive() public {
         _setNav(95e16);
-        uint256 readyAt = yzusd.navLastUpdate() + yzusd.navCooldown();
+        uint256 readyAt = yzusd.navLastUpdate() + 1 days;
 
+        _beginNavUpdate();
         vm.prank(navManager);
         vm.expectRevert(abi.encodeWithSelector(NavCooldownActive.selector, block.timestamp, readyAt));
         yzusd.setNav(9e17);
@@ -252,6 +346,7 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
     // --- access control (role split) ---
 
     function test_SetNav_Revert_NotNavManager() public {
+        _beginNavUpdate();
         vm.prank(user);
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, NAV_MANAGER_ROLE)
@@ -259,61 +354,14 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         yzusd.setNav(9e17);
     }
 
-    function test_SetNavStepCap_Revert_NavManagerCannot() public {
-        // The nav-setter cannot relax its own guardrails; only PRICE_GUARD_MANAGER_ROLE can
-        vm.prank(navManager);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, navManager, PRICE_GUARD_MANAGER_ROLE
-            )
-        );
-        yzusd.setNavStepCap(500_000);
-    }
-
-    function test_SetNavCooldown_Revert_NavManagerCannot() public {
-        vm.prank(navManager);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, navManager, PRICE_GUARD_MANAGER_ROLE
-            )
-        );
-        yzusd.setNavCooldown(0);
-    }
-
-    function test_SetNavStepCap_Revert_TooHigh() public {
-        vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(InvalidNavStepCap.selector, 1e6 + 1, 1e6));
-        yzusd.setNavStepCap(1e6 + 1);
-    }
-
-    function test_SetNavStepCap_Updates() public {
-        vm.prank(admin);
-        yzusd.setNavStepCap(500_000);
-        assertEq(yzusd.navStepCapPpm(), 500_000);
-
-        // The wider cap now permits a larger recovery step
-        vm.prank(navManager);
-        yzusd.setNav(14e17); // +40%, within the new 50% cap
-        assertEq(yzusd.nav(), 14e17);
-    }
-
-    function test_SetNavCooldown_Updates() public {
-        vm.prank(admin);
-        yzusd.setNavCooldown(0);
-        assertEq(yzusd.navCooldown(), 0);
-
-        // With no cooldown, back-to-back updates are allowed
-        _setNav(95e16);
-        _setNav(9e17);
-        assertEq(yzusd.nav(), 9e17);
-    }
-
     // --- events ---
 
     function test_SetNav_EmitsEvent() public {
+        _beginNavUpdate();
         vm.expectEmit(false, false, false, true, address(yzusd));
         emit UpdatedNav(PAR, 9e17);
-        _setNav(9e17);
+        vm.prank(navManager);
+        yzusd.setNav(9e17);
     }
 
     // --- order path inherits the markdown at fill time ---
@@ -342,5 +390,27 @@ contract YuzuV3NavMarkdownTest is YuzuV3TestBase, IYuzuNavMarkdownDefinitions {
         vm.prank(user);
         yzusd.finalizeRedeemOrder(orderId);
         assertEq(asset.balanceOf(user) - balBefore, 90e6);
+    }
+
+    // A pending order cannot be filled after the owner's REDEEMER_ROLE is revoked under redeem restriction.
+    function test_FillRedeemOrder_Revert_OwnerRedeemerRevoked() public {
+        uint256 shares = _deposit(user, 100e6);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        yzusd.grantRole(RESTRICTION_MANAGER_ROLE, admin);
+        yzusd.setIsRedeemRestricted(true);
+        yzusd.grantRole(REDEEMER_ROLE, user);
+        vm.stopPrank();
+
+        vm.prank(user);
+        uint256 orderId = yzusd.createRedeemOrder(shares, user, user);
+
+        vm.prank(admin);
+        yzusd.revokeRole(REDEEMER_ROLE, user);
+
+        vm.prank(filler);
+        vm.expectRevert(abi.encodeWithSelector(IYuzuOrderBookDefinitions.OrderOwnerNotRedeemer.selector, orderId, user));
+        yzusd.fillRedeemOrder(orderId);
     }
 }

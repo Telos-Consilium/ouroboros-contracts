@@ -179,7 +179,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Preview assets withdrawn for {shares}
     /// @dev Uses convertToAssets instead of previewRedeem because the PSM is a fee-waived integration
-    function previewRedeem(uint256 shares) external view returns (uint256) {
+    function previewRedeem(uint256 shares) public view virtual returns (uint256) {
         uint256 shares0 = _vault1.convertToAssets(shares);
         return _vault0.convertToAssets(shares0);
     }
@@ -232,6 +232,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         }
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
+        }
+        if (shares == 0) {
+            revert InvalidZeroShares();
         }
         uint256 maxShares = maxRedeemOrder(_owner);
         if (shares > maxShares) {
@@ -355,6 +358,10 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         Order storage order = _orders[orderId];
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
+        }
+        // The order owner must still hold USER_ROLE at fill.
+        if (!hasRole(USER_ROLE, order.owner)) {
+            revert OrderOwnerNotUser(orderId, order.owner);
         }
 
         order.status = OrderStatus.Filled;

@@ -62,6 +62,9 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
         }
+        if (tokens == 0) {
+            revert InvalidZeroShares();
+        }
         uint256 maxTokens = router.maxRedeemOrder(owner);
         if (tokens > maxTokens) {
             revert ExceededMaxRedeemOrder(owner, tokens, maxTokens);
@@ -232,14 +235,6 @@ abstract contract YuzuV3FacetBase is IYuzuIssuerDefinitions, IYuzuOrderBookDefin
     }
 
     // Storage accessors
-    function _setPackedAddress(uint256 slot, address value) internal {
-        uint256 mask = type(uint160).max;
-        assembly {
-            let oldValue := sload(slot)
-            sstore(slot, or(and(oldValue, not(mask)), and(value, mask)))
-        }
-    }
-
     function _setPackedBool(uint256 slot, uint256 shift, bool value) internal returns (bool oldValue) {
         uint256 mask = 0xff << shift;
         uint256 oldSlot;

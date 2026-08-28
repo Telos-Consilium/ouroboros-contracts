@@ -14,7 +14,7 @@ import {IntegrationConfig, IStakedYuzuUSDV2Definitions} from "./interfaces/IStak
  * and against the caller in state-changing functions.
  */
 contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
-    // slither-disable-next-line uninitialized-state
+    // slither-disable-next-line uninitialized-state,unused-state
     mapping(address => IntegrationConfig) internal integrations;
 
     /// @notice Reinitializes the contract for V2 upgrade
@@ -201,7 +201,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         emit UpdatedIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
-    function getIntegration(address integration) external view returns (IntegrationConfig memory) {
+    function getIntegration(address integration) external view virtual returns (IntegrationConfig memory) {
         return integrations[integration];
     }
 

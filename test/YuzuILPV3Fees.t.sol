@@ -171,6 +171,11 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         return Math.mulDiv(poolSize * yzilp.managementFeeRatePpm(), elapsed, 1e6 * 365 days, Math.Rounding.Ceil);
     }
 
+    // The performance benchmark is seeded at par by initialization, ahead of any pool update.
+    function test_HighWaterMark_StartsAtPar() public view {
+        assertEq(yzilp.highWaterMark(), 1e6);
+    }
+
     function test_ManagementFee_DefaultsToZero() public view {
         assertEq(yzilp.managementFeeRatePpm(), 0);
         assertEq(yzilp.pendingManagementFeeRatePpm(), 0);
@@ -523,7 +528,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     // A redeem order is priced at the fee-net share price, so filling it is a fair redeem that must not
     // move the share price for the remaining holders. Probes the _fillRedeemOrder pool/distribution split,
     // which sizes itself off the fee-free totalAssets while the payout was priced off the fee-net totalAssets.
-    function test_OrderFill_PreservesSharePrice_WithLiveManagementFee() public {
+    function test_OrderFill_PreservesSharePriceAtFill_WithLiveManagementFee() public {
         _setupPool(); // poolSize 1000e6, supply 1000e18
         vm.prank(feeManager);
         yzilp.setPendingManagementFee(100_000); // 10%/yr
@@ -619,7 +624,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
     // A deposit is priced at the fee-net share price, so it must not move the share price for existing
     // holders. Probes the _deposit gross-up, which credits poolSize in fee-free units while the payment
     // was priced off the fee-net totalAssets.
-    function test_Deposit_PreservesSharePrice_WithLiveManagementFee() public {
+    function test_Deposit_PreservesSharePriceAtEntry_WithLiveManagementFee() public {
         _setupPool(); // poolSize 1000e6, supply 1000e18
         vm.prank(feeManager);
         yzilp.setPendingManagementFee(100_000); // 10%/yr
@@ -633,14 +638,14 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         uint256 shares = yzilp.deposit(90e6, user);
         assertEq(shares, 100e18);
 
-        // 90e6 net buys 100e6 of fee-free pool units, which then bear the full year of accrued fee
-        assertEq(yzilp.poolSize(), 1100e6);
+        // 90e6 net buys 90e6 of pool units, which bear management fee only from now on
+        assertEq(yzilp.poolSize(), 1090e6);
 
         uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
         assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "deposit moved the share price while a fee was live");
     }
 
-    function test_Mint_PreservesSharePrice_WithLiveManagementFee() public {
+    function test_Mint_PreservesSharePriceAtEntry_WithLiveManagementFee() public {
         _setupPool();
         vm.prank(feeManager);
         yzilp.setPendingManagementFee(100_000);
@@ -653,13 +658,13 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         vm.prank(user);
         uint256 paid = yzilp.mint(100e18, user);
         assertEq(paid, 90e6);
-        assertEq(yzilp.poolSize(), 1100e6);
+        assertEq(yzilp.poolSize(), 1090e6);
 
         uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
         assertApproxEqAbs(sharePriceAfter, sharePriceBefore, 1, "mint moved the share price while a fee was live");
     }
 
-    function test_Deposit_PreservesSharePrice_WithPerformanceFeeAboveHWM() public {
+    function test_Deposit_PreservesSharePriceAtEntry_WithPerformanceFeeAboveHWM() public {
         _setupPool();
         vm.prank(feeManager);
         yzilp.setPendingPerformanceFee(200_000); // 20%
@@ -682,7 +687,7 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
 
     // Management fee accrues on poolSize but not on distributed assets, so the deposit credit must be
     // converted through the pool bucket's own fee-net value rather than the blended totals ratio.
-    function test_Deposit_PreservesSharePrice_WithOutstandingDistribution() public {
+    function test_Deposit_PreservesSharePriceAtEntry_WithOutstandingDistribution() public {
         _setupPool(); // poolSize 1000e6, supply 1000e18
         vm.prank(feeManager);
         yzilp.setPendingManagementFee(100_000); // 10%/yr
@@ -698,9 +703,9 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         uint256 shares = yzilp.deposit(140e6, user);
         assertEq(shares, 100e18);
 
-        // 140e6 net buys 155.55e6 of pool units whose value net of a year of accrued fee is 140e6;
+        // 140e6 net buys 140e6 of pool units, which bear management fee only from now on;
         // the distribution bucket bears no management fee and takes no part of the credit
-        assertEq(yzilp.poolSize(), 1_155_555_555);
+        assertEq(yzilp.poolSize(), 1_140_000_000);
 
         uint256 sharePriceAfter = yzilp.totalAssets() * 1e18 / yzilp.totalSupply();
         assertApproxEqAbs(
@@ -942,5 +947,88 @@ contract YuzuILPV3FeesTest is YuzuV3TestBase, IYuzuProtoDefinitions, IYuzuILPV2D
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(IYuzuMinAmountsDefinitions.UnderMinDeposit.selector, 110e6 - 1, 110e6));
         yzilp.deposit(110e6 - 1, user);
+    }
+
+    // --- accrued fee getters ---
+
+    function _setupBothFees(uint256 yieldPpm) internal {
+        _setupPool();
+        vm.startPrank(feeManager);
+        yzilp.setPendingManagementFee(100_000); // 10% per year
+        yzilp.setPendingPerformanceFee(200_000); // 20% above the benchmark
+        vm.stopPrank();
+        _promote(yieldPpm);
+    }
+
+    // Gross minus both accrued fees is the fee-net total: the getters decompose pricing exactly
+    // while no clamp binds.
+    function test_AccruedFeeGetters_DecomposeTotalAssets() public {
+        _setupBothFees(10_000); // 1% per day arms the benchmark crossing
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 100 days);
+
+        uint256 gross = yzilp.grossTotalAssets();
+        uint256 managementFee = yzilp.accruedManagementFee();
+        uint256 performanceFee = yzilp.accruedPerformanceFee();
+        assertGt(managementFee, 0, "fixture: no management accrual");
+        assertGt(performanceFee, 0, "fixture: benchmark not crossed");
+        assertEq(yzilp.totalAssets(), gross - managementFee - performanceFee, "getters do not decompose pricing");
+    }
+
+    // At a gross-neutral mark the getters report exactly what the update books.
+    function test_AccruedFeeGetters_MatchBookedAmountsAtGrossNeutralUpdate() public {
+        _setupBothFees(10_000);
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 100 days);
+
+        uint256 accruedManagement = yzilp.accruedManagementFee();
+        uint256 accruedPerformance = yzilp.accruedPerformanceFee();
+        assertGt(accruedPerformance, 0, "fixture: benchmark not crossed");
+
+        _reportPool(yzilp.grossTotalAssets());
+
+        assertEq(yzilp.cumulativeManagementFees(), accruedManagement, "management booking diverges from getter");
+        assertEq(yzilp.cumulativePerformanceFees(), accruedPerformance, "performance booking diverges from getter");
+    }
+
+    // Freshly updated and empty states accrue nothing; below the benchmark the performance
+    // getter reads zero while the management getter accrues.
+    function test_AccruedFeeGetters_ZeroOnFreshEmptyAndBelowBenchmarkStates() public {
+        _setupBothFees(0);
+
+        assertEq(yzilp.grossTotalAssets(), 1000e6);
+        assertEq(yzilp.accruedManagementFee(), 0);
+        assertEq(yzilp.accruedPerformanceFee(), 0);
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 365 days);
+        assertEq(yzilp.accruedManagementFee(), 100e6);
+        assertEq(yzilp.accruedPerformanceFee(), 0, "performance accrued below the benchmark");
+
+        // The mark realizes exactly the accrued fee, leaving an empty pool that accrues nothing
+        _reportPool(100e6);
+        assertEq(yzilp.grossTotalAssets(), 0);
+        vm.warp(start + 730 days);
+        assertEq(yzilp.accruedManagementFee(), 0);
+        assertEq(yzilp.accruedPerformanceFee(), 0);
+    }
+
+    // A dust pool consumed by its accrued fee reads as clamped: the fee getter covers the pool
+    // and pricing floors at zero.
+    function test_AccruedFeeGetters_DustPoolClampsPricingToZero() public {
+        _setupPool();
+        vm.prank(feeManager);
+        yzilp.setPendingManagementFee(100_000);
+        _promote(0);
+        _reportPool(1);
+
+        uint256 start = yzilp.lastPoolUpdateTimestamp();
+        vm.warp(start + 365 days);
+
+        assertEq(yzilp.grossTotalAssets(), 1);
+        assertEq(yzilp.accruedManagementFee(), 1);
+        assertEq(yzilp.totalAssets(), 0, "fee-consumed dust pool priced above zero");
     }
 }

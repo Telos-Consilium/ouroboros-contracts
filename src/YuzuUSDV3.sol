@@ -7,7 +7,6 @@ import {
     FEE_MANAGER_ROLE,
     MARKDOWN_STEP_EXEMPT_ROLE,
     NAV_MANAGER_ROLE,
-    PRICE_GUARD_MANAGER_ROLE,
     SAME_BLOCK_EXEMPT_ROLE,
     THROTTLE_EXEMPT_ROLE
 } from "./libraries/YuzuV3Constants.sol";
@@ -19,7 +18,7 @@ import {YuzuUSDV2} from "./YuzuUSDV2.sol";
 import {YuzuV3FacetRouting} from "./YuzuV3FacetRouting.sol";
 import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
 import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {YuzuMinAmountsV3Storage, YuzuNavMarkdownV3Storage, YuzuThrottleV3Storage} from "./storage/YuzuV3Storage.sol";
+import {YuzuV3MinAmountsStorage, YuzuV3NavMarkdownStorage, YuzuV3ThrottleStorage} from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuUSDV3
@@ -38,9 +37,6 @@ contract YuzuUSDV3 is
     uint256 internal constant NAV_PRECISION = 1e18;
     uint256 private constant NAV_SHARE_SCALE = 1e30;
 
-    uint256 internal constant DEFAULT_NAV_STEP_CAP_PPM = 100_000;
-    uint256 internal constant DEFAULT_NAV_COOLDOWN = 1 days;
-
     // Construction and initialization
     constructor(address facet_) YuzuV3FacetRouting(facet_) {}
 
@@ -53,9 +49,8 @@ contract YuzuUSDV3 is
         _setRoleAdmin(SAME_BLOCK_EXEMPT_ROLE, ADMIN_ROLE);
         _setRoleAdmin(NAV_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(MARKDOWN_STEP_EXEMPT_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
-        YuzuThrottleV3Storage.Layout storage throttleStorage = YuzuThrottleV3Storage.layout();
+        YuzuV3ThrottleStorage.Layout storage throttleStorage = YuzuV3ThrottleStorage.layout();
         Throttle storage mintThrottle_ = throttleStorage._mintThrottle;
         mintThrottle_.blockLimit = type(uint256).max;
         mintThrottle_.dailyLimit = type(uint256).max;
@@ -64,10 +59,8 @@ contract YuzuUSDV3 is
         redeemThrottle_.blockLimit = type(uint256).max;
         redeemThrottle_.dailyLimit = type(uint256).max;
 
-        YuzuNavMarkdownV3Storage.Layout storage navStorage = YuzuNavMarkdownV3Storage.layout();
+        YuzuV3NavMarkdownStorage.Layout storage navStorage = YuzuV3NavMarkdownStorage.layout();
         navStorage._nav = NAV_PRECISION;
-        navStorage._stepCapPpm = DEFAULT_NAV_STEP_CAP_PPM;
-        navStorage._cooldown = DEFAULT_NAV_COOLDOWN;
     }
 
     // Facet routes: order lifecycle
@@ -142,31 +135,29 @@ contract YuzuUSDV3 is
         _delegateToFacet();
     }
 
-    function setNavStepCap(uint256) external virtual {
-        _delegateToFacet();
-    }
-
-    function setNavCooldown(uint256) external virtual {
+    function setNavUpdateInProgress(bool) external virtual {
         _delegateToFacet();
     }
 
     // Native views
-    /// @notice Returns the mint throttle limits and usage
+    /// @notice Returns stored mint throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getMintThrottle() external view returns (Throttle memory) {
-        return YuzuThrottleV3Storage.layout()._mintThrottle;
+        return YuzuV3ThrottleStorage.layout()._mintThrottle;
     }
 
-    /// @notice Returns the redeem throttle limits and usage
+    /// @notice Returns stored redeem throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getRedeemThrottle() external view returns (Throttle memory) {
-        return YuzuThrottleV3Storage.layout()._redeemThrottle;
+        return YuzuV3ThrottleStorage.layout()._redeemThrottle;
     }
 
     function minDeposit() public view returns (uint256) {
-        return YuzuMinAmountsV3Storage.layout()._minDeposit;
+        return YuzuV3MinAmountsStorage.layout()._minDeposit;
     }
 
     function minWithdraw() public view returns (uint256) {
-        return YuzuMinAmountsV3Storage.layout()._minWithdraw;
+        return YuzuV3MinAmountsStorage.layout()._minWithdraw;
     }
 
     /// @notice Shares received this block and excluded from instant redemption unless the owner has SAME_BLOCK_EXEMPT_ROLE
@@ -176,27 +167,29 @@ contract YuzuUSDV3 is
 
     /// @notice Backing value of one share; NAV_PRECISION is par
     function nav() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._nav;
-    }
-
-    /// @notice Maximum relative change per nav update, in ppm of the current nav
-    function navStepCapPpm() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._stepCapPpm;
-    }
-
-    /// @notice Minimum seconds between nav updates
-    function navCooldown() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._cooldown;
+        return YuzuV3NavMarkdownStorage.layout()._nav;
     }
 
     /// @notice Timestamp of the last nav update
     function navLastUpdate() public view returns (uint256) {
-        return YuzuNavMarkdownV3Storage.layout()._lastUpdate;
+        return YuzuV3NavMarkdownStorage.layout()._lastUpdate;
+    }
+
+    function _isUpdatingNav() private view returns (bool) {
+        return YuzuV3NavMarkdownStorage.layout()._isUpdatingNav;
     }
 
     /// @notice Whether nav is below par
     function isMarkedDown() public view returns (bool) {
-        return YuzuNavMarkdownV3Storage.layout()._nav < NAV_PRECISION;
+        return YuzuV3NavMarkdownStorage.layout()._nav < NAV_PRECISION;
+    }
+
+    function canMint(address receiver) public view virtual override returns (bool) {
+        return !_isUpdatingNav() && super.canMint(receiver);
+    }
+
+    function canRedeem(address _owner) public view virtual override returns (bool) {
+        return !_isUpdatingNav() && super.canRedeem(_owner);
     }
 
     function maxDeposit(address receiver) public view virtual override returns (uint256) {
@@ -208,17 +201,16 @@ contract YuzuUSDV3 is
         return maxAssets < minDeposit() ? 0 : maxAssets;
     }
 
-    /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
-    /// keeps convertToShares from overflowing (proto share price is not bounded below 1).
+    /// @dev Gates on the mint cost, not the raw capacity, so an unlimited throttle returns the headroom
+    /// without converting an unbounded capacity to shares.
     function maxMint(address receiver) public view virtual override returns (uint256) {
         if (!canMint(receiver)) {
             return 0;
         }
         uint256 headroom = _supplyHeadroom();
         uint256 remaining = _mintThrottleRemaining(receiver);
-        uint256 shares = remaining >= type(uint128).max
-            ? headroom
-            : Math.min(headroom, _convertToShares(remaining, Math.Rounding.Floor));
+        uint256 shares =
+            previewMint(headroom) <= remaining ? headroom : _convertToShares(remaining, Math.Rounding.Floor);
         return previewMint(shares) < minDeposit() ? 0 : shares;
     }
 
@@ -322,7 +314,7 @@ contract YuzuUSDV3 is
     }
 
     function _effectiveNav() private view returns (uint256) {
-        return Math.min(YuzuNavMarkdownV3Storage.layout()._nav, NAV_PRECISION);
+        return Math.min(YuzuV3NavMarkdownStorage.layout()._nav, NAV_PRECISION);
     }
 
     // Router callbacks
@@ -357,7 +349,7 @@ contract YuzuUSDV3 is
             return type(uint256).max;
         }
         (uint256 blockRemaining, uint256 dailyRemaining) =
-            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._mintThrottle);
+            YuzuV3Throttle.remaining(YuzuV3ThrottleStorage.layout()._mintThrottle);
         return Math.min(blockRemaining, dailyRemaining);
     }
 
@@ -366,7 +358,7 @@ contract YuzuUSDV3 is
             return type(uint256).max;
         }
         (uint256 blockRemaining, uint256 dailyRemaining) =
-            YuzuV3Throttle.remaining(YuzuThrottleV3Storage.layout()._redeemThrottle);
+            YuzuV3Throttle.remaining(YuzuV3ThrottleStorage.layout()._redeemThrottle);
         return Math.min(blockRemaining, dailyRemaining);
     }
 
@@ -374,14 +366,14 @@ contract YuzuUSDV3 is
         if (_isThrottleExempt(account)) {
             return;
         }
-        YuzuV3Throttle.consumeMintChecked(YuzuThrottleV3Storage.layout()._mintThrottle, assets);
+        YuzuV3Throttle.consumeMintChecked(YuzuV3ThrottleStorage.layout()._mintThrottle, assets);
     }
 
     function _consumeRedeemThrottle(address account, uint256 assets) private {
         if (_isThrottleExempt(account)) {
             return;
         }
-        YuzuV3Throttle.consumeRedeemChecked(YuzuThrottleV3Storage.layout()._redeemThrottle, assets);
+        YuzuV3Throttle.consumeRedeemChecked(YuzuV3ThrottleStorage.layout()._redeemThrottle, assets);
     }
 
     function _isSameBlockExempt(address account) private view returns (bool) {
@@ -403,12 +395,12 @@ contract YuzuUSDV3 is
     }
 
     function _checkMinDeposit(uint256 assets) private view {
-        uint256 min = YuzuMinAmountsV3Storage.layout()._minDeposit;
+        uint256 min = YuzuV3MinAmountsStorage.layout()._minDeposit;
         if (assets < min) revert UnderMinDeposit(assets, min);
     }
 
     function _checkMinWithdraw(uint256 assets) private view {
-        uint256 min = YuzuMinAmountsV3Storage.layout()._minWithdraw;
+        uint256 min = YuzuV3MinAmountsStorage.layout()._minWithdraw;
         if (assets < min) revert UnderMinWithdraw(assets, min);
     }
 

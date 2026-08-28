@@ -13,7 +13,7 @@ import {StakedYuzuUSDV2} from "./StakedYuzuUSDV2.sol";
 import {YuzuV3RestrictedShares} from "./libraries/YuzuV3RestrictedShares.sol";
 import {YuzuMinAmounts} from "./proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "./proto/YuzuThrottle.sol";
-import {IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
+import {IntegrationConfig, IStakedYuzuUSDV3Definitions} from "./interfaces/IStakedYuzuUSDDefinitions.sol";
 import {
     ADMIN_ROLE,
     DELAY_EXEMPT_ROLE,
@@ -76,7 +76,7 @@ contract StakedYuzuUSDV3 is
         _setMintThrottle(type(uint256).max, type(uint256).max);
         _setRedeemThrottle(type(uint256).max, type(uint256).max);
         minDistributionPeriod = 1 days;
-        // max uint disables the distribution amount cap; 0 would block all distributions.
+        // max uint disables the distribution amount cap; 0 would block any positive-amount distribution.
         maxDistributionPpm = type(uint256).max;
     }
 
@@ -178,6 +178,11 @@ contract StakedYuzuUSDV3 is
             revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
         }
         uint256 mintedShares = super.deposit(assets, receiver);
+        // Reject a nonzero deposit that rounds down to zero shares.
+        // slither-disable-next-line incorrect-equality
+        if (assets > 0 && mintedShares == 0) {
+            revert InvalidZeroShares();
+        }
         _consumeMintThrottle(receiver, assets);
         return mintedShares;
     }
@@ -293,6 +298,10 @@ contract StakedYuzuUSDV3 is
         revert IntegrationsMigratedToRoles();
     }
 
+    function getIntegration(address) external pure override returns (IntegrationConfig memory) {
+        revert IntegrationsMigratedToRoles();
+    }
+
     // Config setters
     function setRedeemDelay(uint256 newDelay) public virtual override onlyRole(REDEEM_MANAGER_ROLE) {
         if (newDelay == 0) {
@@ -370,11 +379,6 @@ contract StakedYuzuUSDV3 is
     /// @notice Shares received in the current block, tracked so downstream redeemers can exclude them
     function currentBlockRestrictedBalance(address account) external view returns (uint256) {
         return YuzuV3RestrictedShares.currentBlockRestrictedBalance(account);
-    }
-
-    /// @notice Redeem-throttle capacity remaining for {account}, in asset terms; max for THROTTLE_EXEMPT_ROLE accounts
-    function redeemThrottleRemaining(address account) external view returns (uint256) {
-        return _redeemThrottleRemaining(account);
     }
 
     // Internal

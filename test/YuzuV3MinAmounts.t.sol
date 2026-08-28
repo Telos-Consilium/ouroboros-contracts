@@ -109,6 +109,18 @@ contract YuzuV3MinAmountsTest is YuzuV3TestBase, IYuzuMinAmountsDefinitions {
         yzusd.createRedeemOrder(10e18, user, user);
     }
 
+    function test_YuzuUSD_CreateRedeemOrder_Revert_ZeroShares() public {
+        vm.prank(user);
+        vm.expectRevert(IYuzuOrderBookDefinitions.InvalidZeroShares.selector);
+        yzusd.createRedeemOrder(0, user, user);
+    }
+
+    function test_YuzuILP_CreateRedeemOrder_Revert_ZeroShares() public {
+        vm.prank(user);
+        vm.expectRevert(IYuzuOrderBookDefinitions.InvalidZeroShares.selector);
+        yzilp.createRedeemOrder(0, user, user);
+    }
+
     // yzILP mint path
 
     function test_YuzuILP_Deposit_Revert_UnderMinDeposit() public {

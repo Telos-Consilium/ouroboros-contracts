@@ -23,6 +23,7 @@ import {
     LIMIT_MANAGER_ROLE,
     LIQUIDITY_MANAGER_ROLE,
     MINTER_ROLE,
+    NAV_MANAGER_ROLE,
     ORDER_FILLER_ROLE,
     PAUSE_MANAGER_ROLE,
     REDEEMER_ROLE,
@@ -171,6 +172,51 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
         assertEq(styz.balanceOf(user), shares);
     }
 
+    function test_NavUpdate_ClosesPsmInstantPaths() public {
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        yzusd.grantRole(NAV_MANAGER_ROLE, admin);
+        yzusd.setNavUpdateInProgress(true);
+        vm.stopPrank();
+
+        assertEq(psm.maxDeposit(user), 0);
+        assertEq(psm.maxRedeem(user), 0);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxDeposit.selector, user, 1e6, 0));
+        psm.deposit(1e6, user);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxRedeem.selector, user, shares, 0));
+        psm.redeem(shares, user, user);
+    }
+
+    function test_NavUpdate_LeavesPsmOrderPathOpen() public {
+        vm.prank(user);
+        uint256 shares = psm.deposit(100e6, user);
+        vm.roll(block.number + 1);
+
+        vm.startPrank(admin);
+        yzusd.grantRole(NAV_MANAGER_ROLE, admin);
+        yzusd.setNavUpdateInProgress(true);
+        psm.grantRole(ORDER_FILLER_ROLE, liquidityManager);
+        vm.stopPrank();
+
+        assertEq(psm.maxRedeemOrder(user), shares);
+        vm.prank(user);
+        uint256 orderId = psm.createRedeemOrder(shares, user, user);
+
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = orderId;
+        vm.prank(liquidityManager);
+        psm.fillRedeemOrders(0, ids);
+
+        assertEq(asset.balanceOf(user), 10_000_000e6);
+    }
+
     function test_SameBlock_TransferHopBypass_Closed() public {
         address user2 = makeAddr("user2");
         vm.prank(restrictionManager);
@@ -288,6 +334,85 @@ contract PSMV2V3IntegrationTest is UpgradeTestBase {
         assertEq(maxShares, 100e18);
         vm.prank(user);
         assertEq(psm.redeem(maxShares, user, user), 100e6);
+    }
+
+    // Deposit-path analogs: a throttle-clamped maxDeposit must not report a value below an inner
+    // vault's minDeposit, which the deposit would otherwise revert on.
+
+    function test_MaxDeposit_ZeroWhenBelowVault0MinDeposit() public {
+        vm.startPrank(admin);
+        yzusd.grantRole(LIMIT_MANAGER_ROLE, admin);
+        psm.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzusd.setMinDeposit(10e6); // inner yzUSD minimum, asset terms
+        psm.setMinDeposit(1e6); // PSM minimum below it, so only the inner one binds
+        psm.setMintThrottle(5e6, type(uint256).max); // clamps maxDeposit to 5e6, below the yzUSD min
+        vm.stopPrank();
+
+        assertEq(psm.maxDeposit(user), 0);
+
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(IPSMDefinitions.ExceededMaxDeposit.selector, user, 5e6, 0));
+        psm.deposit(5e6, user);
+    }
+
+    function test_MaxDeposit_ZeroWhenBelowVault1MinDeposit() public {
+        vm.startPrank(admin);
+        yzusd.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz.grantRole(LIMIT_MANAGER_ROLE, admin);
+        psm.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzusd.setMinDeposit(1e6); // low, does not bind
+        styz.setMinDeposit(10e18); // inner syzUSD minimum, yzUSD terms
+        psm.setMinDeposit(1e6);
+        psm.setMintThrottle(5e6, type(uint256).max); // 5e6 clamps to ~5e18 yzUSD, below the syzUSD min
+        vm.stopPrank();
+
+        assertEq(psm.maxDeposit(user), 0);
+    }
+
+    function test_MaxDeposit_ExecutableWhenAboveInnerMins() public {
+        vm.startPrank(admin);
+        yzusd.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz.grantRole(LIMIT_MANAGER_ROLE, admin);
+        psm.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzusd.setMinDeposit(1e6);
+        styz.setMinDeposit(1e18);
+        psm.setMinDeposit(1e6);
+        psm.setMintThrottle(5e6, type(uint256).max); // clamps to 5e6, above every minimum
+        vm.stopPrank();
+
+        uint256 max = psm.maxDeposit(user);
+        assertEq(max, 5e6);
+        vm.prank(user);
+        psm.deposit(max, user);
+        assertEq(styz.balanceOf(user), 5e18);
+    }
+
+    // The syzUSD minimum is checked against the real intermediate yzUSD amount (previewDeposit), not
+    // the raw asset amount. Marking yzUSD down makes previewDeposit(5e6) yield ~5.56e18 yzUSD, so the
+    // 5.3e18 syzUSD minimum is cleared; a raw-asset conversion (5e18) would fall below it and wrongly
+    // report zero.
+    function test_MaxDeposit_NonParVault0_UsesPreviewDeposit() public {
+        vm.startPrank(admin);
+        yzusd.grantRole(NAV_MANAGER_ROLE, admin);
+        yzusd.setNavUpdateInProgress(true);
+        yzusd.setNav(9e17); // mark yzUSD down 10%
+        yzusd.setNavUpdateInProgress(false);
+        yzusd.grantRole(LIMIT_MANAGER_ROLE, admin);
+        styz.grantRole(LIMIT_MANAGER_ROLE, admin);
+        psm.grantRole(LIMIT_MANAGER_ROLE, admin);
+        yzusd.setMinDeposit(1e6);
+        styz.setMinDeposit(53e17); // 5.3e18: above the par amount (5e18), below previewDeposit(5e6)
+        psm.setMinDeposit(1e6);
+        psm.setMintThrottle(5e6, type(uint256).max); // clamps maxDeposit to 5e6
+        vm.stopPrank();
+
+        assertGt(yzusd.previewDeposit(5e6), 53e17, "fixture: previewDeposit should exceed the syzUSD minimum");
+        uint256 max = psm.maxDeposit(user);
+        assertEq(max, 5e6, "previewDeposit should clear the syzUSD minimum where a par conversion would not");
+
+        vm.prank(user);
+        psm.deposit(max, user);
+        assertGt(styz.balanceOf(user), 53e17, "deposit under a marked-down vault0 did not settle");
     }
 
     function _deployYuzuUSDV3() internal returns (YuzuUSDV3 deployed) {

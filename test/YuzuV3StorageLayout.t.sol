@@ -7,14 +7,14 @@ import {YuzuMinAmounts} from "../src/proto/YuzuMinAmounts.sol";
 import {YuzuThrottle} from "../src/proto/YuzuThrottle.sol";
 import {YuzuV3RestrictedShares} from "../src/libraries/YuzuV3RestrictedShares.sol";
 import {
-    YuzuILPDistributionV3Storage,
-    YuzuILPFeesV3Storage,
-    YuzuMinAmountsV3Storage,
-    YuzuNavMarkdownV3Storage,
-    YuzuRestrictedSharesV3Storage,
-    YuzuThrottleV3Storage
+    YuzuV3ILPDistributionStorage,
+    YuzuV3ILPFeesStorage,
+    YuzuV3MinAmountsStorage,
+    YuzuV3NavMarkdownStorage,
+    YuzuV3RestrictedSharesStorage,
+    YuzuV3ThrottleStorage
 } from "../src/storage/YuzuV3Storage.sol";
-import {LIMIT_MANAGER_ROLE, REDEEM_MANAGER_ROLE} from "./helpers/TestRoles.sol";
+import {LIMIT_MANAGER_ROLE, NAV_MANAGER_ROLE, REDEEM_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase} from "./helpers/YuzuV3TestBase.sol";
 
 /// @dev ERC-7201: keccak256(abi.encode(uint256(keccak256(id)) - 1)) & ~bytes32(uint256(0xff))
@@ -41,27 +41,27 @@ contract YuzuV3StorageLayoutTest is Test {
     // Library locations match their namespace string
 
     function test_Location_MinAmounts() public pure {
-        assertEq(YuzuMinAmountsV3Storage.LOCATION, _erc7201("yuzu.storage.minamounts"));
+        assertEq(YuzuV3MinAmountsStorage.LOCATION, _erc7201("yuzu.storage.minamounts"));
     }
 
     function test_Location_Throttle() public pure {
-        assertEq(YuzuThrottleV3Storage.LOCATION, _erc7201("yuzu.storage.throttle"));
+        assertEq(YuzuV3ThrottleStorage.LOCATION, _erc7201("yuzu.storage.throttle"));
     }
 
     function test_Location_RestrictedShares() public pure {
-        assertEq(YuzuRestrictedSharesV3Storage.LOCATION, _erc7201("yuzu.storage.restrictedshares"));
+        assertEq(YuzuV3RestrictedSharesStorage.LOCATION, _erc7201("yuzu.storage.restrictedshares"));
     }
 
     function test_Location_NavMarkdown() public pure {
-        assertEq(YuzuNavMarkdownV3Storage.LOCATION, _erc7201("yuzu.storage.navmarkdown"));
+        assertEq(YuzuV3NavMarkdownStorage.LOCATION, _erc7201("yuzu.storage.navmarkdown"));
     }
 
     function test_Location_IlpFees() public pure {
-        assertEq(YuzuILPFeesV3Storage.LOCATION, _erc7201("yuzu.storage.ilpfees"));
+        assertEq(YuzuV3ILPFeesStorage.LOCATION, _erc7201("yuzu.storage.ilpfees"));
     }
 
     function test_Location_IlpDistribution() public pure {
-        assertEq(YuzuILPDistributionV3Storage.LOCATION, _erc7201("yuzu.storage.ilpdistribution"));
+        assertEq(YuzuV3ILPDistributionStorage.LOCATION, _erc7201("yuzu.storage.ilpdistribution"));
     }
 
     // Proto mixins resolve the same namespace to the library slot. The mixin location is a private constant,
@@ -69,7 +69,7 @@ contract YuzuV3StorageLayoutTest is Test {
 
     function test_MixinMatchesLibrary_MinAmounts() public {
         MinAmountsHarness h = new MinAmountsHarness();
-        bytes32 base = YuzuMinAmountsV3Storage.LOCATION;
+        bytes32 base = YuzuV3MinAmountsStorage.LOCATION;
         vm.store(address(h), base, bytes32(uint256(111)));
         vm.store(address(h), bytes32(uint256(base) + 1), bytes32(uint256(222)));
         assertEq(h.minDeposit(), 111, "minDeposit at base slot");
@@ -78,7 +78,7 @@ contract YuzuV3StorageLayoutTest is Test {
 
     function test_MixinMatchesLibrary_Throttle() public {
         ThrottleHarness h = new ThrottleHarness();
-        bytes32 base = YuzuThrottleV3Storage.LOCATION;
+        bytes32 base = YuzuV3ThrottleStorage.LOCATION;
         // blockLimit is the first field of Throttle; _mintThrottle starts at base, _redeemThrottle six slots later.
         vm.store(address(h), base, bytes32(uint256(333)));
         vm.store(address(h), bytes32(uint256(base) + 6), bytes32(uint256(444)));
@@ -89,7 +89,7 @@ contract YuzuV3StorageLayoutTest is Test {
     function test_RestrictedShares_RecordLayout() public {
         RestrictedSharesHarness h = new RestrictedSharesHarness();
         address who = address(0xA11CE);
-        bytes32 elem = keccak256(abi.encode(who, YuzuRestrictedSharesV3Storage.LOCATION));
+        bytes32 elem = keccak256(abi.encode(who, YuzuV3RestrictedSharesStorage.LOCATION));
         // Restriction.blockNumber at the element base slot, Restriction.amount at base + 1.
         vm.store(address(h), elem, bytes32(block.number));
         vm.store(address(h), bytes32(uint256(elem) + 1), bytes32(uint256(1234)));
@@ -209,5 +209,70 @@ contract YuzuV3IssuerOrderBookLayoutTest is YuzuV3TestBase {
         bytes32 elementSlot = keccak256(abi.encode(orderId, uint256(base) + 5));
         vm.store(address(yzusd), elementSlot, bytes32(uint256(4242)));
         assertEq(yzusd.getRedeemOrder(orderId).assets, 4242, "order.assets at orders mapping base + 5");
+    }
+}
+
+/// @notice Pins the field offsets of the ilpfees namespace through the router getters. The router
+/// and, under delegatecall, the facet both address these fields by their position in the Layout
+/// struct, so inserting or reordering fields shifts every later slot and fails here. New fields
+/// must extend this pin; after deployment, existing offsets must remain stable.
+contract YuzuV3IlpFeesLayoutTest is YuzuV3TestBase {
+    function setUp() public {
+        asset = _newAsset();
+        yzilp = _deployYuzuILPV3(address(asset), "Token", "TKN", false);
+    }
+
+    function test_IlpFeesLayout_FieldOffsets() public {
+        bytes32 base = YuzuV3ILPFeesStorage.LOCATION;
+        for (uint256 i = 0; i < 9; i++) {
+            vm.store(address(yzilp), bytes32(uint256(base) + i), bytes32(i + 1));
+        }
+        assertEq(yzilp.mintFeePpm(), 1, "_mintFeePpm at base");
+        assertEq(yzilp.managementFeeRatePpm(), 2, "_managementFeeRatePpm at base + 1");
+        assertEq(yzilp.cumulativeManagementFees(), 3, "_cumulativeManagementFees at base + 2");
+        assertEq(yzilp.pendingManagementFeeRatePpm(), 4, "_pendingManagementFeeRatePpm at base + 3");
+        assertEq(yzilp.performanceFeeRatePpm(), 5, "_performanceFeeRatePpm at base + 4");
+        assertEq(yzilp.pendingPerformanceFeeRatePpm(), 6, "_pendingPerformanceFeeRatePpm at base + 5");
+        assertEq(yzilp.highWaterMark(), 7, "_highWaterMark at base + 6");
+        assertEq(yzilp.cumulativePerformanceFees(), 8, "_cumulativePerformanceFees at base + 7");
+        assertEq(yzilp.creditSecondsSinceUpdate(), 9, "_creditSecondsSinceUpdate at base + 8");
+    }
+
+    function test_IlpDistributionLayout_FieldOffsets() public {
+        bytes32 base = YuzuV3ILPDistributionStorage.LOCATION;
+        vm.store(address(yzilp), base, bytes32(uint256(11)));
+        vm.store(address(yzilp), bytes32(uint256(base) + 1), bytes32(uint256(22)));
+        assertEq(yzilp.minDistributionPeriod(), 11, "_minDistributionPeriod at base");
+        assertEq(yzilp.maxDistributionPpm(), 22, "_maxDistributionPpm at base + 1");
+    }
+}
+
+/// @notice Pins the navmarkdown field offsets so an insert or reorder that shifts `_lastUpdate` or
+/// `_isUpdatingNav` fails here.
+contract YuzuV3NavMarkdownLayoutTest is YuzuV3TestBase {
+    function setUp() public {
+        asset = _newAsset();
+        yzusd = _deployYuzuUSDV3(address(asset));
+        vm.prank(admin);
+        yzusd.grantRole(NAV_MANAGER_ROLE, navManager);
+    }
+
+    // navmarkdown: _nav (0), _lastUpdate (1), _isUpdatingNav (2)
+    function test_NavMarkdownLayout_FieldOffsets() public {
+        bytes32 base = YuzuV3NavMarkdownStorage.LOCATION;
+
+        vm.store(address(yzusd), base, bytes32(uint256(111)));
+        assertEq(yzusd.nav(), 111, "_nav at offset 0");
+
+        vm.store(address(yzusd), bytes32(uint256(base) + 1), bytes32(uint256(333)));
+        assertEq(yzusd.navLastUpdate(), 333, "_lastUpdate at offset 1");
+
+        vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(true);
+        assertEq(uint256(vm.load(address(yzusd), bytes32(uint256(base) + 2))), 1, "_isUpdatingNav at offset 2");
+
+        vm.prank(navManager);
+        yzusd.setNavUpdateInProgress(false);
+        assertEq(uint256(vm.load(address(yzusd), bytes32(uint256(base) + 2))), 0, "_isUpdatingNav cleared at offset 2");
     }
 }

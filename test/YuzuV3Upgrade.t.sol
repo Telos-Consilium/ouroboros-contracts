@@ -15,7 +15,13 @@ import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 import {YuzuILPV3} from "../src/YuzuILPV3.sol";
 import {YuzuILPV3Facet} from "../src/YuzuILPV3Facet.sol";
 import {Throttle} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {ADMIN_ROLE, FEE_MANAGER_ROLE, LIMIT_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "./helpers/TestRoles.sol";
+import {
+    ADMIN_ROLE,
+    FEE_MANAGER_ROLE,
+    LIMIT_MANAGER_ROLE,
+    POOL_MANAGER_ROLE,
+    THROTTLE_EXEMPT_ROLE
+} from "./helpers/TestRoles.sol";
 import {UpgradeTestBase} from "./helpers/UpgradeTestBase.sol";
 
 contract YuzuV3UpgradeAssetMock is ERC20Mock {
@@ -120,6 +126,66 @@ contract YuzuV3UpgradeTest is UpgradeTestBase {
         Throttle memory throttle = v3.getMintThrottle();
         assertEq(throttle.blockLimit, 100e6, "block limit");
         assertEq(throttle.dailyLimit, 1_000e6, "daily limit");
+        assertEq(v3.highWaterMark(), 1e6, "empty vault seeds the par benchmark");
+        assertEq(v3.maxDistributionPpm(), type(uint256).max, "distribution cap starts disabled");
+    }
+
+    // Deploys a V1 vault, funds it at par, upgrades to V2 and marks the pool.
+    function _deployFundedV2(uint256 markPoolSize) private returns (address proxyAddr) {
+        YuzuV3UpgradeAssetMock asset = new YuzuV3UpgradeAssetMock();
+        TransparentUpgradeableProxy proxy =
+            new TransparentUpgradeableProxy(address(new YuzuILP()), owner, _initData(address(asset)));
+        YuzuILP yzilp = YuzuILP(address(proxy));
+
+        vm.prank(admin);
+        yzilp.setIsMintRestricted(false);
+        asset.mint(address(this), 1000e6);
+        asset.approve(address(proxy), 1000e6);
+        yzilp.deposit(1000e6, address(this));
+
+        ProxyAdmin proxyAdmin = _proxyAdmin(address(proxy));
+        address v2Impl = address(new YuzuILPV2());
+        vm.prank(owner);
+        proxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(address(proxy))),
+            v2Impl,
+            abi.encodeWithSelector(YuzuILPV2.reinitialize.selector)
+        );
+
+        vm.startPrank(admin);
+        YuzuILPV2(address(proxy)).grantRole(POOL_MANAGER_ROLE, admin);
+        YuzuILPV2(address(proxy)).startPoolUpdate();
+        YuzuILPV2(address(proxy)).updatePool(1000e6, markPoolSize, 0);
+        YuzuILPV2(address(proxy)).endPoolUpdate();
+        vm.stopPrank();
+        return address(proxy);
+    }
+
+    function _upgradeIlpToV3(address proxy) private {
+        ProxyAdmin proxyAdmin = _proxyAdmin(proxy);
+        address v3Impl = address(new YuzuILPV3(address(new YuzuILPV3Facet())));
+        vm.prank(owner);
+        proxyAdmin.upgradeAndCall(
+            ITransparentUpgradeableProxy(payable(proxy)),
+            v3Impl,
+            abi.encodeWithSelector(YuzuILPV3.reinitialize.selector)
+        );
+    }
+
+    // Migration seeds the benchmark at the current price, ceil rounded: V3 performance fees
+    // begin at this price, since V2 carries no benchmark to import.
+    function test_YuzuILP_MigrationSeedsBenchmarkAtCurrentPriceCeil() public {
+        address proxy = _deployFundedV2(1100e6 + 1);
+        _upgradeIlpToV3(proxy);
+        assertEq(YuzuILPV3(proxy).highWaterMark(), 1_100_001, "seed is not the ceil migration price");
+    }
+
+    // A vault migrating with live supply and no value seeds the minimum benchmark instead of
+    // blocking the upgrade.
+    function test_YuzuILP_MigrationSeedsFloorOfOneOnWreckedVault() public {
+        address proxy = _deployFundedV2(0);
+        _upgradeIlpToV3(proxy);
+        assertEq(YuzuILPV3(proxy).highWaterMark(), 1, "wrecked migration did not seed the floor");
     }
 
     function _initData(address asset) private view returns (bytes memory) {

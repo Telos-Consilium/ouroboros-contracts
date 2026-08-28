@@ -20,16 +20,17 @@ import {
 import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
 import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 import {
-    YuzuILPDistributionV3Storage,
-    YuzuILPFeesV3Storage,
-    YuzuMinAmountsV3Storage,
-    YuzuThrottleV3Storage
+    YuzuV3ILPDistributionStorage,
+    YuzuV3ILPFeesStorage,
+    YuzuV3MinAmountsStorage,
+    YuzuV3ThrottleStorage
 } from "./storage/YuzuV3Storage.sol";
 
 /**
  * @title YuzuILPV3
  * @notice YuzuILP with V3 limits, throttles, pool guards, and fees
  */
+// slither-disable-next-line missing-inheritance
 contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     // Construction and initialization
     constructor(address facet_) YuzuV3FacetRouting(facet_) {}
@@ -53,6 +54,8 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _setRoleAdmin(POOL_MANAGER_ROLE, ADMIN_ROLE);
         __YuzuILPV3_init_unchained();
         _applyConfig(config);
+        // The zero-supply deposit path mints at par, so the performance benchmark starts there.
+        YuzuV3ILPFeesStorage.layout()._highWaterMark = 10 ** decimals() / 10 ** _decimalsOffset();
     }
 
     function _applyConfig(ConfigParams calldata config) internal {
@@ -69,7 +72,7 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         isRedeemRestricted = config.isRedeemRestricted;
         redeemOrderFeePpm = config.redeemOrderFeePpm;
 
-        YuzuILPFeesV3Storage.Layout storage $ = YuzuILPFeesV3Storage.layout();
+        YuzuV3ILPFeesStorage.Layout storage $ = YuzuV3ILPFeesStorage.layout();
         $._mintFeePpm = config.mintFeePpm;
         $._pendingManagementFeeRatePpm = config.pendingManagementFeeRatePpm;
         $._pendingPerformanceFeeRatePpm = config.pendingPerformanceFeeRatePpm;
@@ -89,6 +92,16 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
     function reinitialize() external override reinitializer(3) {
         if (_asset == address(0)) revert NotMigrating();
         __YuzuILPV3_init_unchained();
+        // V3 performance fees begin at the migration price; V2 carries no benchmark to import.
+        // Ceil rounding and the floor of one keep the benchmark positive for any live supply.
+        // With no supply the next mint prices at par, the same benchmark a fresh vault starts with.
+        uint256 supply = totalSupply();
+        if (supply > 0) {
+            uint256 price = Math.mulDiv(totalAssets(), 10 ** decimals(), supply, Math.Rounding.Ceil);
+            YuzuV3ILPFeesStorage.layout()._highWaterMark = price > 0 ? price : 1;
+        } else {
+            YuzuV3ILPFeesStorage.layout()._highWaterMark = 10 ** decimals() / 10 ** _decimalsOffset();
+        }
     }
 
     // slither-disable-next-line pess-unprotected-initialize
@@ -99,12 +112,14 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _setRoleAdmin(FEE_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(PRICE_GUARD_MANAGER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(DISTRIBUTOR_ROLE, ADMIN_ROLE);
-        YuzuThrottleV3Storage.Layout storage $ = YuzuThrottleV3Storage.layout();
+        YuzuV3ThrottleStorage.Layout storage $ = YuzuV3ThrottleStorage.layout();
         $._mintThrottle.blockLimit = type(uint256).max;
         $._mintThrottle.dailyLimit = type(uint256).max;
         $._redeemThrottle.blockLimit = type(uint256).max;
         $._redeemThrottle.dailyLimit = type(uint256).max;
-        YuzuILPDistributionV3Storage.layout()._minDistributionPeriod = 1 days;
+        YuzuV3ILPDistributionStorage.layout()._minDistributionPeriod = 1 days;
+        // max uint disables the distribution amount cap; 0 would block any positive-amount distribution.
+        YuzuV3ILPDistributionStorage.layout()._maxDistributionPpm = type(uint256).max;
     }
 
     // Disabled entrypoints
@@ -140,9 +155,26 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _staticcallFacet();
     }
 
-    /// @dev Saturates to the supply headroom when the throttle is effectively unlimited; the threshold
-    /// keeps convertToShares from overflowing (ILP share price is admin-set and unbounded).
+    /// @dev Gates on the fee-net backing, not the raw capacity, so an unlimited throttle returns the
+    /// headroom without converting an unbounded capacity to shares.
     function maxMint(address) public view virtual override returns (uint256) {
+        _staticcallFacet();
+    }
+
+    // Facet routes: fee observability
+    /// @notice Total assets before V3 fee accrual: pool with linear yield plus net distributions
+    function grossTotalAssets() external view returns (uint256) {
+        _staticcallFacet();
+    }
+
+    /// @notice Management fee accrued since the last pool update and not yet booked
+    function accruedManagementFee() external view returns (uint256) {
+        _staticcallFacet();
+    }
+
+    /// @notice Performance fee accrued above the benchmark and not yet booked. A live estimate on
+    /// the current gross value; the next update realizes against the reported pool instead
+    function accruedPerformanceFee() external view returns (uint256) {
         _staticcallFacet();
     }
 
@@ -254,70 +286,88 @@ contract YuzuILPV3 is YuzuILPV2, YuzuV3FacetRouting, IYuzuILPV3Definitions {
         _delegateToFacet();
     }
 
+    function setMaxDistributionPpm(uint256) external virtual {
+        _delegateToFacet();
+    }
+
     // Native views
     function minDeposit() public view returns (uint256) {
-        return YuzuMinAmountsV3Storage.layout()._minDeposit;
+        return YuzuV3MinAmountsStorage.layout()._minDeposit;
+    }
+
+    /// @notice Cap on a single distribution, in ppm of current total assets; type(uint256).max disables it
+    function maxDistributionPpm() public view returns (uint256) {
+        return YuzuV3ILPDistributionStorage.layout()._maxDistributionPpm;
     }
 
     /// @notice Minimum permitted period for a new distribution
     function minDistributionPeriod() public view returns (uint256) {
-        return YuzuILPDistributionV3Storage.layout()._minDistributionPeriod;
+        return YuzuV3ILPDistributionStorage.layout()._minDistributionPeriod;
     }
 
+    /// @notice Returns stored mint throttle limits and usage counters
+    /// @dev Usage counters are not rollover-normalized; callers must account for the current block and UTC day.
     function getMintThrottle() external view returns (Throttle memory) {
-        return YuzuThrottleV3Storage.layout()._mintThrottle;
+        return YuzuV3ThrottleStorage.layout()._mintThrottle;
     }
 
     /// @notice Deposit/mint fee in ppm of assets in
     function mintFeePpm() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._mintFeePpm;
+        return YuzuV3ILPFeesStorage.layout()._mintFeePpm;
     }
 
     /// @notice Active management fee in ppm per year
     function managementFeeRatePpm() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._managementFeeRatePpm;
+        return YuzuV3ILPFeesStorage.layout()._managementFeeRatePpm;
     }
 
     /// @notice Management fee staged for the next pool update
     function pendingManagementFeeRatePpm() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._pendingManagementFeeRatePpm;
+        return YuzuV3ILPFeesStorage.layout()._pendingManagementFeeRatePpm;
     }
 
     /// @notice Total management fees withheld from holders
     function cumulativeManagementFees() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._cumulativeManagementFees;
+        return YuzuV3ILPFeesStorage.layout()._cumulativeManagementFees;
+    }
+
+    /// @notice Pool units credited since the last update, each weighted by the time already elapsed
+    /// when it was credited. Subtracted from the fee-time basis so a deposit bears management fee
+    /// only from its own arrival.
+    function creditSecondsSinceUpdate() public view returns (uint256) {
+        return YuzuV3ILPFeesStorage.layout()._creditSecondsSinceUpdate;
     }
 
     /// @notice Active performance fee in ppm
     function performanceFeeRatePpm() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._performanceFeeRatePpm;
+        return YuzuV3ILPFeesStorage.layout()._performanceFeeRatePpm;
     }
 
     /// @notice Performance fee staged for the next pool update
     function pendingPerformanceFeeRatePpm() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._pendingPerformanceFeeRatePpm;
+        return YuzuV3ILPFeesStorage.layout()._pendingPerformanceFeeRatePpm;
     }
 
     /// @notice Highest net-of-management share price reached
     function highWaterMark() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._highWaterMark;
+        return YuzuV3ILPFeesStorage.layout()._highWaterMark;
     }
 
     /// @notice Total performance fees withheld from holders
     function cumulativePerformanceFees() public view returns (uint256) {
-        return YuzuILPFeesV3Storage.layout()._cumulativePerformanceFees;
+        return YuzuV3ILPFeesStorage.layout()._cumulativePerformanceFees;
     }
 
     /// @notice Preview tokens minted for {assets}, net of the mint fee
     function previewDeposit(uint256 assets) public view virtual override returns (uint256) {
-        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        uint256 fee = YuzuV3Fees.feeOnTotal(assets, YuzuV3ILPFeesStorage.layout()._mintFeePpm);
         return super.previewDeposit(assets - fee);
     }
 
     /// @notice Preview assets paid to mint {tokens}, including the mint fee
     function previewMint(uint256 tokens) public view virtual override returns (uint256) {
         uint256 netAssets = super.previewMint(tokens);
-        return netAssets + YuzuV3Fees.feeOnRaw(netAssets, YuzuILPFeesV3Storage.layout()._mintFeePpm);
+        return netAssets + YuzuV3Fees.feeOnRaw(netAssets, YuzuV3ILPFeesStorage.layout()._mintFeePpm);
     }
 
     // Internal overrides

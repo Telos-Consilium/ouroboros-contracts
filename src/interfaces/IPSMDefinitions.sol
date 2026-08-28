@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+
+import {Throttle} from "./proto/IYuzuThrottleDefinitions.sol";
+
 interface IERC20Burnable {
     function burn(uint256 value) external;
 }
@@ -22,9 +27,11 @@ struct Order {
 
 interface IPSMDefinitions {
     error InvalidZeroAddress();
+    error InvalidZeroShares();
     error VaultAssetMismatch(address expected, address underlying);
     error UnderMinRedeemOrder(uint256 shares, uint256 min);
     error OrderNotPending(uint256 orderId);
+    error OrderOwnerNotUser(uint256 orderId, address owner);
     error WithdrewLessThanMinAssets(uint256 assets, uint256 min);
     error RedeemFromOtherOwnerNotAllowed(address caller, address owner);
     error ExceededMaxDeposit(address receiver, uint256 assets, uint256 max);
@@ -59,14 +66,15 @@ interface IVaultRestrictions {
     function canBurn(address owner) external view returns (bool);
 }
 
-interface IRestrictedShares {
-    function currentBlockRestrictedBalance(address account) external view returns (uint256);
+/// @dev The V3 surface PSMV2 requires of vault0 (yzUSD) beyond ERC-4626.
+interface IPSMVault0 is IERC4626, IERC20Burnable, IVaultRestrictions {
+    function minDeposit() external view returns (uint256);
 }
 
-interface IRedeemThrottle {
-    function redeemThrottleRemaining(address account) external view returns (uint256);
-}
-
-interface IMinWithdraw {
+/// @dev The V3 surface PSMV2 requires of vault1 (syzUSD) beyond ERC-4626.
+interface IPSMVault1 is IERC4626, IAccessControl, IVaultRestrictions {
+    function minDeposit() external view returns (uint256);
     function minWithdraw() external view returns (uint256);
+    function currentBlockRestrictedBalance(address account) external view returns (uint256);
+    function getRedeemThrottle() external view returns (Throttle memory);
 }

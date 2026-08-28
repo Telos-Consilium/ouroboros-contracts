@@ -4,7 +4,9 @@ pragma solidity ^0.8.30;
 import {YuzuUSDV3} from "../src/YuzuUSDV3.sol";
 import {IYuzuIssuerDefinitions} from "../src/interfaces/proto/IYuzuIssuerDefinitions.sol";
 import {IYuzuThrottleDefinitions} from "../src/interfaces/proto/IYuzuThrottleDefinitions.sol";
-import {LIMIT_MANAGER_ROLE, REDEEM_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE} from "./helpers/TestRoles.sol";
+import {
+    LIMIT_MANAGER_ROLE, POOL_MANAGER_ROLE, REDEEM_MANAGER_ROLE, THROTTLE_EXEMPT_ROLE
+} from "./helpers/TestRoles.sol";
 import {YuzuV3TestBase, YuzuV3USDT0Mock} from "./helpers/YuzuV3TestBase.sol";
 
 contract ReentrantAsset is YuzuV3USDT0Mock {
@@ -184,6 +186,30 @@ contract YuzuUSDV3ThrottleTest is YuzuV3TestBase, IYuzuIssuerDefinitions, IYuzuT
         vm.expectRevert();
         yzusd.deposit(60e6, user);
     }
+
+    /// @dev A finite throttle at uint128.max bounds maxMint by the throttle, not by the full supply
+    /// headroom whose mint cost the throttle cannot pay. The reported maximum mints without reverting;
+    /// an exempt receiver still reaches the headroom.
+    function test_MintThrottle_FiniteMaxDoesNotOverreportHeadroom() public {
+        uint256 finiteThrottle = type(uint128).max;
+        uint256 supplyCap = finiteThrottle * 2 * 1e12; // headroom mint cost is twice the throttle
+
+        vm.prank(admin);
+        yzusd.grantRole(THROTTLE_EXEMPT_ROLE, exempt);
+        vm.startPrank(limitManager);
+        yzusd.setSupplyCap(supplyCap);
+        yzusd.setMintThrottle(finiteThrottle, type(uint256).max);
+        vm.stopPrank();
+
+        uint256 reported = yzusd.maxMint(user);
+        assertEq(reported, yzusd.previewDeposit(finiteThrottle), "maxMint not bounded by the throttle");
+        assertLt(reported, supplyCap, "maxMint still saturated to the headroom");
+        assertEq(yzusd.maxMint(exempt), supplyCap, "exempt receiver did not reach the headroom");
+
+        asset.mint(user, yzusd.previewMint(reported));
+        vm.prank(user);
+        yzusd.mint(reported, user); // executes within the throttle
+    }
 }
 
 contract YuzuILPV3ThrottleTest is YuzuV3TestBase, IYuzuIssuerDefinitions, IYuzuThrottleDefinitions {
@@ -258,5 +284,81 @@ contract YuzuILPV3ThrottleTest is YuzuV3TestBase, IYuzuIssuerDefinitions, IYuzuT
         yzilp.deposit(500e6, exempt);
 
         assertEq(yzilp.maxDeposit(user), 100e6);
+    }
+
+    /// @dev A finite throttle at uint128.max bounds maxMint by the throttle, not by the full supply
+    /// headroom whose fee-net backing the throttle cannot pay. The reported maximum mints without
+    /// reverting; an exempt receiver still reaches the headroom.
+    function test_MintThrottle_FiniteMaxDoesNotOverreportHeadroom() public {
+        uint256 finiteThrottle = type(uint128).max;
+        uint256 supplyCap = finiteThrottle * 2 * 1e12; // headroom backing is twice the throttle
+
+        vm.prank(admin);
+        yzilp.grantRole(THROTTLE_EXEMPT_ROLE, exempt);
+        vm.startPrank(limitManager);
+        yzilp.setSupplyCap(supplyCap);
+        yzilp.setMintThrottle(finiteThrottle, type(uint256).max);
+        vm.stopPrank();
+
+        uint256 reported = yzilp.maxMint(user);
+        assertEq(reported, yzilp.convertToShares(finiteThrottle), "maxMint not bounded by the throttle");
+        assertLt(reported, supplyCap, "maxMint still saturated to the headroom");
+        assertEq(yzilp.maxMint(exempt), supplyCap, "exempt receiver did not reach the headroom");
+
+        asset.mint(user, yzilp.previewMint(reported));
+        vm.prank(user);
+        yzilp.mint(reported, user); // executes within the throttle
+    }
+
+    /// @dev At an established pool, a throttle capacity equal to the rounded-down backing of the headroom
+    /// still bounds maxMint by the throttle: the reported maximum mints within the throttle rather than
+    /// quoting the whole headroom, whose backing rounds up to one unit more.
+    function test_MintThrottle_EstablishedPool_MaxMintRoundsAgainstThrottle() public {
+        vm.prank(user);
+        yzilp.deposit(1_000e6, user); // par pool: supply and assets both nonzero
+        vm.roll(block.number + 1);
+
+        uint256 headroom = 1e12 + 1; // backing has a fractional part, not a multiple of 1e12
+        vm.startPrank(limitManager);
+        yzilp.setSupplyCap(yzilp.totalSupply() + headroom);
+        yzilp.setMintThrottle(headroom / 1e12, type(uint256).max); // equals the rounded-down backing
+        vm.stopPrank();
+
+        uint256 reported = yzilp.maxMint(user);
+        assertLt(reported, headroom, "maxMint quoted the unaffordable headroom");
+        vm.prank(user);
+        yzilp.mint(reported, user); // stays within the throttle
+    }
+
+    /// @dev With fractional accrued yield the total assets differ by a unit between rounding modes. maxMint
+    /// must price the headroom against the same ceil-rounded total assets the mint consumes, so a throttle
+    /// one unit below that cost bounds maxMint below the headroom rather than quoting the unaffordable whole.
+    function test_MintThrottle_FractionalYield_MaxMintPricesAtCeilTotalAssets() public {
+        vm.prank(user);
+        yzilp.deposit(1_000e6, user); // establish supply and pool size
+
+        vm.startPrank(admin);
+        yzilp.grantRole(POOL_MANAGER_ROLE, admin);
+        yzilp.startPoolUpdate();
+        yzilp.updatePool(yzilp.poolSize(), yzilp.poolSize(), 1); // 1 ppm daily linear yield
+        yzilp.endPoolUpdate();
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1); // partial-day accrual: yield rounds to 0 down, 1 up
+        vm.roll(block.number + 1); // fresh throttle block window
+
+        uint256 supply = yzilp.totalSupply();
+        uint256 headroom = supply; // minting the full headroom costs one total-assets unit
+        uint256 actualCost = yzilp.previewMint(headroom); // ceil-rounded net mint cost, fee is 0
+        assertGt(actualCost, yzilp.totalAssets(), "setup did not create a ceil/floor total-assets gap");
+
+        vm.startPrank(limitManager);
+        yzilp.setSupplyCap(supply + headroom);
+        yzilp.setMintThrottle(actualCost - 1, type(uint256).max); // one below the true cost
+        vm.stopPrank();
+
+        uint256 reported = yzilp.maxMint(user);
+        assertLt(reported, headroom, "maxMint quoted the headroom the ceil-rounded cost cannot afford");
+        vm.prank(user);
+        yzilp.mint(reported, user); // stays within the throttle
     }
 }
