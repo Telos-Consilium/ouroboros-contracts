@@ -40,11 +40,17 @@ contract YuzuUSD is YuzuProto {
         );
     }
 
-    function _convertToShares(uint256 assets, Math.Rounding) internal view override returns (uint256) {
+    function _convertToShares(uint256 assets, Math.Rounding) internal view virtual override returns (uint256) {
         return assets * 10 ** _decimalsOffset();
     }
 
-    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view override returns (uint256) {
+    function _convertToAssets(uint256 shares, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         if (rounding == Math.Rounding.Floor) {
             return shares / 10 ** _decimalsOffset();
         } else {

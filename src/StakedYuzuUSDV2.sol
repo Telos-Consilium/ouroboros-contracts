@@ -10,8 +10,11 @@ import {IntegrationConfig, IStakedYuzuUSDV2Definitions} from "./interfaces/IStak
 /**
  * @title StakedYuzuUSDV2
  * @notice StakedYuzuUSD with integration support and instant redeem/withdraw paths
+ * @dev Integration permissions are checked against the owner in view functions
+ * and against the caller in state-changing functions.
  */
 contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
+    // slither-disable-next-line uninitialized-state,unused-state
     mapping(address => IntegrationConfig) internal integrations;
 
     /// @notice Reinitializes the contract for V2 upgrade
@@ -26,7 +29,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @notice Returns true if owner is allowed to redeem, false otherwise
-    function canRedeem(address _owner) public view returns (bool) {
+    function canRedeem(address _owner) public view virtual returns (bool) {
         if (paused()) {
             return false;
         }
@@ -83,7 +86,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @inheritdoc StakedYuzuUSD
-    function withdraw(uint256 assets, address receiver, address _owner) public override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address _owner) public virtual override returns (uint256) {
         address caller = _msgSender();
         uint256 callerFeePpm = _redeemFeePpmFor(caller);
         uint256 maxAssets = maxWithdraw(_owner);
@@ -105,7 +108,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @inheritdoc StakedYuzuUSD
-    function redeem(uint256 shares, address receiver, address _owner) public override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address _owner) public virtual override returns (uint256) {
         address caller = _msgSender();
         uint256 maxShares = maxRedeem(_owner);
         if (shares > maxShares) {
@@ -129,6 +132,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     // slither-disable-next-line pess-unprotected-initialize
     function initiateRedeem(uint256 shares, address receiver, address _owner)
         public
+        virtual
         override
         returns (uint256, uint256)
     {
@@ -174,7 +178,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
     }
 
     /// @inheritdoc StakedYuzuUSD
-    function rescueTokens(address token, address receiver, uint256 amount) public override {
+    function rescueTokens(address token, address receiver, uint256 amount) public virtual override {
         if (token == asset()) {
             uint256 rescuableBalance = IERC20(asset()).balanceOf(address(this)) - totalPendingOrderValue;
             if (amount > rescuableBalance) {
@@ -184,7 +188,11 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         super.rescueTokens(token, receiver, amount);
     }
 
-    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee) external onlyOwner {
+    function setIntegration(address integration, bool canSkipRedeemDelay, bool waiveRedeemFee)
+        public
+        virtual
+        onlyOwner
+    {
         if (integration == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -193,7 +201,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         emit UpdatedIntegration(integration, canSkipRedeemDelay, waiveRedeemFee);
     }
 
-    function getIntegration(address integration) external view returns (IntegrationConfig memory) {
+    function getIntegration(address integration) external view virtual returns (IntegrationConfig memory) {
         return integrations[integration];
     }
 
@@ -201,7 +209,7 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return lastDistributionTime;
     }
 
-    function _redeemFeePpmFor(address account) internal view returns (uint256) {
+    function _redeemFeePpmFor(address account) internal view virtual returns (uint256) {
         if (integrations[account].waiveRedeemFee) {
             return 0;
         }
@@ -220,11 +228,11 @@ contract StakedYuzuUSDV2 is StakedYuzuUSD, IStakedYuzuUSDV2Definitions {
         return (assets - fee, fee);
     }
 
-    function _previewWithdraw(uint256 assets) internal view override returns (uint256, uint256) {
+    function _previewWithdraw(uint256 assets) internal view virtual override returns (uint256, uint256) {
         return _previewWithdrawWithFee(assets, redeemFeePpm);
     }
 
-    function _previewRedeem(uint256 shares) internal view override returns (uint256, uint256) {
+    function _previewRedeem(uint256 shares) internal view virtual override returns (uint256, uint256) {
         return _previewRedeemWithFee(shares, redeemFeePpm);
     }
 

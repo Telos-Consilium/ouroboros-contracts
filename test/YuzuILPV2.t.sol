@@ -10,6 +10,7 @@ import {Order, OrderStatus} from "../src/interfaces/proto/IYuzuOrderBookDefiniti
 
 import {YuzuILPV2} from "../src/YuzuILPV2.sol";
 
+import {POOL_MANAGER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuProtoTest} from "./YuzuProto.t.sol";
 import {YuzuProtoV2Test_Common, YuzuProtoV2Test_OrderBook} from "./YuzuProtoV2.t.sol";
 import {YuzuILPTest_Common, YuzuILPTest_OrderBook} from "./YuzuILP.t.sol";
@@ -142,7 +143,6 @@ contract YuzuILPV2Test_Common is YuzuILPTest_Common, YuzuProtoV2Test_Common, IYu
     }
 
     function test_TerminateDistribution() public {
-        // uint256 initialTime = block.timestamp;
         // uint32 cast prevents unexpected compiler behavior
         uint256 initialTime = uint256(uint32(block.timestamp));
 

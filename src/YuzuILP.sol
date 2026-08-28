@@ -11,13 +11,16 @@ import {YuzuIssuer} from "./proto/YuzuIssuer.sol";
 
 /**
  * @title YuzuILP
- * @notice Insurance Liquidity Pool that accrues yield
+ * @notice Protection Pool that accrues yield
  */
 contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
     bytes32 internal constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
     uint256 public poolSize;
+    // The V3 facet writes these fields through raw storage slots, which slither cannot see
+    // slither-disable-next-line uninitialized-state
     uint256 public dailyLinearYieldRatePpm;
+    // slither-disable-next-line uninitialized-state
     uint256 public lastPoolUpdateTimestamp;
 
     constructor() {
@@ -44,7 +47,7 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         uint256 _supplyCap,
         uint256 _fillWindow,
         uint256 _minRedeemOrder
-    ) external initializer {
+    ) external virtual initializer {
         __YuzuProto_init(
             __asset, __name, __symbol, _admin, __treasury, _feeReceiver, _supplyCap, _fillWindow, _minRedeemOrder
         );
@@ -111,7 +114,13 @@ contract YuzuILP is YuzuProto, IYuzuILPDefinitions {
         return poolSize + yieldSinceUpdate;
     }
 
-    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view override returns (uint256) {
+    function _convertToShares(uint256 assets, Math.Rounding rounding)
+        internal
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         // slither-disable-next-line incorrect-equality
         if (poolSize == 0) {
             return assets * 10 ** _decimalsOffset();

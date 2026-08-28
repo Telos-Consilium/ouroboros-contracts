@@ -69,3 +69,21 @@ interface IStakedYuzuUSDV2Definitions {
 
     event UpdatedIntegration(address indexed integration, bool canSkipRedeemDelay, bool waiveRedeemFee);
 }
+
+interface IStakedYuzuUSDV3Definitions {
+    error OwnershipMigratedToAccessControl();
+    error IntegrationsMigratedToRoles();
+    error UnauthorizedReinitializer(address caller);
+    error RedeemDelayTooLow(uint256 provided, uint256 min);
+    error DistributionAmountTooHigh(uint256 provided, uint256 max);
+    error InitializationDisabled();
+    error UnderMinRedeemOrder(uint256 shares, uint256 min);
+    error InvalidZeroShares();
+
+    event Recovered(address indexed from, address indexed to, uint256 amount);
+    event UpdatedInstantRedeemFee(uint256 oldFee, uint256 newFee);
+    event UpdatedIsInstantRedeemEnabled(bool oldValue, bool newValue);
+    event UpdatedMaxDistributionPpm(uint256 oldMaxPpm, uint256 newMaxPpm);
+    event UpdatedMinDistributionPeriod(uint256 oldPeriod, uint256 newPeriod);
+    event UpdatedMinRedeemOrder(uint256 oldMin, uint256 newMin);
+}

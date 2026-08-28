@@ -13,33 +13,33 @@ import {YuzuUSD} from "./YuzuUSD.sol";
 contract YuzuUSDV2 is YuzuUSD, YuzuProtoV2 {
     /// @notice Reinitializes the contract for V2 upgrade
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitialize() external reinitializer(2) {
+    function reinitialize() external virtual reinitializer(2) {
         __YuzuProtoV2_init_unchained();
         __EIP712_init(name(), "2");
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxDeposit(address receiver) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+    function maxDeposit(address receiver) public view virtual override(YuzuProto, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxDeposit(receiver);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxMint(address receiver) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+    function maxMint(address receiver) public view virtual override(YuzuProto, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxMint(receiver);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxWithdraw(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+    function maxWithdraw(address _owner) public view virtual override(YuzuProto, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxWithdraw(_owner);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxRedeem(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+    function maxRedeem(address _owner) public view virtual override(YuzuProto, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxRedeem(_owner);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxRedeemOrder(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+    function maxRedeemOrder(address _owner) public view virtual override(YuzuProto, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxRedeemOrder(_owner);
     }
 

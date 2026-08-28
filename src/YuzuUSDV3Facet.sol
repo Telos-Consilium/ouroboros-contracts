@@ -1,0 +1,146 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
+import {Order, OrderStatus} from "./interfaces/proto/IYuzuOrderBookDefinitions.sol";
+import {YuzuV3FacetBase} from "./YuzuV3FacetBase.sol";
+import {
+    LIMIT_MANAGER_ROLE,
+    MARKDOWN_STEP_EXEMPT_ROLE,
+    NAV_MANAGER_ROLE,
+    NAV_COOLDOWN,
+    NAV_STEP_CAP_PPM,
+    ORDER_FILLER_ROLE,
+    REDEEMER_ROLE
+} from "./libraries/YuzuV3Constants.sol";
+import {YuzuV3Fees} from "./libraries/YuzuV3Fees.sol";
+import {IYuzuMinAmountsDefinitions, IYuzuNavMarkdownDefinitions} from "./interfaces/proto/IYuzuProtoDefinitions.sol";
+import {IYuzuProto} from "./interfaces/proto/IYuzuProto.sol";
+import {IYuzuV3RouterBase} from "./interfaces/IYuzuV3FacetRouters.sol";
+import {IYuzuThrottleDefinitions, Throttle} from "./interfaces/proto/IYuzuThrottleDefinitions.sol";
+import {YuzuV3MinAmountsStorage, YuzuV3NavMarkdownStorage, YuzuV3ThrottleStorage} from "./storage/YuzuV3Storage.sol";
+
+/**
+ * @title YuzuUSDV3Facet
+ * @dev Fee and pricing math reads state through the vault's external interface so every path prices
+ * from one implementation; storage writes use the pinned slots below.
+ */
+contract YuzuUSDV3Facet is
+    YuzuV3FacetBase,
+    IYuzuMinAmountsDefinitions,
+    IYuzuThrottleDefinitions,
+    IYuzuNavMarkdownDefinitions
+{
+    // User actions
+    function fillRedeemOrder(uint256 orderId) external {
+        _checkRole(ORDER_FILLER_ROLE);
+        IYuzuV3RouterBase router = IYuzuV3RouterBase(address(this));
+        YuzuOrderBookStorage storage $ = _getYuzuOrderBookStorage();
+        Order storage order = $._orders[orderId];
+        if (order.status != OrderStatus.Pending) {
+            revert OrderNotPending(orderId);
+        }
+        // The order owner must still be an allowed redeemer at fill; pause is checked in finalizeRedeemOrder, not here.
+        if (
+            IYuzuProto(address(this)).isRedeemRestricted()
+                && !IAccessControl(address(this)).hasRole(REDEEMER_ROLE, order.owner)
+        ) {
+            revert OrderOwnerNotRedeemer(orderId, order.owner);
+        }
+        (uint256 assets, uint256 fee) = _orderValue(router, order.tokens, order.feePpm);
+
+        order.status = OrderStatus.Filled;
+        order.assets = assets;
+        $._totalPendingOrderSize -= order.tokens;
+        $._totalUnfinalizedOrderValue += assets;
+
+        router.__routerBurn(address(this), order.tokens);
+        SafeERC20.safeTransferFrom(IERC20(router.asset()), msg.sender, address(this), assets);
+
+        // slither-disable-next-line reentrancy-events
+        emit FilledRedeemOrder(msg.sender, order.receiver, order.owner, orderId, assets, order.tokens, fee);
+    }
+
+    // Config setters
+    function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
+        _checkRole(LIMIT_MANAGER_ROLE);
+        Throttle storage throttle = YuzuV3ThrottleStorage.layout()._mintThrottle;
+        uint256 oldBlockLimit = throttle.blockLimit;
+        uint256 oldDailyLimit = throttle.dailyLimit;
+        throttle.blockLimit = newBlockLimit;
+        throttle.dailyLimit = newDailyLimit;
+        emit UpdatedMintThrottle(oldBlockLimit, newBlockLimit, oldDailyLimit, newDailyLimit);
+    }
+
+    function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external {
+        _checkRole(LIMIT_MANAGER_ROLE);
+        Throttle storage throttle = YuzuV3ThrottleStorage.layout()._redeemThrottle;
+        uint256 oldBlockLimit = throttle.blockLimit;
+        uint256 oldDailyLimit = throttle.dailyLimit;
+        throttle.blockLimit = newBlockLimit;
+        throttle.dailyLimit = newDailyLimit;
+        emit UpdatedRedeemThrottle(oldBlockLimit, newBlockLimit, oldDailyLimit, newDailyLimit);
+    }
+
+    function setMinDeposit(uint256 newMin) external {
+        _checkRole(LIMIT_MANAGER_ROLE);
+        YuzuV3MinAmountsStorage.Layout storage $ = YuzuV3MinAmountsStorage.layout();
+        uint256 oldMin = $._minDeposit;
+        $._minDeposit = newMin;
+        emit UpdatedMinDeposit(oldMin, newMin);
+    }
+
+    function setMinWithdraw(uint256 newMin) external {
+        _checkRole(LIMIT_MANAGER_ROLE);
+        YuzuV3MinAmountsStorage.Layout storage $ = YuzuV3MinAmountsStorage.layout();
+        uint256 oldMin = $._minWithdraw;
+        $._minWithdraw = newMin;
+        emit UpdatedMinWithdraw(oldMin, newMin);
+    }
+
+    function setNav(uint256 newNav) external {
+        _checkRole(NAV_MANAGER_ROLE);
+        YuzuV3NavMarkdownStorage.Layout storage $ = YuzuV3NavMarkdownStorage.layout();
+        if (!$._isUpdatingNav) {
+            revert NoNavUpdateInProgress();
+        }
+        if (newNav == 0) {
+            revert InvalidNav(newNav);
+        }
+        uint256 currentNav = $._nav;
+
+        uint256 lastUpdate = $._lastUpdate;
+        if (lastUpdate != 0) {
+            if (block.timestamp - lastUpdate < NAV_COOLDOWN) {
+                revert NavCooldownActive(block.timestamp, lastUpdate + NAV_COOLDOWN);
+            }
+        }
+
+        // The step cap binds both directions; markdowns beyond the cap require
+        // MARKDOWN_STEP_EXEMPT_ROLE so a major loss can be marked in one call.
+        uint256 maxDelta = Math.mulDiv(currentNav, NAV_STEP_CAP_PPM, 1e6);
+        if (newNav > currentNav) {
+            if (newNav - currentNav > maxDelta) {
+                revert NavStepTooHigh(newNav, currentNav, maxDelta);
+            }
+        } else if (
+            currentNav - newNav > maxDelta
+                && !IAccessControl(address(this)).hasRole(MARKDOWN_STEP_EXEMPT_ROLE, msg.sender)
+        ) {
+            revert NavStepTooHigh(newNav, currentNav, maxDelta);
+        }
+
+        $._nav = newNav;
+        $._lastUpdate = block.timestamp;
+        emit UpdatedNav(currentNav, newNav);
+    }
+
+    function setNavUpdateInProgress(bool inProgress) external {
+        _checkRole(NAV_MANAGER_ROLE);
+        YuzuV3NavMarkdownStorage.layout()._isUpdatingNav = inProgress;
+        emit NavUpdateInProgressSet(inProgress);
+    }
+}

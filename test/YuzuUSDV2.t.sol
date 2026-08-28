@@ -5,14 +5,13 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 import {YuzuUSDV2} from "../src/YuzuUSDV2.sol";
 
+import {BURNER_ROLE} from "./helpers/TestRoles.sol";
 import {YuzuProtoTest} from "./YuzuProto.t.sol";
 import {YuzuProtoV2Test_Common, YuzuProtoV2Test_Issuer, YuzuProtoV2Test_OrderBook} from "./YuzuProtoV2.t.sol";
 import {YuzuUSDTest_Common, YuzuUSDTest_Issuer, YuzuUSDTest_OrderBook} from "./YuzuUSD.t.sol";
 
 contract YuzuUSDV2Test_Common is YuzuUSDTest_Common, YuzuProtoV2Test_Common {
     YuzuUSDV2 yzusd2;
-
-    bytes32 internal constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
     function _deploy() internal override(YuzuProtoTest, YuzuUSDTest_Common) returns (address) {
         return address(new YuzuUSDV2());

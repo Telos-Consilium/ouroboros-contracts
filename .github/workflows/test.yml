@@ -23,6 +23,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Verify submodule pins
+        run: |
+          git submodule status --recursive
+          git diff --exit-code --submodule
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -59,14 +64,16 @@ jobs:
           forge fmt --check
         id: fmt
 
-      - name: Run Forge build
+      - name: Run Forge production build
+        env:
+          FOUNDRY_PROFILE: production
         run: |
-          forge build --sizes --via-ir
+          forge build --sizes
         id: build
 
-      - name: Run Slitherin
+      - name: Run Slither
         run: |
-          slitherin . --config-file slither.config.json
+          slither . --config-file slither.config.json
 
       - name: Run Forge tests
         run: |

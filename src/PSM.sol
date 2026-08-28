@@ -179,13 +179,13 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Preview assets withdrawn for {shares}
     /// @dev Uses convertToAssets instead of previewRedeem because the PSM is a fee-waived integration
-    function previewRedeem(uint256 shares) external view returns (uint256) {
+    function previewRedeem(uint256 shares) public view virtual returns (uint256) {
         uint256 shares0 = _vault1.convertToAssets(shares);
         return _vault0.convertToAssets(shares0);
     }
 
     /// @notice Deposit {assets} for shares minted to {receiver}
-    function deposit(uint256 assets, address receiver) public nonReentrant returns (uint256) {
+    function deposit(uint256 assets, address receiver) public virtual nonReentrant returns (uint256) {
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
             revert ExceededMaxDeposit(receiver, assets, maxAssets);
@@ -195,7 +195,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     /// @notice Redeem {shares} from {owner} for assets withdrawn to {receiver}
     /// @dev Owner must be the caller
-    function redeem(uint256 shares, address receiver, address _owner) public nonReentrant returns (uint256) {
+    function redeem(uint256 shares, address receiver, address _owner) public virtual nonReentrant returns (uint256) {
         address caller = _msgSender();
         if (caller != _owner) {
             revert RedeemFromOtherOwnerNotAllowed(caller, _owner);
@@ -222,6 +222,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     /// @notice Create a redeem order of {shares} for {receiver}
     function createRedeemOrder(uint256 shares, address receiver, address _owner)
         external
+        virtual
         nonReentrant
         returns (uint256)
     {
@@ -231,6 +232,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         }
         if (receiver == address(0)) {
             revert InvalidZeroAddress();
+        }
+        if (shares == 0) {
+            revert InvalidZeroShares();
         }
         uint256 maxShares = maxRedeemOrder(_owner);
         if (shares > maxShares) {
@@ -299,7 +303,9 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
             && IVaultRestrictions(vault0()).canRedeem(address(this)) && IVaultRestrictions(vault0()).canBurn(address(this));
     }
 
-    function _deposit(address caller, address receiver, uint256 assets) internal returns (uint256) {
+    function _deposit(address caller, address receiver, uint256 assets) internal virtual returns (uint256) {
+        // caller is _msgSender() at the only call site; the depositor pulls their own asset.
+        // slither-disable-next-line arbitrary-send-erc20
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), assets);
         SafeERC20.safeIncreaseAllowance(IERC20(asset()), vault0(), assets);
         uint256 shares0 = _vault0.deposit(assets, address(this));
@@ -310,7 +316,11 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
     }
 
     // slither-disable-next-line calls-loop
-    function _redeem(address caller, address receiver, address _owner, uint256 shares) internal returns (uint256) {
+    function _redeem(address caller, address receiver, address _owner, uint256 shares)
+        internal
+        virtual
+        returns (uint256)
+    {
         uint256 assets1 = _vault1.redeem(shares, address(this), _owner);
         uint256 assets0 = _vault0.convertToAssets(assets1);
         IERC20Burnable(address(_vault0)).burn(assets1);
@@ -322,6 +332,7 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
 
     function _createRedeemOrder(address caller, address receiver, address _owner, uint256 shares)
         internal
+        virtual
         returns (uint256)
     {
         uint256 orderId = _orderCount;
@@ -347,6 +358,10 @@ contract PSM is AccessControlDefaultAdminRulesUpgradeable, ReentrancyGuardUpgrad
         Order storage order = _orders[orderId];
         if (order.status != OrderStatus.Pending) {
             revert OrderNotPending(orderId);
+        }
+        // The order owner must still hold USER_ROLE at fill.
+        if (!hasRole(USER_ROLE, order.owner)) {
+            revert OrderOwnerNotUser(orderId, order.owner);
         }
 
         order.status = OrderStatus.Filled;

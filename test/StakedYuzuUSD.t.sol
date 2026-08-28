@@ -609,7 +609,7 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
         address spender = user2;
         uint256 value = 123e18;
         uint256 deadline = block.timestamp + 1 hours;
-        uint256 nonce = styz.nonces(owner);
+        uint256 nonce = styz.nonces(_owner);
 
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", styz.DOMAIN_SEPARATOR(), structHash));
@@ -643,11 +643,11 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
 
     function test_Permit_Revert_ExpiredSignature() public {
         address _owner = user1;
-        uint256 ownerPrivateKey = user2key;
+        uint256 ownerPrivateKey = user1key;
         address spender = user2;
         uint256 value = 123e18;
         uint256 deadline = block.timestamp - 1;
-        uint256 nonce = styz.nonces(owner);
+        uint256 nonce = styz.nonces(_owner);
 
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, _owner, spender, value, nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", styz.DOMAIN_SEPARATOR(), structHash));
@@ -730,7 +730,6 @@ contract StakedYuzuUSDTest is IStakedYuzuUSDDefinitions, Test {
     }
 
     function test_TerminateDistribution() public {
-        // uint256 initialTime = block.timestamp;
         // uint32 cast prevents unexpected compiler behavior
         uint256 initialTime = uint256(uint32(block.timestamp));
 
@@ -989,5 +988,11 @@ contract StakedYuzuUSDInvariantTest is Test {
         }
 
         assertEq(totalPendingOrderValue, _totalPendingOrderValue, "! totalPendingOrderValue == _totalPendingOrderValue");
+    }
+
+    /// @dev A share is always worth at least one asset (totalSupply <= totalAssets), so converting
+    /// assets to shares yields no more than the input amount and cannot overflow.
+    function invariantTest_TotalSupply_Le_TotalAssets() public view {
+        assertLe(styz.totalSupply(), styz.totalAssets(), "! totalSupply <= totalAssets");
     }
 }

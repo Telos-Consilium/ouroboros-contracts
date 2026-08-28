@@ -15,49 +15,55 @@ import {IYuzuILPV2Definitions} from "./interfaces/IYuzuILPDefinitions.sol";
  * @notice YuzuILP with progressive distributions and forced cancellations
  */
 contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
+    // The V3 facet writes these fields through raw storage slots, which slither cannot see
+    // slither-disable-next-line uninitialized-state
     bool public isUpdatingPool;
 
+    // slither-disable-next-line uninitialized-state
     uint256 public lastDistributedAmount;
+    // slither-disable-next-line uninitialized-state
     uint256 public lastDistributionPeriod;
+    // slither-disable-next-line uninitialized-state
     uint256 public lastDistributionTimestamp;
 
+    // slither-disable-next-line uninitialized-state
     uint256 internal _fullyDistributedSinceUpdate;
     uint256 internal _redeemedDistributionsSinceUpdate;
 
     /// @notice Reinitializes the contract for V2 upgrade
     // slither-disable-next-line pess-unprotected-initialize
-    function reinitialize() external reinitializer(2) {
+    function reinitialize() external virtual reinitializer(2) {
         __YuzuProtoV2_init_unchained();
         __EIP712_init(name(), "2");
     }
 
     /// @inheritdoc YuzuILP
-    function totalAssets() public view override(YuzuILP, YuzuIssuer) returns (uint256) {
+    function totalAssets() public view virtual override(YuzuILP, YuzuIssuer) returns (uint256) {
         return YuzuILP.totalAssets();
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxDeposit(address receiver) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+    function maxDeposit(address receiver) public view virtual override(YuzuILP, YuzuProtoV2) returns (uint256) {
         return YuzuILP.maxDeposit(receiver);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxMint(address receiver) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+    function maxMint(address receiver) public view virtual override(YuzuProto, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxMint(receiver);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxWithdraw(address _owner) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+    function maxWithdraw(address _owner) public view virtual override(YuzuILP, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxWithdraw(_owner);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxRedeem(address _owner) public view override(YuzuILP, YuzuProtoV2) returns (uint256) {
+    function maxRedeem(address _owner) public view virtual override(YuzuILP, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxRedeem(_owner);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function maxRedeemOrder(address _owner) public view override(YuzuProto, YuzuProtoV2) returns (uint256) {
+    function maxRedeemOrder(address _owner) public view virtual override(YuzuProto, YuzuProtoV2) returns (uint256) {
         return YuzuProtoV2.maxRedeemOrder(_owner);
     }
 
@@ -67,17 +73,18 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     }
 
     /// @inheritdoc YuzuProtoV2
-    function canMint(address _owner) public view override returns (bool) {
+    function canMint(address _owner) public view virtual override returns (bool) {
         return !isUpdatingPool && super.canMint(_owner);
     }
 
     /// @inheritdoc YuzuProtoV2
-    function canRedeem(address _owner) public view override returns (bool) {
+    function canRedeem(address _owner) public view virtual override returns (bool) {
         return false;
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
         internal
+        virtual
         override(YuzuILP, YuzuIssuer)
     {
         YuzuILP._deposit(caller, receiver, assets, shares);
@@ -85,16 +92,17 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
 
     function _withdraw(address caller, address receiver, address _owner, uint256 assets, uint256 shares, uint256 fee)
         internal
+        virtual
         override(YuzuILP, YuzuProtoV2)
     {
         YuzuILP._withdraw(caller, receiver, _owner, assets, shares, fee);
     }
 
-    function startPoolUpdate() external onlyRole(POOL_MANAGER_ROLE) {
+    function startPoolUpdate() external virtual onlyRole(POOL_MANAGER_ROLE) {
         isUpdatingPool = true;
     }
 
-    function endPoolUpdate() external onlyRole(POOL_MANAGER_ROLE) {
+    function endPoolUpdate() external virtual onlyRole(POOL_MANAGER_ROLE) {
         isUpdatingPool = false;
     }
 
@@ -136,7 +144,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     }
 
     /// @notice Initiate a gradual increase in total assets
-    function distribute(uint256 assets, uint256 period) external onlyRole(POOL_MANAGER_ROLE) {
+    function distribute(uint256 assets, uint256 period) public virtual onlyRole(POOL_MANAGER_ROLE) {
         if (period < 1) {
             revert DistributionPeriodTooLow(period, 1);
         }
@@ -159,7 +167,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     }
 
     /// @notice Terminate an in-progress distribution
-    function terminateDistribution() external onlyRole(POOL_MANAGER_ROLE) {
+    function terminateDistribution() external virtual onlyRole(POOL_MANAGER_ROLE) {
         uint256 elapsedTime = block.timestamp - lastDistributionTimestamp;
         if (lastDistributionTimestamp == 0 || elapsedTime >= lastDistributionPeriod) {
             revert NoDistributionInProgress();
@@ -179,7 +187,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
         return distributedSinceUpdate() - _redeemedDistributionsSinceUpdate;
     }
 
-    function _totalAssets(Math.Rounding rounding) internal view override returns (uint256) {
+    function _totalAssets(Math.Rounding rounding) internal view virtual override returns (uint256) {
         return super._totalAssets(rounding) + _fullyDistributedSinceUpdate + _distributedAssets(rounding)
             - _redeemedDistributionsSinceUpdate;
     }
@@ -204,6 +212,7 @@ contract YuzuILPV2 is YuzuILP, YuzuProtoV2, IYuzuILPV2Definitions {
     /// @notice Override to avoid double-counting distributed assets when decreasing poolSize
     function _fillRedeemOrder(address caller, Order storage order, uint256 assets, uint256 fee)
         internal
+        virtual
         override(YuzuILP, YuzuOrderBook)
     {
         uint256 totalAssetsFromPool = super._totalAssets(Math.Rounding.Floor);

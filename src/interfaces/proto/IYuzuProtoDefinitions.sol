@@ -18,3 +18,21 @@ interface IYuzuProtoDefinitions {
 interface IYuzuProtoV2Definitions {
     error ExceededMaxBurn(address owner, uint256 tokens, uint256 max);
 }
+
+interface IYuzuMinAmountsDefinitions {
+    error UnderMinDeposit(uint256 assets, uint256 min);
+    error UnderMinWithdraw(uint256 assets, uint256 min);
+
+    event UpdatedMinDeposit(uint256 oldMin, uint256 newMin);
+    event UpdatedMinWithdraw(uint256 oldMin, uint256 newMin);
+}
+
+interface IYuzuNavMarkdownDefinitions {
+    error InvalidNav(uint256 nav);
+    error NoNavUpdateInProgress();
+    error NavStepTooHigh(uint256 requestedNav, uint256 currentNav, uint256 maxDelta);
+    error NavCooldownActive(uint256 nowTimestamp, uint256 readyTimestamp);
+
+    event UpdatedNav(uint256 oldNav, uint256 newNav);
+    event NavUpdateInProgressSet(bool inProgress);
+}

@@ -40,7 +40,10 @@ abstract contract YuzuProto is
 
     uint8 private _underlyingDecimals;
 
+    // The V3 facet writes these fields through raw storage slots, which slither cannot see
+    // slither-disable-next-line uninitialized-state
     uint256 public redeemFeePpm;
+    // slither-disable-next-line uninitialized-state
     uint256 public redeemOrderFeePpm;
     address public feeReceiver;
     bool public isMintRestricted;
@@ -210,7 +213,7 @@ abstract contract YuzuProto is
     }
 
     /// @inheritdoc YuzuOrderBook
-    function previewRedeemOrder(uint256 tokens) public view override returns (uint256) {
+    function previewRedeemOrder(uint256 tokens) public view virtual override returns (uint256) {
         (uint256 assets,) = _previewRedeemOrder(tokens, redeemOrderFeePpm);
         return assets;
     }
@@ -218,6 +221,7 @@ abstract contract YuzuProto is
     /// @notice Create a redeem order and revert if the fee exceeds the maximum fee
     function createRedeemOrderWithMaxFee(uint256 tokens, address receiver, address _owner, uint256 maxFeePpm)
         external
+        virtual
         returns (uint256)
     {
         if (redeemOrderFeePpm > maxFeePpm) {
@@ -237,7 +241,7 @@ abstract contract YuzuProto is
     }
 
     /// @notice Rescue tokens from the contract
-    function rescueTokens(address token, address to, uint256 amount) external onlyRole(ADMIN_ROLE) {
+    function rescueTokens(address token, address to, uint256 amount) external virtual onlyRole(ADMIN_ROLE) {
         if (token == address(this)) {
             uint256 outstandingBalance = balanceOf(address(this)) - totalPendingOrderSize();
             if (amount > outstandingBalance) {
@@ -249,7 +253,7 @@ abstract contract YuzuProto is
         SafeERC20.safeTransfer(IERC20(token), to, amount);
     }
 
-    function setTreasury(address newTreasury) external onlyRole(ADMIN_ROLE) {
+    function setTreasury(address newTreasury) external virtual onlyRole(ADMIN_ROLE) {
         if (newTreasury == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -258,7 +262,7 @@ abstract contract YuzuProto is
         emit UpdatedTreasury(oldTreasury, newTreasury);
     }
 
-    function setRedeemFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemFee(uint256 newFeePpm) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
@@ -267,7 +271,7 @@ abstract contract YuzuProto is
         emit UpdatedRedeemFee(oldFee, newFeePpm);
     }
 
-    function setRedeemOrderFee(uint256 newFeePpm) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setRedeemOrderFee(uint256 newFeePpm) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         if (newFeePpm > 1e6) {
             revert FeeTooHigh(newFeePpm, 1e6);
         }
@@ -276,7 +280,7 @@ abstract contract YuzuProto is
         emit UpdatedRedeemOrderFee(oldFee, newFeePpm);
     }
 
-    function setFeeReceiver(address newFeeReceiver) external onlyRole(ADMIN_ROLE) {
+    function setFeeReceiver(address newFeeReceiver) external virtual onlyRole(ADMIN_ROLE) {
         if (newFeeReceiver == address(0)) {
             revert InvalidZeroAddress();
         }
@@ -295,33 +299,29 @@ abstract contract YuzuProto is
         _unpause();
     }
 
-    // slither-disable-next-line pess-strange-setter
-    function setSupplyCap(uint256 newCap) external onlyRole(LIMIT_MANAGER_ROLE) {
+    function setSupplyCap(uint256 newCap) external virtual onlyRole(LIMIT_MANAGER_ROLE) {
         _setSupplyCap(newCap);
     }
 
-    // slither-disable-next-line pess-strange-setter
-    function setLiquidityBufferTargetSize(uint256 newSize) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setLiquidityBufferTargetSize(uint256 newSize) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setLiquidityBufferTargetSize(newSize);
     }
 
-    // slither-disable-next-line pess-strange-setter
-    function setFillWindow(uint256 newWindow) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setFillWindow(uint256 newWindow) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setFillWindow(newWindow);
     }
 
-    // slither-disable-next-line pess-strange-setter
-    function setMinRedeemOrder(uint256 newMin) external onlyRole(REDEEM_MANAGER_ROLE) {
+    function setMinRedeemOrder(uint256 newMin) external virtual onlyRole(REDEEM_MANAGER_ROLE) {
         _setMinRedeemOrder(newMin);
     }
 
-    function setIsMintRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+    function setIsMintRestricted(bool restricted) external virtual onlyRole(ADMIN_ROLE) {
         bool oldValue = isMintRestricted;
         isMintRestricted = restricted;
         emit UpdatedIsMintRestricted(oldValue, restricted);
     }
 
-    function setIsRedeemRestricted(bool restricted) external onlyRole(ADMIN_ROLE) {
+    function setIsRedeemRestricted(bool restricted) external virtual onlyRole(ADMIN_ROLE) {
         bool oldValue = isRedeemRestricted;
         isRedeemRestricted = restricted;
         emit UpdatedIsRedeemRestricted(oldValue, restricted);

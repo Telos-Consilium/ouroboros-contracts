@@ -31,6 +31,17 @@ import {StakedYuzuUSDV2} from "../src/StakedYuzuUSDV2.sol";
 import {YuzuUSD} from "../src/YuzuUSD.sol";
 import {YuzuUSDV2} from "../src/YuzuUSDV2.sol";
 import {PSM} from "../src/PSM.sol";
+import {
+    ADMIN_ROLE,
+    BURNER_ROLE,
+    LIQUIDITY_MANAGER_ROLE,
+    MINTER_ROLE,
+    ORDER_FILLER_ROLE,
+    REDEEMER_ROLE,
+    REDEEM_MANAGER_ROLE,
+    RESTRICTION_MANAGER_ROLE,
+    USER_ROLE
+} from "./helpers/TestRoles.sol";
 
 contract USDCMock is ERC20Mock {
     function decimals() public view virtual override returns (uint8) {
@@ -56,19 +67,6 @@ contract PSMTest is IPSMDefinitions, Test {
     address public user1;
     address public user2;
 
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-    bytes32 internal constant LIQUIDITY_MANAGER_ROLE = keccak256("LIQUIDITY_MANAGER_ROLE");
-    bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
-    bytes32 internal constant BURNER_ROLE = keccak256("BURNER_ROLE");
-
-    bytes32 internal constant USER_ROLE = keccak256("USER_ROLE");
-
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-
-    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
-    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
     function setUp() public virtual {
         admin = makeAddr("admin");
         treasury = makeAddr("treasury");
@@ -76,6 +74,7 @@ contract PSMTest is IPSMDefinitions, Test {
         orderFiller = makeAddr("orderFiller");
         liquidityManager = makeAddr("liquidityManager");
         restrictionManager = makeAddr("restrictionManager");
+        redeemManager = makeAddr("redeemManager");
 
         Vm.Wallet memory user1Wallet = vm.createWallet("user1");
         user1 = user1Wallet.addr;
@@ -363,6 +362,24 @@ contract PSMTest is IPSMDefinitions, Test {
         psm.createRedeemOrder(shares1, address(0), user1);
     }
 
+    // A zero-share order once slipped past the zero-floor checks, recording a pending order for a non-USER_ROLE owner.
+    function test_CreateRedeemOrder_Revert_ZeroShares_Unauthorized() public {
+        address unauthorized = makeAddr("unauthorizedOrderer");
+        address receiver = makeAddr("orderReceiver");
+
+        assertEq(psm.maxRedeemOrder(unauthorized), 0, "unauthorized owner has order capacity");
+
+        vm.prank(unauthorized);
+        vm.expectRevert(InvalidZeroShares.selector);
+        psm.createRedeemOrder(0, receiver, unauthorized);
+    }
+
+    function test_CreateRedeemOrder_Revert_ZeroShares() public {
+        vm.prank(user1);
+        vm.expectRevert(InvalidZeroShares.selector);
+        psm.createRedeemOrder(0, user1, user1);
+    }
+
     function test_CreateRedeemOrder_Revert_UnderMinRedeemOrder() public {
         uint256 assets = 10e6;
         uint256 minOrder = 5e18;
@@ -400,6 +417,57 @@ contract PSMTest is IPSMDefinitions, Test {
         assertEq(uint256(order.status), uint256(OrderStatus.Filled));
         assertEq(psm.pendingOrderCount(), 0);
         assertEq(asset.balanceOf(user1), balanceBefore + expectedAssets);
+    }
+
+    // A revoked owner's pending order cannot be filled.
+    function test_FillRedeemOrders_Revert_OwnerRoleRevoked() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+        _approveStaked(user1, address(psm), shares1);
+
+        vm.prank(user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
+
+        _depositLiquidity(expectedAssets);
+
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderOwnerNotUser.selector, orderId, user1));
+        psm.fillRedeemOrders(expectedAssets, _asArray(orderId));
+    }
+
+    // After a revoked owner's fill reverts, a filler cancels the still-pending order and the escrowed shares return.
+    function test_FillRedeemOrders_RevokedOwner_Cancel_ReturnsShares() public {
+        uint256 shares1 = 1e18;
+        uint256 expectedAssets = 1e6;
+
+        vm.prank(user1);
+        psm.deposit(expectedAssets, user1);
+        _approveStaked(user1, address(psm), shares1);
+        uint256 stakedBefore = styz.balanceOf(user1);
+
+        vm.prank(user1);
+        uint256 orderId = psm.createRedeemOrder(shares1, user1, user1);
+
+        _depositLiquidity(expectedAssets);
+
+        vm.prank(restrictionManager);
+        psm.revokeRole(USER_ROLE, user1);
+
+        vm.prank(orderFiller);
+        vm.expectRevert(abi.encodeWithSelector(OrderOwnerNotUser.selector, orderId, user1));
+        psm.fillRedeemOrders(expectedAssets, _asArray(orderId));
+        assertEq(uint256(psm.getRedeemOrder(orderId).status), uint256(OrderStatus.Pending));
+
+        vm.prank(orderFiller);
+        psm.cancelRedeemOrders(_asArray(orderId));
+        assertEq(uint256(psm.getRedeemOrder(orderId).status), uint256(OrderStatus.Cancelled));
+        assertEq(styz.balanceOf(user1), stakedBefore);
     }
 
     function test_FillRedeemOrders_Revert_OrderNotPending() public {

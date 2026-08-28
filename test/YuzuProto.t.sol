@@ -27,6 +27,16 @@ import {IYuzuOrderBookDefinitions, Order, OrderStatus} from "../src/interfaces/p
 
 import {YuzuProto} from "../src/proto/YuzuProto.sol";
 import {YuzuILP} from "../src/YuzuILP.sol";
+import {
+    ADMIN_ROLE,
+    LIMIT_MANAGER_ROLE,
+    MINTER_ROLE,
+    ORDER_FILLER_ROLE,
+    PAUSE_MANAGER_ROLE,
+    REDEEMER_ROLE,
+    REDEEM_MANAGER_ROLE,
+    RESTRICTION_MANAGER_ROLE
+} from "./helpers/TestRoles.sol";
 
 contract USDCMock is ERC20Mock {
     function decimals() public view virtual override returns (uint8) {
@@ -50,16 +60,6 @@ abstract contract YuzuProtoTest is Test, IYuzuIssuerDefinitions, IYuzuOrderBookD
 
     uint256 public user1key;
     uint256 public user2key;
-
-    bytes32 internal constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 internal constant PAUSE_MANAGER_ROLE = keccak256("PAUSE_MANAGER_ROLE");
-    bytes32 internal constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 internal constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 internal constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
-
-    bytes32 internal constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
-    bytes32 internal constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 internal constant REDEEMER_ROLE = keccak256("REDEEMER_ROLE");
 
     bytes32 internal constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
@@ -460,11 +460,10 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
     }
 
     function test_Initialize_Revert_AlreadyInitialized() public {
-        vm.mockCallRevert(
-            address(proto),
-            _packInitData(address(asset), admin, treasury, feeReceiver),
-            abi.encodeWithSelector(Initializable.InvalidInitialization.selector)
-        );
+        bytes memory initData = _packInitData(address(asset), admin, treasury, feeReceiver);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        (bool success,) = address(proto).call(initData);
+        assertTrue(success);
     }
 
     // Deposit
@@ -584,7 +583,7 @@ abstract contract YuzuProtoTest_Common is YuzuProtoTest {
 
     function test_Permit_Revert_ExpiredSignature() public {
         address owner = user1;
-        uint256 ownerPrivateKey = user2key;
+        uint256 ownerPrivateKey = user1key;
         address spender = user2;
         uint256 value = 123e18;
         uint256 deadline = block.timestamp - 1;
@@ -961,7 +960,7 @@ abstract contract YuzuProtoTest_Issuer is YuzuProtoTest {
         _withdrawAndAssert(user1, 100e6, user2, user1);
     }
 
-    function test_Withdraw_Revert_NotMinter() public {
+    function test_Withdraw_Revert_NotRedeemer() public {
         vm.prank(admin);
         proto.setIsRedeemRestricted(true);
         _depositAndMint(user1, 100e6, 100e6);
@@ -1752,12 +1751,6 @@ abstract contract YuzuProtoInvariantTest is Test {
     YuzuProto public proto;
     YuzuProtoHandler public handler;
     ERC20Mock public asset;
-
-    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 private constant RESTRICTION_MANAGER_ROLE = keccak256("RESTRICTION_MANAGER_ROLE");
-    bytes32 private constant LIMIT_MANAGER_ROLE = keccak256("LIMIT_MANAGER_ROLE");
-    bytes32 private constant REDEEM_MANAGER_ROLE = keccak256("REDEEM_MANAGER_ROLE");
-    bytes32 private constant ORDER_FILLER_ROLE = keccak256("ORDER_FILLER_ROLE");
 
     address public admin;
     address public _treasury;

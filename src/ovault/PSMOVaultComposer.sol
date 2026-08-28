@@ -11,7 +11,7 @@ import {ProtoOVaultComposer} from "./ProtoOVaultComposer.sol";
 
 /**
  * @title PSMOVaultComposer
- * @notice Cross-chain vault composer enabling omnichain PSM operations via LayerZero
+ * @notice DEPRECATED LayerZero composer for omnichain PSM operations.
  */
 contract PSMOVaultComposer is ProtoOVaultComposer {
     using SafeERC20 for IERC20;
@@ -43,6 +43,8 @@ contract PSMOVaultComposer is ProtoOVaultComposer {
      * @dev requirement Share token must match VAULT.vault1()
      * @dev requirement Share OFT must be an adapter (approvalRequired() returns true)
      */
+    // Internal constructor-time hook, not an initializer; the detector matches by name
+    // slither-disable-next-line pess-unprotected-initialize
     function _initializeShareToken() internal virtual override returns (address shareERC20) {
         shareERC20 = IOFT(SHARE_OFT).token();
 
@@ -53,6 +55,7 @@ contract PSMOVaultComposer is ProtoOVaultComposer {
 
         if (!IOFT(SHARE_OFT).approvalRequired()) revert ShareOFTNotAdapter(SHARE_OFT);
 
+        IERC20(shareERC20).forceApprove(address(VAULT), type(uint256).max);
         IERC20(shareERC20).forceApprove(SHARE_OFT, type(uint256).max);
     }
 }

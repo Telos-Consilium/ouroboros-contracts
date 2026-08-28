@@ -5,6 +5,7 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {Order} from "./IPSMDefinitions.sol";
+import {Throttle} from "./proto/IYuzuThrottleDefinitions.sol";
 
 interface IPSM {
     function initialize(IERC20 __asset, IERC4626 __vault0, IERC4626 __vault1, address _admin, uint256 _minRedeemOrder)
@@ -18,6 +19,7 @@ interface IPSM {
     function getRedeemOrder(uint256 orderId) external view returns (Order memory);
     function pendingOrderCount() external view returns (uint256);
     function getPendingOrderIds(uint256 start, uint256 end) external view returns (uint256[] memory);
+    function minRedeemOrder() external view returns (uint256);
 
     function liquidity() external view returns (uint256);
     function maxDeposit(address receiver) external view returns (uint256);
@@ -33,8 +35,24 @@ interface IPSM {
         external
         returns (uint256);
     function createRedeemOrder(uint256 shares, address receiver, address owner) external returns (uint256);
+    function setMinRedeemOrder(uint256 newMin) external;
     function fillRedeemOrders(uint256 assets, uint256[] calldata orderIds) external;
     function cancelRedeemOrders(uint256[] calldata orderIds) external;
     function depositLiquidity(uint256 assets) external;
     function withdrawLiquidity(uint256 assets, address receiver) external;
+}
+
+interface IPSMV2 is IPSM {
+    function reinitialize() external;
+
+    function setMintThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external;
+    function setRedeemThrottle(uint256 newBlockLimit, uint256 newDailyLimit) external;
+    function setMinDeposit(uint256 newMin) external;
+    function setMinWithdraw(uint256 newMin) external;
+
+    function minDeposit() external view returns (uint256);
+    function minWithdraw() external view returns (uint256);
+
+    function getMintThrottle() external view returns (Throttle memory);
+    function getRedeemThrottle() external view returns (Throttle memory);
 }
